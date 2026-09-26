@@ -1,134 +1,405 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#102e4d"><title>Garant — Карта продаж</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>
-:root{font-family:system-ui,-apple-system,sans-serif;color:#142a3e;background:#f3f6fa}*{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button{cursor:pointer;border:0;border-radius:10px;padding:11px 15px;font-weight:650}input,select,textarea{width:100%;border:1px solid #cad5df;border-radius:9px;padding:10px;background:white;margin:5px 0 12px}label{font-size:13px;font-weight:600}.primary{background:#0876ed;color:#fff}.light{background:#e8f1ff;color:#135bac}.top{background:#102e4d;color:white;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px}.top b{font-size:22px}.top small{font-size:13px}.top button{background:#ffffff24;color:white}.shell{max-width:1440px;margin:auto;padding:12px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}.stat,.side,.mapbox{background:white;border:1px solid #e0e8ef;border-radius:14px;padding:13px}.stat strong{font-size:24px;display:block}.stat span{font-size:12px;color:#66788b}.layout{display:grid;grid-template-columns:270px 1fr;gap:10px}.side h3{margin:0 0 10px}.side button{width:100%}#map{height:calc(100vh - 205px);min-height:480px;border-radius:10px}.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;margin-top:10px}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}.modal{position:fixed;inset:0;background:#0a1c2ca8;z-index:3000;display:none;align-items:center;justify-content:center;padding:12px}.modal.open{display:flex}.sheet{width:min(520px,100%);background:white;padding:18px;border-radius:16px;max-height:90vh;overflow:auto}.head{display:flex;justify-content:space-between;align-items:start}.head h2{margin:0 0 12px}.close{background:#eef1f4;padding:7px 11px}.actions{display:flex;gap:8px;margin-top:13px}.actions button{flex:1}.history{background:#f4f7fa;border-radius:9px;padding:10px;margin:8px 0;font-size:13px}.muted{color:#73818d;font-size:12px}.hidden{display:none!important}.notice{padding:12px;background:#fff8e3;border-radius:10px;margin-bottom:10px}#auth{max-width:440px;margin:9vh auto;background:white;border:1px solid #e1e8ef;padding:24px;border-radius:16px}#auth h1{margin-top:0}#auth button{width:100%}#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#183248;color:#fff;padding:12px 16px;border-radius:10px;display:none;z-index:4000}.fab{position:fixed;bottom:25px;right:25px;background:#0876ed;color:white;font-size:28px;border-radius:50%;height:58px;width:58px;box-shadow:0 4px 15px #0004;z-index:900}.mobile-nav{display:none}@media(max-width:780px){.stats{grid-template-columns:repeat(2,1fr)}.layout{display:block}.side{display:none}.shell{padding:7px}.mapbox{padding:6px}#map{height:calc(100vh - 230px);min-height:430px}.fab{bottom:75px}.mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;height:60px;background:white;z-index:950;align-items:center;justify-content:space-around;border-top:1px solid #dce5ec}.mobile-nav button{background:none;color:#2561a5;font-size:12px}.modal{align-items:flex-end;padding:0}.sheet{border-radius:16px 16px 0 0;width:100%}.top b{font-size:19px}}
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#102e4d">
+<title>GARANT — Система управления продажами</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#f3f6fa;--card:#fff;--line:#dfe8ef;--ink:#142a3e;--muted:#6d7d8d;--nav:#102e4d;--blue:#0876ed;--ok:#17a34a;--warn:#d99b00;--bad:#d63d3d}
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink)}
+button,input,select,textarea{font:inherit} button{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;font-weight:650}
+input,select,textarea{width:100%;border:1px solid #cad5df;border-radius:9px;padding:9px;background:#fff;margin:4px 0 10px}
+label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff} .light{background:#e8f1ff;color:#135bac} .danger{background:#fee8e8;color:#a51f1f}
+.hidden{display:none!important} .muted{color:var(--muted);font-size:12px} .nowrap{white-space:nowrap}
+#auth{max-width:440px;margin:8vh auto;background:#fff;border:1px solid var(--line);padding:24px;border-radius:16px}
+#auth h1{margin:0 0 8px} #auth button{width:100%}
+.top{background:var(--nav);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:1200}
+.brand b{font-size:21px} .brand small{opacity:.8;margin-left:5px} .who{display:flex;align-items:center;gap:8px} .who button{background:#ffffff20;color:#fff}
+.app{max-width:1600px;margin:auto} .tabs{display:flex;gap:6px;overflow:auto;padding:10px;background:#eef3f8;position:sticky;top:54px;z-index:1100;border-bottom:1px solid var(--line)}
+.tabs button{background:#fff;color:#27445e;border:1px solid var(--line);white-space:nowrap;padding:8px 11px} .tabs button.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.page{padding:12px} .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px} .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px} .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px} .card h2,.card h3{margin:0 0 10px} .stat strong{font-size:25px;display:block} .stat span{font-size:12px;color:var(--muted)}
+.toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:10px} .toolbar>div{min-width:160px;flex:1} .toolbar button{margin-bottom:10px}
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff} table{width:100%;border-collapse:collapse;min-width:760px} th,td{padding:9px 10px;border-bottom:1px solid #edf1f5;text-align:left;font-size:13px;vertical-align:top} th{background:#f7f9fb;position:sticky;top:0} tr:hover td{background:#fbfdff}
+.badge{display:inline-block;border-radius:999px;padding:4px 8px;background:#edf3f7;font-size:11px;font-weight:700} .badge.ok{background:#e5f7ec;color:#16723a} .badge.warn{background:#fff3d2;color:#8d6500} .badge.bad{background:#fee6e6;color:#a32626}
+#map{height:calc(100vh - 190px);min-height:520px;border-radius:12px} .mapLayout{display:grid;grid-template-columns:290px 1fr;gap:10px} .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;margin-top:8px} .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:4px}
+.modal{position:fixed;inset:0;background:#0a1c2ca8;z-index:3000;display:none;align-items:center;justify-content:center;padding:12px} .modal.open{display:flex}
+.sheet{width:min(650px,100%);background:#fff;border-radius:16px;padding:18px;max-height:92vh;overflow:auto} .sheet.wide{width:min(980px,100%)} .head{display:flex;justify-content:space-between;align-items:start;gap:10px} .head h2{margin:0 0 12px} .close{background:#eef1f4;padding:7px 11px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px} .row3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px} .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px} .actions button{flex:1}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#183248;color:#fff;padding:12px 16px;border-radius:10px;display:none;z-index:5000;max-width:90vw}
+.photo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px} .photo-grid img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px}
+.low{background:#fff3d2} .negative{color:#a32626;font-weight:700} .right{text-align:right}
+.mobile-nav{display:none}
+@media(max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}.grid3,.grid2{grid-template-columns:1fr}.mapLayout{display:block}.mapLayout>.card:first-child{margin-bottom:8px}#map{height:60vh;min-height:420px}.row,.row3{grid-template-columns:1fr}.tabs{top:51px}}
+@media(max-width:620px){.page{padding:7px}.top{padding:10px}.brand small{display:none}.grid4{grid-template-columns:1fr 1fr}.tabs{padding:7px}.tabs button{font-size:12px}.sheet{border-radius:16px 16px 0 0;width:100%}.modal{align-items:flex-end;padding:0}}
+</style>
+</head>
+<body>
+<div id="auth">
+  <h1>GARANT</h1><p>Система управления продажами</p>
+  <label>Рабочая почта</label><input id="email" type="email" autocomplete="username" placeholder="имя@компания.es">
+  <label>Пароль</label><input id="password" type="password" autocomplete="current-password">
+  <button id="login" class="primary">Войти</button>
+  <button id="recover" type="button" class="light" style="margin-top:8px">Восстановить пароль</button>
+  <p id="authMsg" class="muted">Введите рабочую почту и пароль, созданные для GARANT в Supabase.</p>
+</div>
 
-.shop-photo-picker{border:1px solid #dce5ec;border-radius:10px;padding:10px;margin:10px 0;background:#f8fbff}
-.shop-photo-picker input[type=file]{font-size:14px;margin:8px 0;max-width:100%}
-.shop-photo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
-.shop-photo-grid img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px;border:1px solid #dce5ec}
-.shop-photo-grid a{display:block}
-.photo-result{font-size:13px;white-space:pre-wrap;color:#40556c;margin:6px 0}
-</style></head><body>
-<div id="auth"><h1>Garant <small>Карта продаж</small></h1><p>Вход для сотрудников и руководителя</p><label>Рабочая почта</label><input id="email" type="email" autocomplete="username" placeholder="имя@компания.es"><label>Пароль</label><input id="password" type="password" autocomplete="current-password"><button id="login" class="primary">Войти</button><button id="recover" type="button" class="light" style="margin-top:8px">Восстановить пароль</button><p id="authMsg" class="muted" role="status" aria-live="polite">Введите рабочую почту и пароль, созданные для Garant в Supabase.</p></div>
-<div id="app" class="hidden"><div class="top"><div><b>GARANT</b> <small>Карта продаж</small></div><div><span id="who"></span> <button id="signout">Выйти</button></div></div><div class="shell"><div class="stats"><div class="stat"><strong id="countAll">0</strong><span>Всего магазинов</span></div><div class="stat"><strong id="countClient">0</strong><span>Клиенты Garant</span></div><div class="stat"><strong id="countInterest">0</strong><span>Заинтересованы</span></div><div class="stat"><strong id="countVisit">0</strong><span>Визиты сегодня</span></div></div><div class="layout"><aside class="side"><h3>Фильтры</h3><label>Название магазина</label><input id="search" placeholder="Поиск магазина"><label>Город</label><select id="city"><option value="">Все города</option></select><label>Статус</label><select id="status"><option value="">Все статусы</option></select><label id="agentLabel">Агент</label><select id="agent"><option value="">Все агенты</option></select><button class="light" id="reset">Сбросить</button><p class="muted">Все изменения сохраняются в общей базе.</p></aside><main class="mapbox"><div id="map"></div><div class="legend" id="legend"></div></main></div></div><button id="add" class="fab" aria-label="Добавить магазин">+</button><nav class="mobile-nav"><button id="near">📍<br>Рядом</button><button id="list">🏬<br>Магазины</button><button id="newMobile">➕<br>Новый магазин</button></nav></div>
-<div class="modal" id="shopModal"><div class="sheet"><div class="head"><div><h2 id="shopName"></h2><div class="muted" id="shopAddress"></div></div><button class="close">×</button></div><p id="shopStatus"></p><div id="shopInfo"></div><h3>📷 Фотографии магазина</h3><div id="shopPhotos" class="shop-photo-grid" aria-live="polite"></div><div class="shop-photo-picker"><label for="existingPhotos">Добавить фотографии при посещении</label><input id="existingPhotos" type="file" accept="image/*" multiple><p class="muted">На телефоне можно сделать фото камерой или выбрать снимки из галереи. До 8 МБ за фото.</p><button id="uploadExistingPhotos" type="button" class="light">📷 Загрузить фото</button><p id="existingPhotoResult" class="photo-result" role="status"></p></div><h3>История визитов</h3><div id="history"></div><div class="actions"><button class="primary" id="startVisit">Записать визит</button><button class="light" id="route">Маршрут</button></div></div></div>
-<div class="modal" id="newModal"><div class="sheet"><div class="head"><h2>Новый магазин</h2><button class="close">×</button></div><label>Название *</label><input id="newName"><label>Тип магазина</label><select id="newType"><option>Minimarket</option><option>Estanco</option><option>Supermercado</option><option>Gasolinera</option><option>Другое</option></select><label>Город</label><input id="newCity" value="Marbella"><label>Адрес</label><input id="newAddress"><label>Телефон</label><input id="newPhone" type="tel"><label>Комментарий</label><textarea id="newComment" rows="2"></textarea><div class="shop-photo-picker"><label for="newPhotos">📷 Фото нового магазина</label><input id="newPhotos" type="file" accept="image/*" multiple><p class="muted">Можно сфотографировать магазин на месте или выбрать фото из галереи. Фото загрузятся после сохранения магазина (до 8 МБ каждое).</p><p id="newPhotoResult" class="photo-result" role="status"></p></div><label>Статус</label><select id="newStatus"></select><button class="light" id="geoNew">📍 Моё местоположение (GPS)</button><button class="light" id="pickOnMap" type="button" style="margin:6px 0">🗺️ Выбрать место на карте</button><p id="newPosition" class="muted">Выберите метку нажатием на карту или определите своё местоположение по GPS.</p><button class="primary" id="saveNew">Добавить магазин</button></div></div>
-<div class="modal" id="visitModal"><div class="sheet"><div class="head"><h2>Новый визит</h2><button class="close">×</button></div><label>Результат визита</label><select id="visitStatus"></select><label>Комментарий</label><textarea id="visitComment" rows="4"></textarea><label>Следующий визит</label><input id="visitNext" type="date"><p class="muted">При сохранении запросим GPS и запишем время посещения. Если геопозиция недоступна, визит сохранится без координат.</p><button class="primary" id="saveVisit">Сохранить визит</button></div></div>
-<div class="modal" id="listModal"><div class="sheet"><div class="head"><h2>Магазины</h2><button class="close">×</button></div><div id="shopList"></div></div></div><div id="toast"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script type="module">
+<div id="mainApp" class="hidden">
+  <div class="top">
+    <div class="brand"><b>GARANT</b><small>Система управления продажами</small></div>
+    <div class="who"><span id="who"></span><button id="signout">Выйти</button></div>
+  </div>
+  <div class="app">
+    <div class="tabs" id="tabs">
+      <button data-page="dashboard" class="active">Главная</button>
+      <button data-page="map">Карта</button>
+      <button data-page="shops">Магазины</button>
+      <button data-page="orders">Заказы</button>
+      <button data-page="products">Товары</button>
+      <button data-page="stock">Склад</button>
+      <button data-page="employees">Сотрудники</button>
+      <button data-page="tasks">Задачи</button>
+      <button data-page="bonuses">Бонусы</button>
+      <button data-page="reports">Отчёты</button>
+    </div>
+
+    <section id="page-dashboard" class="page">
+      <div class="grid4">
+        <div class="card stat"><strong id="dShops">0</strong><span>Всего магазинов</span></div>
+        <div class="card stat"><strong id="dClients">0</strong><span>Активные клиенты</span></div>
+        <div class="card stat"><strong id="dOrders">0</strong><span>Заказы</span></div>
+        <div class="card stat"><strong id="dSales">0 €</strong><span>Оплаченные продажи</span></div>
+      </div>
+      <div class="grid3" style="margin-top:10px">
+        <div class="card"><h3>Сегодня</h3><p>Визитов: <b id="dVisits">0</b></p><p>Новых точек: <b id="dNewShops">0</b></p><p>Просроченных задач: <b id="dOverdue">0</b></p></div>
+        <div class="card"><h3>Склад</h3><p>SKU: <b id="dSku">0</b></p><p>Доступно единиц: <b id="dAvailable">0</b></p><p>Низкий остаток: <b id="dLow">0</b></p></div>
+        <div class="card"><h3>Быстрые действия</h3><div class="actions"><button class="primary" onclick="openNewShop()">+ Магазин</button><button class="light" onclick="showPage('orders');openNewOrder()">+ Заказ</button><button class="light" onclick="showPage('stock')">Склад</button></div></div>
+      </div>
+    </section>
+
+    <section id="page-map" class="page hidden">
+      <div class="mapLayout">
+        <div class="card">
+          <h3>Фильтры</h3>
+          <label>Название</label><input id="mapSearch" placeholder="Поиск магазина">
+          <label>Город</label><select id="mapCity"><option value="">Все города</option></select>
+          <label>Статус</label><select id="mapStatus"><option value="">Все статусы</option></select>
+          <label id="mapAgentLabel">Агент</label><select id="mapAgent"><option value="">Все агенты</option></select>
+          <button class="light" onclick="resetMapFilters()">Сбросить</button>
+          <button class="primary" style="width:100%;margin-top:8px" onclick="openNewShop()">+ Новый магазин</button>
+        </div>
+        <div class="card"><div id="map"></div><div id="legend" class="legend"></div></div>
+      </div>
+    </section>
+
+    <section id="page-shops" class="page hidden">
+      <div class="toolbar">
+        <div><label>Поиск</label><input id="shopSearch" placeholder="Название, адрес, телефон"></div>
+        <div><label>Статус</label><select id="shopStatusFilter"><option value="">Все</option></select></div>
+        <button class="primary" onclick="openNewShop()">+ Добавить магазин</button>
+      </div>
+      <div id="shopsTable" class="tablewrap"></div>
+    </section>
+
+    <section id="page-orders" class="page hidden">
+      <div class="toolbar"><div><label>Статус</label><select id="orderStatusFilter"><option value="">Все</option></select></div><button class="primary" onclick="openNewOrder()">+ Новый заказ</button></div>
+      <div id="ordersTable" class="tablewrap"></div>
+    </section>
+
+    <section id="page-products" class="page hidden">
+      <div class="toolbar"><div><label>Поиск SKU / товар</label><input id="productSearch" placeholder="Например Mint"></div><button id="addProductBtn" class="primary" onclick="openProduct()">+ Товар</button></div>
+      <div id="productsTable" class="tablewrap"></div>
+    </section>
+
+    <section id="page-stock" class="page hidden">
+      <div class="grid4">
+        <div class="card stat"><strong id="sPhysical">0</strong><span>Физический остаток</span></div>
+        <div class="card stat"><strong id="sReserved">0</strong><span>В резерве</span></div>
+        <div class="card stat"><strong id="sAvailable">0</strong><span>Доступно</span></div>
+        <div class="card stat"><strong id="sTransit">0</strong><span>В пути</span></div>
+      </div>
+      <div class="toolbar" style="margin-top:10px">
+        <div><label>Склад</label><select id="stockWarehouse"><option value="">Все склады</option></select></div>
+        <div><label>Поиск</label><input id="stockSearch" placeholder="SKU / товар"></div>
+        <button id="addWarehouseBtn" class="light" onclick="openWarehouse()">+ Склад</button>
+        <button id="adjustStockBtn" class="primary" onclick="openStockMovement()">+ Движение</button>
+      </div>
+      <div id="stockTable" class="tablewrap"></div>
+      <div class="card" style="margin-top:10px"><h3>Последние движения</h3><div id="movementsTable" class="tablewrap"></div></div>
+    </section>
+
+    <section id="page-employees" class="page hidden">
+      <div class="toolbar"><div><label>Поиск</label><input id="employeeSearch" placeholder="Имя / роль"></div></div>
+      <div id="employeesTable" class="tablewrap"></div>
+    </section>
+
+    <section id="page-tasks" class="page hidden">
+      <div class="toolbar"><div><label>Статус</label><select id="taskStatusFilter"><option value="">Все</option><option value="planned">Запланирована</option><option value="done">Выполнена</option><option value="overdue">Просрочена</option><option value="cancelled">Отменена</option></select></div><button class="primary" onclick="openTask()">+ Задача</button></div>
+      <div id="tasksTable" class="tablewrap"></div>
+    </section>
+
+    <section id="page-bonuses" class="page hidden">
+      <div class="card"><h3>Правило расчёта</h3><p>Учитываются только <b>оплаченные заказы</b>. Базовый бонус за новый оплаченный магазин: <b id="bonusNewShop">30 €</b>. Процент от оплаченных продаж: <b id="bonusPct">0%</b>.</p></div>
+      <div id="bonusesTable" class="tablewrap" style="margin-top:10px"></div>
+    </section>
+
+    <section id="page-reports" class="page hidden">
+      <div class="toolbar"><div><label>Период от</label><input id="reportFrom" type="date"></div><div><label>до</label><input id="reportTo" type="date"></div><button class="light" onclick="renderReports()">Обновить</button><button class="primary" onclick="exportReportCSV()">Экспорт CSV</button></div>
+      <div class="grid3">
+        <div class="card"><h3>Продажи</h3><p>Оплачено: <b id="rPaid">0 €</b></p><p>Заказов: <b id="rOrders">0</b></p></div>
+        <div class="card"><h3>Магазины</h3><p>Новых: <b id="rNewShops">0</b></p><p>Активных: <b id="rActiveShops">0</b></p></div>
+        <div class="card"><h3>Работа агентов</h3><p>Визитов: <b id="rVisits">0</b></p><p>Средний заказ: <b id="rAvg">0 €</b></p></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Магазин -->
+<div class="modal" id="shopModal"><div class="sheet wide">
+  <div class="head"><div><h2 id="shopTitle">Магазин</h2><div id="shopAddr" class="muted"></div></div><button class="close">×</button></div>
+  <div id="shopDetail"></div>
+  <h3>История визитов</h3><div id="visitHistory"></div>
+  <div class="actions"><button class="primary" onclick="openVisit()">Записать визит</button><button class="light" onclick="openOrderForSelected()">Создать заказ</button><button class="light" id="routeBtn">Маршрут</button></div>
+</div></div>
+
+<div class="modal" id="newShopModal"><div class="sheet">
+  <div class="head"><h2>Новый магазин</h2><button class="close">×</button></div>
+  <div class="row"><div><label>Название *</label><input id="nsName"></div><div><label>Тип</label><select id="nsType"><option>Estanco</option><option>Gasolinera</option><option>Minimarket</option><option>Supermercado</option><option>Kiosco</option><option>Vape Shop</option><option>Bar</option><option>Restaurante</option><option>Tienda 24h</option><option>Другое</option></select></div></div>
+  <div class="row"><div><label>Город</label><input id="nsCity" value="Marbella"></div><div><label>Телефон</label><input id="nsPhone"></div></div>
+  <label>Адрес</label><input id="nsAddress">
+  <label>Комментарий</label><textarea id="nsComment"></textarea>
+  <label>Статус</label><select id="nsStatus"></select>
+  <div class="row"><button class="light" onclick="useMyLocation()">📍 Моё местоположение</button><button class="light" onclick="pickOnMap()">🗺️ Выбрать на карте</button></div>
+  <p id="nsPos" class="muted">Координаты не выбраны.</p>
+  <button class="primary" style="width:100%" onclick="saveNewShop()">Добавить магазин</button>
+</div></div>
+
+<div class="modal" id="visitModal"><div class="sheet">
+  <div class="head"><h2>Новый визит</h2><button class="close">×</button></div>
+  <label>Результат</label><select id="vStatus"></select>
+  <label>Комментарий</label><textarea id="vComment"></textarea>
+  <label>Следующий визит</label><input id="vNext" type="date">
+  <button class="primary" style="width:100%" onclick="saveVisit()">Сохранить визит</button>
+</div></div>
+
+<!-- Заказ -->
+<div class="modal" id="orderModal"><div class="sheet wide">
+  <div class="head"><h2>Новый заказ</h2><button class="close">×</button></div>
+  <div class="row3"><div><label>Магазин</label><select id="oShop"></select></div><div><label>Склад</label><select id="oWarehouse"></select></div><div><label>Статус</label><select id="oStatus"><option value="confirmed">Подтверждён</option><option value="draft">Черновик</option></select></div></div>
+  <div id="orderLines"></div>
+  <button class="light" onclick="addOrderLine()">+ Товар</button>
+  <label style="margin-top:10px;display:block">Комментарий</label><textarea id="oComment"></textarea>
+  <p class="right">Итого: <b id="oTotal">0.00 €</b></p>
+  <button class="primary" style="width:100%" onclick="saveOrder()">Сохранить заказ</button>
+</div></div>
+
+<div class="modal" id="productModal"><div class="sheet">
+  <div class="head"><h2>Товар</h2><button class="close">×</button></div>
+  <div class="row"><div><label>Название *</label><input id="pName"></div><div><label>SKU</label><input id="pSku"></div></div>
+  <div class="row"><div><label>Вкус</label><input id="pFlavor"></div><div><label>Категория</label><input id="pCategory"></div></div>
+  <div class="row"><div><label>Цена, €</label><input id="pPrice" type="number" step="0.01"></div><div><label>Мин. остаток</label><input id="pMin" type="number"></div></div>
+  <div class="row"><div><label>Шт. в коробке</label><input id="pBox" type="number" value="1"></div><div><label>Крепость</label><input id="pStrength"></div></div>
+  <button class="primary" style="width:100%" onclick="saveProduct()">Сохранить</button>
+</div></div>
+
+<div class="modal" id="warehouseModal"><div class="sheet">
+  <div class="head"><h2>Склад</h2><button class="close">×</button></div>
+  <label>Название *</label><input id="wName"><label>Город</label><input id="wCity"><label>Адрес</label><input id="wAddress">
+  <button class="primary" style="width:100%" onclick="saveWarehouse()">Сохранить</button>
+</div></div>
+
+<div class="modal" id="movementModal"><div class="sheet">
+  <div class="head"><h2>Движение товара</h2><button class="close">×</button></div>
+  <label>Склад</label><select id="mWarehouse"></select>
+  <label>Товар</label><select id="mProduct"></select>
+  <label>Операция</label><select id="mType"><option value="receipt">Приход</option><option value="reserve">Резерв</option><option value="unreserve">Снять резерв</option><option value="shipment">Отгрузка</option><option value="return">Возврат</option><option value="writeoff">Списание</option><option value="damage">Повреждение</option><option value="in_transit">В пути</option><option value="adjustment">Корректировка физ. остатка</option></select>
+  <label>Количество</label><input id="mQty" type="number" min="1" value="1">
+  <label>Комментарий</label><textarea id="mComment"></textarea>
+  <button class="primary" style="width:100%" onclick="saveMovement()">Сохранить движение</button>
+</div></div>
+
+<div class="modal" id="taskModal"><div class="sheet">
+  <div class="head"><h2>Новая задача</h2><button class="close">×</button></div>
+  <label>Магазин</label><select id="tShop"><option value="">Без магазина</option></select>
+  <label>Исполнитель</label><select id="tEmployee"></select>
+  <label>Тип</label><select id="tType"><option value="call">Позвонить</option><option value="visit">Посетить</option><option value="payment">Забрать оплату</option><option value="delivery">Доставить товар</option><option value="stand">Поставить стенд</option><option value="stock">Проверить остатки</option><option value="followup">Повторно связаться</option></select>
+  <label>Название</label><input id="tTitle">
+  <label>Срок</label><input id="tDue" type="datetime-local">
+  <label>Комментарий</label><textarea id="tComment"></textarea>
+  <button class="primary" style="width:100%" onclick="saveTask()">Сохранить</button>
+</div></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module">
 let createClient;
-try {
-  ({createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/+esm'));
-} catch(firstError) {
-  try {({createClient}=await import('https://esm.sh/@supabase/supabase-js@2.57.0'));}
-  catch(secondError) {
-    document.getElementById('authMsg').textContent='Не удалось загрузить модуль входа. Проверьте интернет и повторно откройте страницу в Safari. '+secondError.message;
-    throw secondError;
-  }
-}
-
-const URL='https://bxibrptyonhxcdnizacp.supabase.co';const KEY='sb_publishable_0bGaJhD7GxVh_UqaPAUFmA_PhR3ISMP';const db=createClient(URL,KEY);
-const colors={'Клиент Garant':'#17a34a','Заинтересован':'#edc200','Оставили образцы':'#1375f2','Повторный визит':'#fa7b21','Отказ':'#db3434','Не посещён':'#98a4b1'};
-const $=id=>document.getElementById(id);let session=null,profile=null,map=null,markers=[],shops=[],visits=[],selected=null,newCoords=null,channel=null,pickingPin=false,draftPin=null;
+try{({createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/+esm'))}
+catch(e){({createClient}=await import('https://esm.sh/@supabase/supabase-js@2.57.0'))}
+const URL='https://bxibrptyonhxcdnizacp.supabase.co', KEY='sb_publishable_0bGaJhD7GxVh_UqaPAUFmA_PhR3ISMP', db=createClient(URL,KEY);
+const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const PHOTO_BUCKET='Shop-photos';
-const PHOTO_MAX_BYTES=8*1024*1024;
-const photoStatus=(id,message)=>{$(id).textContent=message};
-async function uploadShopPhotos(shopId,files){
- const photos=Array.from(files||[]);if(!photos.length)return {uploaded:0,failed:[]};
- let uploaded=0;const failed=[];
- for(const file of photos){
-  if(!file.type.startsWith('image/')){failed.push(file.name+': это не фотография');continue}
-  if(file.size>PHOTO_MAX_BYTES){failed.push(file.name+': больше 8 МБ');continue}
-  const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8)||'jpg';
-  const path=String(shopId)+'/'+crypto.randomUUID()+'.'+ext;
-  try{const {error}=await db.storage.from(PHOTO_BUCKET).upload(path,file,{contentType:file.type,upsert:false});if(error)failed.push(file.name+': '+error.message);else uploaded++}
-  catch(e){failed.push(file.name+': '+(e.message||String(e)))}
- }
- return {uploaded,failed};
-}
-function photoSummary(result){return 'Загружено фото: '+result.uploaded+(result.failed.length?'\nНе удалось загрузить: '+result.failed.join('; '):'')}
-let photoViewToken=0;
-async function displayShopPhotos(shopId){
- const token=++photoViewToken;const holder=$('shopPhotos');holder.replaceChildren();holder.textContent='Загружаем фотографии…';
- try{
-  const {data,error}=await db.storage.from(PHOTO_BUCKET).list(String(shopId),{limit:100,sortBy:{column:'created_at',order:'desc'}});
-  if(token!==photoViewToken)return;
-  if(error){holder.textContent='Не удалось получить фото: '+error.message;return}
-  const files=(data||[]).filter(f=>f.name&&!f.name.startsWith('.'));
-  if(!files.length){holder.textContent='Фотографий пока нет.';return}
-  holder.replaceChildren();
-  for(const f of files){
-   const {data:link,error:linkError}=await db.storage.from(PHOTO_BUCKET).createSignedUrl(String(shopId)+'/'+f.name,3600);
-   if(token!==photoViewToken)return;
-   if(linkError||!link?.signedUrl)continue;
-   const anchor=document.createElement('a');anchor.href=link.signedUrl;anchor.target='_blank';anchor.rel='noopener noreferrer';
-   const img=document.createElement('img');img.src=link.signedUrl;img.alt='Фото магазина';img.loading='lazy';anchor.appendChild(img);holder.appendChild(anchor);
-  }
-  if(!holder.children.length)holder.textContent='Нет доступных фотографий.';
- }catch(e){if(token===photoViewToken)holder.textContent='Ошибка загрузки фото: '+(e.message||String(e))}
-}
+const money=n=>(Number(n)||0).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const colors={'Клиент Garant':'#17a34a','Заинтересован':'#edc200','Оставили образцы':'#1375f2','Повторный визит':'#fa7b21','Отказ':'#db3434','Не посещён':'#98a4b1'};
+const orderStatusNames={draft:'Черновик',confirmed:'Подтверждён',processing:'В обработке',reserved:'Зарезервирован',ready:'Готов к отгрузке',shipped:'Отгружен',delivered:'Доставлен',paid:'Оплачен',cancelled:'Отменён'};
+let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],orders=[],orderItems=[],tasks=[],bonusRules=[];
+let selectedShop=null,newCoords=null,picking=false,draftPin=null;
 
-window.addEventListener('error',e=>{const el=document.getElementById('authMsg');if(el&&!document.getElementById('auth').classList.contains('hidden'))el.textContent='Ошибка приложения: '+e.message;});
-function toast(s){$('toast').textContent=s;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3000)}
-function modal(id){$(id).classList.add('open')}function close(){document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'))}document.querySelectorAll('.close').forEach(x=>x.onclick=close);
+function toast(s){$('toast').textContent=s;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3200)}
+function openModal(id){$(id).classList.add('open')} function closeModals(){document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'))}
+document.querySelectorAll('.close').forEach(x=>x.onclick=closeModals);
+function isManager(){return ['manager','admin','regional_manager'].includes(profile?.role)}
+function safeData(result,name){if(result?.error){console.warn(name,result.error);return []}return result?.data||[]}
+
 async function login(){
- const email=$('email').value.trim(), password=$('password').value;
- if(!email||!password){$('authMsg').textContent='Введите рабочую почту и пароль';return}
- $('login').disabled=true;$('login').textContent='Проверяем вход…';$('authMsg').textContent='Подключаемся к базе Garant…';
- try {
-   const {error}=await db.auth.signInWithPassword({email,password});
-   if(error){$('authMsg').textContent=error.message==='Invalid login credentials'?'Неверная почта или пароль. Проверьте раскладку или восстановите пароль.':'Ошибка входа: '+error.message;return}
-   await boot();
- }catch(e){$('authMsg').textContent='Не удалось подключиться к серверу: '+(e.message||String(e))}
- finally{$('login').disabled=false;$('login').textContent='Войти'}
+ const email=$('email').value.trim(),password=$('password').value;
+ if(!email||!password)return $('authMsg').textContent='Введите рабочую почту и пароль';
+ $('login').disabled=true;$('authMsg').textContent='Входим…';
+ try{const {error}=await db.auth.signInWithPassword({email,password});if(error)throw error;await boot()}
+ catch(e){$('authMsg').textContent='Ошибка входа: '+e.message}
+ finally{$('login').disabled=false}
 }
-$('recover').onclick=async()=>{let email=$('email').value.trim();if(!email){$('authMsg').textContent='Сначала введите рабочую почту';return} $('recover').disabled=true;try{const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});$('authMsg').textContent=error?'Ошибка восстановления: '+error.message:'Если почта зарегистрирована, проверьте письмо со ссылкой для восстановления пароля.'}catch(e){$('authMsg').textContent='Не удалось запросить письмо: '+e.message}finally{$('recover').disabled=false}};
-
-$('login').onclick=login; $('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
-async function boot(){const {data:{user},error:userError}=await db.auth.getUser();if(userError){$('authMsg').textContent='Ошибка проверки пользователя: '+userError.message;return}if(!user){$('auth').classList.remove('hidden');$('app').classList.add('hidden');return}
-const {data,error}=await db.from('profiles').select('id,full_name,role,active').eq('id',user.id).single();if(error||!data?.active){$('authMsg').textContent='Учётная запись не активирована в Garant. '+(error?.message||'Обратитесь к руководителю.');await db.auth.signOut();return}
-profile=data;session=user;$('agentLabel').classList.toggle('hidden',data.role!=='manager');$('agent').classList.toggle('hidden',data.role!=='manager');$('who').textContent=(data.full_name||'Сотрудник')+(data.role==='manager'?' · Руководитель':' · Агент');$('auth').classList.add('hidden');$('app').classList.remove('hidden');if(!map){if(!window.L){$('authMsg').textContent='Карта не загрузилась. Проверьте интернет и обновите страницу.';return}map=L.map('map').setView([36.51,-4.89],12);map.on('click',e=>{if(!pickingPin)return;pickingPin=false;map.getContainer().style.cursor='';setNewCoords({lat:e.latlng.lat,lng:e.latlng.lng});modal('newModal');toast('Место выбрано. Заполните карточку магазина.');});L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map)}setTimeout(()=>map.invalidateSize(),100);
-await load();if(channel)db.removeChannel(channel);channel=db.channel('garant_map_changes').on('postgres_changes',{event:'*',schema:'public',table:'shops'},()=>load()).on('postgres_changes',{event:'*',schema:'public',table:'visits'},()=>load()).subscribe();}
-async function load(){const [a,b]=await Promise.all([db.from('shops').select('*').order('created_at',{ascending:false}),db.from('visits').select('*').order('created_at',{ascending:false}).limit(1000)]);if(a.error||b.error){toast('Ошибка загрузки: '+(a.error||b.error).message);return}shops=a.data||[];visits=b.data||[];draw()}
-function pin(status){return L.divIcon({className:'',html:`<div style="height:22px;width:22px;background:${colors[status]};border:3px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 6px #0005"></div>`,iconSize:[22,22],iconAnchor:[11,22]})}
-function draw(){if(!map)return;markers.forEach(x=>map.removeLayer(x));markers=[];const city=$('city').value,status=$('status').value,agent=$('agent').value,q=$('search').value.toLowerCase();const cs=[...new Set(shops.map(x=>x.city).filter(Boolean))].sort();$('city').innerHTML='<option value="">Все города</option>'+cs.map(x=>`<option ${x===city?'selected':''}>${esc(x)}</option>`).join('');
-const agentIds=[...new Set(shops.map(x=>x.agent_id).filter(Boolean))];$('agent').innerHTML='<option value="">Все агенты</option>'+agentIds.map((id,i)=>`<option value="${esc(id)}" ${id===agent?'selected':''}>Агент ${i+1}</option>`).join('');
-shops.filter(x=>(!city||x.city===city)&&(!status||x.status===status)&&(!agent||x.agent_id===agent)&&(!q||(x.name+' '+x.address+' '+x.phone).toLowerCase().includes(q))).forEach(x=>{markers.push(L.marker([x.lat,x.lng],{icon:pin(x.status)}).addTo(map).on('click',()=>openShop(x)))});
-$('countAll').textContent=shops.length;$('countClient').textContent=shops.filter(x=>x.status==='Клиент Garant').length;$('countInterest').textContent=shops.filter(x=>x.status==='Заинтересован').length;$('countVisit').textContent=visits.filter(x=>(profile.role==='manager'||x.agent_id===session.id)&&new Date(x.created_at).toDateString()===new Date().toDateString()).length;}
-function openShop(x){selected=x;$('shopName').textContent=x.name;$('shopAddress').textContent=[x.city,x.address].filter(Boolean).join(', ');$('shopStatus').textContent=x.status;$('shopInfo').innerHTML='<p><b>Телефон:</b> '+esc(x.phone||'—')+'</p><p><b>Комментарий:</b> '+esc(x.comment||'—')+'</p>';
-const vv=visits.filter(v=>v.shop_id===x.id);$('history').innerHTML=vv.length?vv.map(v=>`<div class="history"><b>${esc(v.status)}</b><p>${esc(v.comment)}</p><span class="muted">${new Date(v.created_at).toLocaleString('ru-RU')}</span></div>`).join(''):'<p class="muted">Посещений пока нет</p>'; $('existingPhotos').value='';photoStatus('existingPhotoResult','');modal('shopModal');displayShopPhotos(x.id)}
-$('uploadExistingPhotos').onclick=async()=>{
- if(!selected)return;const files=Array.from($('existingPhotos').files||[]);if(!files.length)return photoStatus('existingPhotoResult','Сначала выберите фото.');
- const shopId=selected.id;const btn=$('uploadExistingPhotos');btn.disabled=true;photoStatus('existingPhotoResult','Загружаем фотографии…');
- try{const result=await uploadShopPhotos(shopId,files);photoStatus('existingPhotoResult',photoSummary(result));if(result.uploaded){$('existingPhotos').value='';if(selected?.id===shopId)await displayShopPhotos(shopId)}}
- catch(e){photoStatus('existingPhotoResult','Ошибка: '+(e.message||String(e)))}finally{btn.disabled=false}
-};
-$('startVisit').onclick=()=>{close();$('visitStatus').value=selected.status==='Не посещён'?'Заинтересован':selected.status;$('visitComment').value='';$('visitNext').value='';modal('visitModal')};$('route').onclick=()=>window.open('https://www.google.com/maps/dir/?api=1&destination='+selected.lat+','+selected.lng,'_blank');
-function getGeo(){return new Promise(resolve=>{if(!navigator.geolocation)return resolve(null);navigator.geolocation.getCurrentPosition(p=>resolve({lat:p.coords.latitude,lng:p.coords.longitude}),()=>resolve(null),{enableHighAccuracy:true,timeout:9000})})}
-$('saveVisit').onclick=async()=>{if(!selected)return;const status=$('visitStatus').value,comment=$('visitComment').value;const pos=await getGeo();const row={shop_id:selected.id,agent_id:session.id,status,comment,next_visit:$('visitNext').value||null,...(pos||{})};const {error}=await db.from('visits').insert(row);if(error)return toast('Не удалось сохранить визит: '+error.message);const {error:err2}=await db.from('shops').update({status,comment,next_visit:row.next_visit}).eq('id',selected.id);if(err2)toast('Визит записан, но статус магазина не обновился: '+err2.message);else toast('Визит сохранён');close();await load()};
-function setNewCoords(pos){newCoords=pos;if(draftPin){map.removeLayer(draftPin);draftPin=null}if(pos){draftPin=L.marker([pos.lat,pos.lng],{icon:pin('Не посещён')}).addTo(map);$('newPosition').textContent=`Метка магазина: ${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`;}else{$('newPosition').textContent='Место не выбрано. Выберите точку на карте или разрешите GPS.';}}
-$('add').onclick=$('newMobile').onclick=()=>modal('newModal');$('pickOnMap').onclick=()=>{close();pickingPin=true;map.getContainer().style.cursor='crosshair';toast('Нажмите на место магазина на карте');};$('geoNew').onclick=async()=>{const pos=await getGeo();if(!pos)return toast('Не удалось получить координаты — проверьте разрешение GPS');setNewCoords(pos);map.setView([pos.lat,pos.lng],16);};
-$('saveNew').onclick=async()=>{
- const name=$('newName').value.trim();if(!name)return toast('Введите название магазина');
- if(!newCoords)return toast('Сначала выберите место на карте или определите GPS');
- const btn=$('saveNew');btn.disabled=true;const p=newCoords;const files=Array.from($('newPhotos').files||[]);
- const row={name,type:$('newType').value,city:$('newCity').value.trim(),address:$('newAddress').value.trim(),phone:$('newPhone').value.trim(),comment:$('newComment').value.trim(),status:$('newStatus').value,lat:p.lat,lng:p.lng,created_by:session.id,agent_id:session.id};
- try{
-  photoStatus('newPhotoResult','Сохраняем магазин…');
-  const {data,error}=await db.from('shops').insert(row).select('id').single();
-  if(error){photoStatus('newPhotoResult','Магазин не сохранён: '+error.message);return}
-  let result={uploaded:0,failed:[]};
-  if(files.length){photoStatus('newPhotoResult','Магазин сохранён. Загружаем фотографии…');result=await uploadShopPhotos(data.id,files)}
-  close();['newName','newAddress','newPhone','newComment'].forEach(id=>$(id).value='');$('newPhotos').value='';photoStatus('newPhotoResult','');setNewCoords(null);map.setView([p.lat,p.lng],16);
-  toast(files.length?'Магазин добавлен. '+photoSummary(result):'Магазин добавлен');await load();
-  if(result.failed.length)alert('Магазин сохранён, но не все фото загрузились. Откройте магазин на карте и добавьте фото ещё раз.\n'+photoSummary(result));
- }catch(e){photoStatus('newPhotoResult','Ошибка: '+(e.message||String(e)))}finally{btn.disabled=false}
-};
-$('near').onclick=async()=>{const pos=await getGeo();if(!pos)return toast('Разрешите доступ к геопозиции');map.setView([pos.lat,pos.lng],16)};
-$('list').onclick=()=>{$('shopList').innerHTML=shops.map(x=>`<div class="history"><b>${esc(x.name)}</b> — ${esc(x.status)}<div class="muted">${esc(x.city)}</div></div>`).join('')||'<p>Магазинов пока нет.</p>';modal('listModal')};
-$('reset').onclick=()=>{$('search').value=$('status').value=$('city').value=$('agent').value='';draw()};['search','city','status','agent'].forEach(id=>$(id).addEventListener(id==='search'?'input':'change',draw));
-$('legend').innerHTML=Object.entries(colors).map(([k,v])=>`<span><i class="dot" style="background:${v}"></i>${k}</span>`).join('');$('status').innerHTML='<option value="">Все статусы</option>'+Object.keys(colors).map(x=>`<option>${x}</option>`).join('');$('newStatus').innerHTML=Object.keys(colors).map(x=>`<option>${x}</option>`).join('');$('visitStatus').innerHTML=Object.keys(colors).filter(x=>x!=='Не посещён').map(x=>`<option>${x}</option>`).join('');
+$('login').onclick=login;$('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+$('recover').onclick=async()=>{const email=$('email').value.trim();if(!email)return toast('Введите рабочую почту');const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});toast(error?error.message:'Проверьте почту')};
 $('signout').onclick=async()=>{await db.auth.signOut();location.reload()};
-try{await boot()}catch(e){$('authMsg').textContent='Ошибка запуска приложения: '+(e.message||String(e))}
 
-</script></body></html>
+async function boot(){
+ const u=await db.auth.getUser();user=u.data.user;if(!user)return;
+ const p=await db.from('profiles').select('*').eq('id',user.id).single();
+ if(p.error||!p.data?.active){await db.auth.signOut();$('authMsg').textContent='Учётная запись не активирована';return}
+ profile=p.data;$('who').textContent=(profile.full_name||'Сотрудник')+' · '+(isManager()?'Руководитель':'Агент');
+ $('auth').classList.add('hidden');$('mainApp').classList.remove('hidden');
+ if(!isManager()){['addProductBtn','addWarehouseBtn','adjustStockBtn'].forEach(id=>$(id)?.classList.add('hidden'))}
+ await refreshAll();showPage('dashboard');
+}
+
+async function refreshAll(){
+ const qs=[
+  db.from('shops').select('*').order('created_at',{ascending:false}),
+  db.from('visits').select('*').order('created_at',{ascending:false}).limit(2000),
+  db.from('profiles').select('id,full_name,role,active,phone,status,start_date').order('full_name'),
+  db.from('products').select('*').order('name'),
+  db.from('warehouses').select('*').order('name'),
+  db.from('inventory_balances').select('*'),
+  db.from('inventory_movements').select('*').order('created_at',{ascending:false}).limit(300),
+  db.from('sales_orders').select('*').order('created_at',{ascending:false}).limit(1000),
+  db.from('sales_order_items').select('*').limit(5000),
+  db.from('tasks').select('*').order('due_at',{ascending:true}).limit(1000),
+  db.from('bonus_rules').select('*').eq('active',true).limit(10)
+ ];
+ const r=await Promise.all(qs.map(q=>q.then(x=>x).catch(e=>({error:e}))));
+ shops=safeData(r[0],'shops');visits=safeData(r[1],'visits');profiles=safeData(r[2],'profiles');products=safeData(r[3],'products');warehouses=safeData(r[4],'warehouses');balances=safeData(r[5],'inventory_balances');movements=safeData(r[6],'inventory_movements');orders=safeData(r[7],'sales_orders');orderItems=safeData(r[8],'sales_order_items');tasks=safeData(r[9],'tasks');bonusRules=safeData(r[10],'bonus_rules');
+ renderAll();
+}
+
+function showPage(name){
+ document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$('page-'+name).classList.remove('hidden');
+ document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
+ if(name==='map'){initMap();setTimeout(()=>{map.invalidateSize();drawMap()},100)}
+}
+window.showPage=showPage;document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
+
+function renderAll(){fillSelects();renderDashboard();renderShops();renderOrders();renderProducts();renderStock();renderEmployees();renderTasks();renderBonuses();renderReports();if(map)drawMap()}
+function fillSelects(){
+ const statusOptions=Object.keys(colors).map(x=>`<option>${esc(x)}</option>`).join('');
+ $('mapStatus').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('shopStatusFilter').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('nsStatus').innerHTML=statusOptions;$('vStatus').innerHTML=Object.keys(colors).filter(x=>x!=='Не посещён').map(x=>`<option>${esc(x)}</option>`).join('');
+ const people=profiles.map(p=>`<option value="${p.id}">${esc(p.full_name||p.id)} · ${esc(p.role)}</option>`).join('');
+ $('mapAgent').innerHTML='<option value="">Все агенты</option>'+people;$('tEmployee').innerHTML=people;
+ const wh=warehouses.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('');
+ ['stockWarehouse','oWarehouse','mWarehouse'].forEach(id=>{if($(id))$(id).innerHTML=(id==='stockWarehouse'?'<option value="">Все склады</option>':'')+wh});
+ const sh=shops.map(s=>`<option value="${s.id}">${esc(s.name)} — ${esc(s.city||'')}</option>`).join('');
+ $('oShop').innerHTML=sh;$('tShop').innerHTML='<option value="">Без магазина</option>'+sh;
+ $('mProduct').innerHTML=products.map(p=>`<option value="${p.id}">${esc(p.name)}${p.sku?' · '+esc(p.sku):''}</option>`).join('');
+ $('orderStatusFilter').innerHTML='<option value="">Все</option>'+Object.entries(orderStatusNames).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+}
+
+function renderDashboard(){
+ $('dShops').textContent=shops.length;$('dClients').textContent=shops.filter(s=>s.status==='Клиент Garant').length;$('dOrders').textContent=orders.length;
+ $('dSales').textContent=money(orders.filter(o=>o.payment_status==='paid'||o.status==='paid').reduce((a,o)=>a+Number(o.total||0),0));
+ const today=new Date().toDateString();$('dVisits').textContent=visits.filter(v=>new Date(v.created_at).toDateString()===today).length;$('dNewShops').textContent=shops.filter(s=>new Date(s.created_at).toDateString()===today).length;
+ $('dOverdue').textContent=tasks.filter(t=>t.status==='planned'&&t.due_at&&new Date(t.due_at)<new Date()).length;
+ $('dSku').textContent=products.length;const av=balances.reduce((a,b)=>a+Math.max(0,(b.physical_qty||0)-(b.reserved_qty||0)),0);$('dAvailable').textContent=av;
+ $('dLow').textContent=balances.filter(b=>{const p=products.find(x=>x.id===b.product_id);return p&&((b.physical_qty||0)-(b.reserved_qty||0))<Number(p.min_stock||0)}).length;
+}
+
+function initMap(){if(map)return;map=L.map('map').setView([36.51,-4.89],11);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);map.on('click',e=>{if(!picking)return;picking=false;setNewCoords(e.latlng);openModal('newShopModal')});$('legend').innerHTML=Object.entries(colors).map(([k,v])=>`<span><i class="dot" style="background:${v}"></i>${k}</span>`).join('');}
+function pin(status){return L.divIcon({className:'',html:`<div style="height:22px;width:22px;background:${colors[status]||'#98a4b1'};border:3px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 6px #0005"></div>`,iconSize:[22,22],iconAnchor:[11,22]})}
+function drawMap(){
+ if(!map)return;markers.forEach(m=>map.removeLayer(m));markers=[];
+ const q=$('mapSearch').value.toLowerCase(),city=$('mapCity').value,status=$('mapStatus').value,agent=$('mapAgent').value;
+ const cities=[...new Set(shops.map(s=>s.city).filter(Boolean))].sort();$('mapCity').innerHTML='<option value="">Все города</option>'+cities.map(c=>`<option ${c===city?'selected':''}>${esc(c)}</option>`).join('');
+ shops.filter(s=>(!q||(s.name+' '+s.address+' '+s.phone).toLowerCase().includes(q))&&(!city||s.city===city)&&(!status||s.status===status)&&(!agent||s.agent_id===agent)).forEach(s=>{if(Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lng)))markers.push(L.marker([s.lat,s.lng],{icon:pin(s.status)}).addTo(map).on('click',()=>openShop(s)))})
+}
+['mapSearch','mapCity','mapStatus','mapAgent'].forEach(id=>$(id).addEventListener(id==='mapSearch'?'input':'change',drawMap));
+window.resetMapFilters=()=>{['mapSearch','mapCity','mapStatus','mapAgent'].forEach(id=>$(id).value='');drawMap()};
+
+function renderShops(){
+ const q=$('shopSearch').value.toLowerCase(),st=$('shopStatusFilter').value;
+ const rows=shops.filter(s=>(!q||(s.name+' '+s.city+' '+s.address+' '+s.phone).toLowerCase().includes(q))&&(!st||s.status===st));
+ $('shopsTable').innerHTML=`<table><thead><tr><th>Магазин</th><th>Тип</th><th>Город</th><th>Статус</th><th>Телефон</th><th>Следующий визит</th></tr></thead><tbody>${rows.map(s=>`<tr onclick="openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.type||'')}</td><td>${esc(s.city||'')}</td><td><span class="badge">${esc(s.status||'')}</span></td><td>${esc(s.phone||'')}</td><td>${esc(s.next_visit||'')}</td></tr>`).join('')}</tbody></table>`;
+}
+$('shopSearch').addEventListener('input',renderShops);$('shopStatusFilter').addEventListener('change',renderShops);
+window.openShopById=id=>{const s=shops.find(x=>x.id===id);if(s)openShop(s)};
+function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');$('shopDetail').innerHTML=`<div class="grid3"><div><b>Статус</b><p>${esc(s.status)}</p></div><div><b>Телефон</b><p>${esc(s.phone||'—')}</p></div><div><b>Комментарий</b><p>${esc(s.comment||'—')}</p></div></div>`;const vv=visits.filter(v=>v.shop_id===s.id);$('visitHistory').innerHTML=vv.length?vv.map(v=>`<div class="card" style="margin:6px 0"><b>${esc(v.status)}</b><div>${esc(v.comment||'')}</div><span class="muted">${new Date(v.created_at).toLocaleString('ru-RU')}</span></div>`).join(''):'<p class="muted">Визитов пока нет</p>';$('routeBtn').onclick=()=>window.open('https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng,'_blank');openModal('shopModal')}
+window.openNewShop=()=>{setNewCoords(null);openModal('newShopModal')};
+function setNewCoords(p){newCoords=p;if(draftPin&&map){map.removeLayer(draftPin);draftPin=null}if(p&&map)draftPin=L.marker([p.lat,p.lng],{icon:pin('Не посещён')}).addTo(map);$('nsPos').textContent=p?`Координаты: ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`:'Координаты не выбраны.'}
+window.useMyLocation=()=>navigator.geolocation?.getCurrentPosition(p=>{setNewCoords({lat:p.coords.latitude,lng:p.coords.longitude});toast('Местоположение определено')},()=>toast('Не удалось получить GPS'));
+window.pickOnMap=()=>{closeModals();showPage('map');initMap();picking=true;toast('Нажмите на место магазина на карте')};
+window.saveNewShop=async()=>{const name=$('nsName').value.trim();if(!name)return toast('Введите название');if(!newCoords)return toast('Укажите место на карте или GPS');const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,lat:newCoords.lat,lng:newCoords.lng,created_by:user.id,agent_id:user.id};const {error}=await db.from('shops').insert(row);if(error)return toast(error.message);closeModals();toast('Магазин добавлен');await refreshAll()};
+window.openVisit=()=>{if(!selectedShop)return;closeModals();$('vStatus').value=selectedShop.status==='Не посещён'?'Заинтересован':selectedShop.status;$('vComment').value='';$('vNext').value='';openModal('visitModal')};
+function getGeo(){return new Promise(r=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>r({lat:p.coords.latitude,lng:p.coords.longitude}),()=>r(null),{timeout:7000}):r(null))}
+window.saveVisit=async()=>{if(!selectedShop)return;const pos=await getGeo();const row={shop_id:selectedShop.id,agent_id:user.id,status:$('vStatus').value,comment:$('vComment').value,next_visit:$('vNext').value||null,...(pos||{})};let x=await db.from('visits').insert(row);if(x.error)return toast(x.error.message);await db.from('shops').update({status:row.status,comment:row.comment,next_visit:row.next_visit}).eq('id',selectedShop.id);closeModals();toast('Визит сохранён');await refreshAll()};
+
+function productPrice(id){return Number(products.find(p=>p.id===id)?.price||0)}
+function availableFor(productId,warehouseId){const b=balances.find(x=>x.product_id===productId&&x.warehouse_id===warehouseId);return Math.max(0,Number(b?.physical_qty||0)-Number(b?.reserved_qty||0))}
+function renderOrders(){
+ const st=$('orderStatusFilter').value;const rows=orders.filter(o=>!st||o.status===st);
+ $('ordersTable').innerHTML=`<table><thead><tr><th>Дата</th><th>Магазин</th><th>Агент</th><th>Статус</th><th>Оплата</th><th>Сумма</th></tr></thead><tbody>${rows.map(o=>{const s=shops.find(x=>x.id===o.shop_id),a=profiles.find(x=>x.id===o.agent_id);return `<tr><td>${new Date(o.created_at).toLocaleDateString('ru-RU')}</td><td>${esc(s?.name||'—')}</td><td>${esc(a?.full_name||'—')}</td><td><span class="badge">${esc(orderStatusNames[o.status]||o.status)}</span></td><td>${esc(o.payment_status||'')}</td><td><b>${money(o.total)}</b></td></tr>`}).join('')}</tbody></table>`;
+}
+$('orderStatusFilter').addEventListener('change',renderOrders);
+window.openNewOrder=()=>{if(!shops.length)return toast('Сначала добавьте магазин');if(!products.length)return toast('Сначала добавьте товары');$('orderLines').innerHTML='';addOrderLine();$('oComment').value='';openModal('orderModal');updateOrderTotal()};
+window.openOrderForSelected=()=>{if(!selectedShop)return;closeModals();openNewOrder();$('oShop').value=selectedShop.id};
+window.addOrderLine=()=>{const div=document.createElement('div');div.className='row3 orderLine';div.innerHTML=`<div><label>Товар</label><select class="olProduct">${products.map(p=>`<option value="${p.id}">${esc(p.name)}${p.sku?' · '+esc(p.sku):''}</option>`).join('')}</select></div><div><label>Количество</label><input class="olQty" type="number" min="1" value="1"></div><div><label>Цена / доступно</label><div class="olInfo" style="padding:10px 0"></div></div>`;div.querySelectorAll('select,input').forEach(x=>x.addEventListener('change',updateOrderTotal));$('orderLines').appendChild(div);updateOrderTotal()};
+function updateOrderTotal(){let total=0;const wid=$('oWarehouse').value;document.querySelectorAll('.orderLine').forEach(l=>{const pid=l.querySelector('.olProduct').value,q=Number(l.querySelector('.olQty').value||0),p=productPrice(pid),av=availableFor(pid,wid);l.querySelector('.olInfo').textContent=money(p)+' / '+av+' шт.';total+=q*p});$('oTotal').textContent=money(total)}
+$('oWarehouse').addEventListener('change',updateOrderTotal);
+window.saveOrder=async()=>{const shop_id=$('oShop').value,warehouse_id=$('oWarehouse').value,status=$('oStatus').value;const lines=[...document.querySelectorAll('.orderLine')].map(l=>({product_id:l.querySelector('.olProduct').value,quantity:Number(l.querySelector('.olQty').value||0)})).filter(x=>x.quantity>0);if(!shop_id||!lines.length)return toast('Заполните заказ');let total=0;for(const l of lines){if(warehouse_id&&availableFor(l.product_id,warehouse_id)<l.quantity)return toast('Недостаточно товара на складе');total+=productPrice(l.product_id)*l.quantity}const {data:o,error}=await db.from('sales_orders').insert({shop_id,agent_id:user.id,warehouse_id:warehouse_id||null,status,payment_status:'unpaid',total,comment:$('oComment').value,created_by:user.id}).select('id').single();if(error)return toast('Таблица заказов не настроена: '+error.message);const items=lines.map(l=>({order_id:o.id,product_id:l.product_id,quantity:l.quantity,unit_price:productPrice(l.product_id)}));const x=await db.from('sales_order_items').insert(items);if(x.error)return toast(x.error.message);closeModals();toast('Заказ сохранён');await refreshAll()};
+
+function renderProducts(){const q=$('productSearch').value.toLowerCase(),rows=products.filter(p=>(p.name+' '+(p.sku||'')+' '+(p.flavor||'')).toLowerCase().includes(q));$('productsTable').innerHTML=`<table><thead><tr><th>Товар</th><th>SKU</th><th>Вкус</th><th>Категория</th><th>Цена</th><th>Мин. остаток</th></tr></thead><tbody>${rows.map(p=>`<tr><td><b>${esc(p.name)}</b></td><td>${esc(p.sku||'')}</td><td>${esc(p.flavor||'')}</td><td>${esc(p.category||'')}</td><td>${money(p.price)}</td><td>${p.min_stock||0}</td></tr>`).join('')}</tbody></table>`}
+$('productSearch').addEventListener('input',renderProducts);
+window.openProduct=()=>openModal('productModal');
+window.saveProduct=async()=>{if(!isManager())return toast('Только руководитель');const row={name:$('pName').value.trim(),sku:$('pSku').value.trim()||null,flavor:$('pFlavor').value.trim(),category:$('pCategory').value.trim(),price:Number($('pPrice').value||0),min_stock:Number($('pMin').value||0),units_per_box:Number($('pBox').value||1),strength:$('pStrength').value.trim(),brand:'GARANT'};if(!row.name)return toast('Введите название');const {error}=await db.from('products').insert(row);if(error)return toast(error.message);closeModals();toast('Товар добавлен');await refreshAll()};
+
+function renderStock(){
+ const wid=$('stockWarehouse').value,q=$('stockSearch').value.toLowerCase();let rows=balances.filter(b=>(!wid||b.warehouse_id===wid));rows=rows.filter(b=>{const p=products.find(x=>x.id===b.product_id);return !q||((p?.name||'')+' '+(p?.sku||'')).toLowerCase().includes(q)});const phys=rows.reduce((a,b)=>a+Number(b.physical_qty||0),0),res=rows.reduce((a,b)=>a+Number(b.reserved_qty||0),0),tr=rows.reduce((a,b)=>a+Number(b.in_transit_qty||0),0);$('sPhysical').textContent=phys;$('sReserved').textContent=res;$('sAvailable').textContent=phys-res;$('sTransit').textContent=tr;
+ $('stockTable').innerHTML=`<table><thead><tr><th>Склад</th><th>Товар</th><th>SKU</th><th>Физически</th><th>Резерв</th><th>Доступно</th><th>В пути</th><th>Мин.</th></tr></thead><tbody>${rows.map(b=>{const p=products.find(x=>x.id===b.product_id),w=warehouses.find(x=>x.id===b.warehouse_id),av=Number(b.physical_qty||0)-Number(b.reserved_qty||0),low=p&&av<Number(p.min_stock||0);return `<tr class="${low?'low':''}"><td>${esc(w?.name||'—')}</td><td><b>${esc(p?.name||'—')}</b></td><td>${esc(p?.sku||'')}</td><td>${b.physical_qty||0}</td><td>${b.reserved_qty||0}</td><td><b>${av}</b></td><td>${b.in_transit_qty||0}</td><td>${p?.min_stock||0}</td></tr>`}).join('')}</tbody></table>`;
+ $('movementsTable').innerHTML=`<table><thead><tr><th>Дата</th><th>Склад</th><th>Товар</th><th>Операция</th><th>Кол-во</th><th>Комментарий</th></tr></thead><tbody>${movements.slice(0,100).map(m=>`<tr><td>${new Date(m.created_at).toLocaleString('ru-RU')}</td><td>${esc(warehouses.find(w=>w.id===m.warehouse_id)?.name||'')}</td><td>${esc(products.find(p=>p.id===m.product_id)?.name||'')}</td><td>${esc(m.movement_type)}</td><td>${m.quantity}</td><td>${esc(m.comment||'')}</td></tr>`).join('')}</tbody></table>`;
+}
+$('stockWarehouse').addEventListener('change',renderStock);$('stockSearch').addEventListener('input',renderStock);
+window.openWarehouse=()=>openModal('warehouseModal');
+window.saveWarehouse=async()=>{if(!isManager())return;const {error}=await db.from('warehouses').insert({name:$('wName').value.trim(),city:$('wCity').value.trim(),address:$('wAddress').value.trim(),country_code:'ES'});if(error)return toast(error.message);closeModals();toast('Склад добавлен');await refreshAll()};
+window.openStockMovement=()=>{if(!warehouses.length||!products.length)return toast('Сначала создайте склад и товар');openModal('movementModal')};
+window.saveMovement=async()=>{if(!isManager())return toast('Только руководитель');const warehouse_id=$('mWarehouse').value,product_id=$('mProduct').value,type=$('mType').value,q=Number($('mQty').value||0);if(q<=0)return toast('Количество должно быть больше 0');let b=balances.find(x=>x.warehouse_id===warehouse_id&&x.product_id===product_id);let physical=Number(b?.physical_qty||0),reserved=Number(b?.reserved_qty||0),transit=Number(b?.in_transit_qty||0),damaged=Number(b?.damaged_qty||0);if(type==='receipt')physical+=q;else if(type==='reserve'){if(physical-reserved<q)return toast('Недостаточно доступного остатка');reserved+=q}else if(type==='unreserve')reserved=Math.max(0,reserved-q);else if(type==='shipment'){if(physical<q)return toast('Недостаточный физический остаток');physical-=q;reserved=Math.max(0,reserved-q)}else if(type==='return')physical+=q;else if(type==='writeoff')physical=Math.max(0,physical-q);else if(type==='damage'){physical=Math.max(0,physical-q);damaged+=q}else if(type==='in_transit')transit+=q;else if(type==='adjustment')physical=q;
+ const row={warehouse_id,product_id,physical_qty:physical,reserved_qty:reserved,in_transit_qty:transit,damaged_qty:damaged,updated_at:new Date().toISOString()};
+ const x=await db.from('inventory_balances').upsert(row,{onConflict:'warehouse_id,product_id'});if(x.error)return toast(x.error.message);
+ await db.from('inventory_movements').insert({warehouse_id,product_id,movement_type:type,quantity:q,comment:$('mComment').value,created_by:user.id});
+ closeModals();toast('Движение сохранено');await refreshAll()};
+
+function renderEmployees(){const q=$('employeeSearch').value.toLowerCase(),rows=profiles.filter(p=>((p.full_name||'')+' '+p.role).toLowerCase().includes(q));$('employeesTable').innerHTML=`<table><thead><tr><th>Сотрудник</th><th>Роль</th><th>Телефон</th><th>Статус</th><th>Активен</th></tr></thead><tbody>${rows.map(p=>`<tr><td><b>${esc(p.full_name||'')}</b></td><td>${esc(p.role)}</td><td>${esc(p.phone||'')}</td><td>${esc(p.status||'')}</td><td>${p.active?'Да':'Нет'}</td></tr>`).join('')}</tbody></table>`}
+$('employeeSearch').addEventListener('input',renderEmployees);
+
+function renderTasks(){const st=$('taskStatusFilter').value;const rows=tasks.filter(t=>!st||t.status===st);$('tasksTable').innerHTML=`<table><thead><tr><th>Срок</th><th>Задача</th><th>Магазин</th><th>Исполнитель</th><th>Статус</th></tr></thead><tbody>${rows.map(t=>{const overdue=t.status==='planned'&&t.due_at&&new Date(t.due_at)<new Date();return `<tr><td class="${overdue?'negative':''}">${t.due_at?new Date(t.due_at).toLocaleString('ru-RU'):'—'}</td><td><b>${esc(t.title)}</b><div class="muted">${esc(t.comment||'')}</div></td><td>${esc(shops.find(s=>s.id===t.shop_id)?.name||'—')}</td><td>${esc(profiles.find(p=>p.id===t.assigned_to)?.full_name||'—')}</td><td>${esc(overdue?'Просрочена':t.status)}</td></tr>`}).join('')}</tbody></table>`}
+$('taskStatusFilter').addEventListener('change',renderTasks);
+window.openTask=()=>openModal('taskModal');
+window.saveTask=async()=>{const row={shop_id:$('tShop').value||null,assigned_to:$('tEmployee').value||user.id,task_type:$('tType').value,title:$('tTitle').value.trim()||$('tType').selectedOptions[0].text,due_at:$('tDue').value?new Date($('tDue').value).toISOString():null,status:'planned',comment:$('tComment').value,created_by:user.id};const {error}=await db.from('tasks').insert(row);if(error)return toast('Таблица задач не настроена: '+error.message);closeModals();toast('Задача создана');await refreshAll()};
+
+function renderBonuses(){const rule=bonusRules[0]||{new_paid_shop_bonus:30,paid_sales_percent:0};$('bonusNewShop').textContent=money(rule.new_paid_shop_bonus);$('bonusPct').textContent=(Number(rule.paid_sales_percent||0))+'%';const rows=profiles.filter(p=>['agent','regional_manager','manager'].includes(p.role)).map(p=>{const paid=orders.filter(o=>o.agent_id===p.id&&(o.payment_status==='paid'||o.status==='paid'));const sales=paid.reduce((a,o)=>a+Number(o.total||0),0);const paidShops=new Set(paid.map(o=>o.shop_id)).size;const bonus=paidShops*Number(rule.new_paid_shop_bonus||0)+sales*Number(rule.paid_sales_percent||0)/100;return {p,sales,paidShops,bonus}});$('bonusesTable').innerHTML=`<table><thead><tr><th>Сотрудник</th><th>Оплаченные продажи</th><th>Оплаченных магазинов</th><th>Бонус</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.p.full_name||'')}</td><td>${money(x.sales)}</td><td>${x.paidShops}</td><td><b>${money(x.bonus)}</b></td></tr>`).join('')}</tbody></table>`}
+
+function inPeriod(d){if(!d)return false;const x=new Date(d),f=$('reportFrom').value?new Date($('reportFrom').value+'T00:00:00'):new Date('2000-01-01'),t=$('reportTo').value?new Date($('reportTo').value+'T23:59:59'):new Date('2100-01-01');return x>=f&&x<=t}
+window.renderReports=()=>{const oo=orders.filter(o=>inPeriod(o.created_at)),vv=visits.filter(v=>inPeriod(v.created_at)),ss=shops.filter(s=>inPeriod(s.created_at)),paid=oo.filter(o=>o.payment_status==='paid'||o.status==='paid'),sum=paid.reduce((a,o)=>a+Number(o.total||0),0);$('rPaid').textContent=money(sum);$('rOrders').textContent=oo.length;$('rNewShops').textContent=ss.length;$('rActiveShops').textContent=shops.filter(s=>s.status==='Клиент Garant').length;$('rVisits').textContent=vv.length;$('rAvg').textContent=money(oo.length?oo.reduce((a,o)=>a+Number(o.total||0),0)/oo.length:0)};
+window.exportReportCSV=()=>{const rows=[['Дата','Магазин','Агент','Статус','Оплата','Сумма'],...orders.filter(o=>inPeriod(o.created_at)).map(o=>[o.created_at,shops.find(s=>s.id===o.shop_id)?.name||'',profiles.find(p=>p.id===o.agent_id)?.full_name||'',o.status,o.payment_status,o.total])];const csv='\ufeff'+rows.map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(';')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='GARANT_report.csv';a.click();URL.revokeObjectURL(a.href)};
+
+try{await boot()}catch(e){$('authMsg').textContent='Ошибка запуска: '+e.message}
+</script>
+</body></html>
