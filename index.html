@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#102e4d">
 <title>GARANT — Система управления продажами</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
 <style>
 :root{--bg:#f3f6fa;--card:#fff;--line:#dfe8ef;--ink:#142a3e;--muted:#6d7d8d;--nav:#102e4d;--blue:#0876ed;--ok:#17a34a;--warn:#d99b00;--bad:#d63d3d}
 *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink)}
@@ -233,19 +233,38 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
   <button class="primary" style="width:100%" onclick="saveTask()">Сохранить</button>
 </div></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
 let createClient;
 try{({createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/+esm'))}
 catch(e){({createClient}=await import('https://esm.sh/@supabase/supabase-js@2.57.0'))}
 const URL='https://bxibrptyonhxcdnizacp.supabase.co', KEY='sb_publishable_0bGaJhD7GxVh_UqaPAUFmA_PhR3ISMP', db=createClient(URL,KEY);
+const GOOGLE_MAPS_API_KEY='AIzaSyDweX1gX7EiC7NHt5f2UC77taYTfzvA8Ro';
+let googleMapsPromise=null;
+function loadGoogleMaps(){
+  if(window.google?.maps)return Promise.resolve();
+  if(googleMapsPromise)return googleMapsPromise;
+  googleMapsPromise=new Promise((resolve,reject)=>{
+    if(!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY.includes('PASTE_YOUR_NEW')){
+      reject(new Error('Вставьте Google Maps API key в index.html'));
+      return;
+    }
+    const s=document.createElement('script');
+    s.src='https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(GOOGLE_MAPS_API_KEY)+'&v=weekly&libraries=places&language=ru&region=ES';
+    s.async=true;s.defer=true;
+    s.onload=()=>resolve();
+    s.onerror=()=>reject(new Error('Не удалось загрузить Google Maps'));
+    document.head.appendChild(s);
+  });
+  return googleMapsPromise;
+}
+
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>(Number(n)||0).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
 const colors={'Клиент Garant':'#17a34a','Заинтересован':'#edc200','Оставили образцы':'#1375f2','Повторный визит':'#fa7b21','Отказ':'#db3434','Не посещён':'#98a4b1'};
 const orderStatusNames={draft:'Черновик',confirmed:'Подтверждён',processing:'В обработке',reserved:'Зарезервирован',ready:'Готов к отгрузке',shipped:'Отгружен',delivered:'Доставлен',paid:'Оплачен',cancelled:'Отменён'};
 let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],orders=[],orderItems=[],tasks=[],bonusRules=[];
-let selectedShop=null,newCoords=null,picking=false,draftPin=null;
+let selectedShop=null,newCoords=null,picking=false,draftPin=null,infoWindow=null;
 
 function toast(s){$('toast').textContent=s;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3200)}
 function openModal(id){$(id).classList.add('open')} function closeModals(){document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'))}
@@ -297,7 +316,7 @@ async function refreshAll(){
 function showPage(name){
  document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$('page-'+name).classList.remove('hidden');
  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
- if(name==='map'){initMap();setTimeout(()=>{map.invalidateSize();drawMap()},100)}
+ if(name==='map'){initMap();setTimeout(()=>{if(map&&window.google?.maps){google.maps.event.trigger(map,'resize');drawMap()}},120)}
 }
 window.showPage=showPage;document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
 
@@ -324,13 +343,42 @@ function renderDashboard(){
  $('dLow').textContent=balances.filter(b=>{const p=products.find(x=>x.id===b.product_id);return p&&((b.physical_qty||0)-(b.reserved_qty||0))<Number(p.min_stock||0)}).length;
 }
 
-function initMap(){if(map)return;map=L.map('map').setView([36.51,-4.89],11);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);map.on('click',e=>{if(!picking)return;picking=false;setNewCoords(e.latlng);openModal('newShopModal')});$('legend').innerHTML=Object.entries(colors).map(([k,v])=>`<span><i class="dot" style="background:${v}"></i>${k}</span>`).join('');}
-function pin(status){return L.divIcon({className:'',html:`<div style="height:22px;width:22px;background:${colors[status]||'#98a4b1'};border:3px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 6px #0005"></div>`,iconSize:[22,22],iconAnchor:[11,22]})}
+async function initMap(){
+ if(map)return;
+ try{await loadGoogleMaps()}catch(e){toast(e.message);return}
+ map=new google.maps.Map($('map'),{
+   center:{lat:36.51,lng:-4.89},zoom:11,mapTypeControl:false,streetViewControl:false,fullscreenControl:true
+ });
+ infoWindow=new google.maps.InfoWindow();
+ map.addListener('click',e=>{
+   if(!picking)return;
+   picking=false;
+   setNewCoords({lat:e.latLng.lat(),lng:e.latLng.lng()});
+   openModal('newShopModal');
+ });
+ $('legend').innerHTML=Object.entries(colors).map(([k,v])=>`<span><i class="dot" style="background:${v}"></i>${k}</span>`).join('');
+}
+function markerIcon(status){
+ return {
+   path:google.maps.SymbolPath.CIRCLE,
+   fillColor:colors[status]||'#98a4b1',
+   fillOpacity:1,
+   strokeColor:'#ffffff',
+   strokeWeight:3,
+   scale:9
+ };
+}
 function drawMap(){
- if(!map)return;markers.forEach(m=>map.removeLayer(m));markers=[];
+ if(!map)return;markers.forEach(m=>m.setMap(null));markers=[];
  const q=$('mapSearch').value.toLowerCase(),city=$('mapCity').value,status=$('mapStatus').value,agent=$('mapAgent').value;
  const cities=[...new Set(shops.map(s=>s.city).filter(Boolean))].sort();$('mapCity').innerHTML='<option value="">Все города</option>'+cities.map(c=>`<option ${c===city?'selected':''}>${esc(c)}</option>`).join('');
- shops.filter(s=>(!q||(s.name+' '+s.address+' '+s.phone).toLowerCase().includes(q))&&(!city||s.city===city)&&(!status||s.status===status)&&(!agent||s.agent_id===agent)).forEach(s=>{if(Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lng)))markers.push(L.marker([s.lat,s.lng],{icon:pin(s.status)}).addTo(map).on('click',()=>openShop(s)))})
+ shops.filter(s=>(!q||(s.name+' '+s.address+' '+s.phone).toLowerCase().includes(q))&&(!city||s.city===city)&&(!status||s.status===status)&&(!agent||s.agent_id===agent)).forEach(s=>{
+  if(Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lng))){
+    const marker=new google.maps.Marker({position:{lat:Number(s.lat),lng:Number(s.lng)},map,title:s.name,icon:markerIcon(s.status)});
+    marker.addListener('click',()=>openShop(s));
+    markers.push(marker);
+  }
+})
 }
 ['mapSearch','mapCity','mapStatus','mapAgent'].forEach(id=>$(id).addEventListener(id==='mapSearch'?'input':'change',drawMap));
 window.resetMapFilters=()=>{['mapSearch','mapCity','mapStatus','mapAgent'].forEach(id=>$(id).value='');drawMap()};
@@ -342,31 +390,47 @@ function renderShops(){
 }
 $('shopSearch').addEventListener('input',renderShops);$('shopStatusFilter').addEventListener('change',renderShops);
 window.openShopById=id=>{const s=shops.find(x=>x.id===id);if(s)openShop(s)};
-function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');$('shopDetail').innerHTML=`<div class="grid3"><div><b>Статус</b><p>${esc(s.status)}</p></div><div><b>Телефон</b><p>${esc(s.phone||'—')}</p></div><div><b>Комментарий</b><p>${esc(s.comment||'—')}</p></div></div>`;const vv=visits.filter(v=>v.shop_id===s.id);$('visitHistory').innerHTML=vv.length?vv.map(v=>`<div class="card" style="margin:6px 0"><b>${esc(v.status)}</b><div>${esc(v.comment||'')}</div><span class="muted">${new Date(v.created_at).toLocaleString('ru-RU')}</span></div>`).join(''):'<p class="muted">Визитов пока нет</p>';$('routeBtn').onclick=()=>window.open('https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng,'_blank');openModal('shopModal')}
+function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');$('shopDetail').innerHTML=`<div class="grid3"><div><b>Статус</b><p>${esc(s.status)}</p></div><div><b>Телефон</b><p>${esc(s.phone||'—')}</p></div><div><b>Комментарий</b><p>${esc(s.comment||'—')}</p></div></div>`;const vv=visits.filter(v=>v.shop_id===s.id);$('visitHistory').innerHTML=vv.length?vv.map(v=>`<div class="card" style="margin:6px 0"><b>${esc(v.status)}</b><div>${esc(v.comment||'')}</div><span class="muted">${new Date(v.created_at).toLocaleString('ru-RU')}</span></div>`).join(''):'<p class="muted">Визитов пока нет</p>';$('routeBtn').onclick=()=>{const dest=(s.address&&s.city)?encodeURIComponent([s.address,s.city,'Spain'].join(', ')):(s.lat+','+s.lng);window.open('https://www.google.com/maps/dir/?api=1&destination='+dest,'_blank')};openModal('shopModal')}
 window.openNewShop=()=>{setNewCoords(null);openModal('newShopModal')};
-function setNewCoords(p){newCoords=p;if(draftPin&&map){map.removeLayer(draftPin);draftPin=null}if(p&&map)draftPin=L.marker([p.lat,p.lng],{icon:pin('Не посещён')}).addTo(map);$('nsPos').textContent=p?`Координаты: ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`:'Координаты не выбраны.'}
+function setNewCoords(p){
+ newCoords=p;
+ if(draftPin){draftPin.setMap(null);draftPin=null}
+ if(p&&map&&window.google?.maps){
+   draftPin=new google.maps.Marker({
+     position:{lat:Number(p.lat),lng:Number(p.lng)},
+     map,
+     title:'Новый магазин',
+     icon:markerIcon('Не посещён')
+   });
+ }
+ $('nsPos').textContent=p?`Координаты: ${Number(p.lat).toFixed(6)}, ${Number(p.lng).toFixed(6)}`:'Введите адрес — GARANT найдёт его через Google Maps, либо выберите точку вручную.';
+}
 let addressLookupTimer=null;
 async function geocodeNewShopAddress(){
   const address=$('nsAddress').value.trim();
   const city=$('nsCity').value.trim();
   if(address.length<5)return;
-  $('nsPos').textContent='Ищем адрес на карте…';
+  $('nsPos').textContent='Ищем адрес в Google Maps…';
   try{
+    await loadGoogleMaps();
+    const geocoder=new google.maps.Geocoder();
     const query=[address,city,'Spain'].filter(Boolean).join(', ');
-    const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=es&q='+encodeURIComponent(query);
-    const res=await fetch(url,{headers:{'Accept-Language':'ru,es;q=0.9,en;q=0.8'}});
-    if(!res.ok)throw new Error('Ошибка геокодирования');
-    const data=await res.json();
-    if(!data.length){
-      $('nsPos').textContent='Адрес не найден. Уточните улицу/номер или выберите точку вручную.';
+    const result=await geocoder.geocode({address:query,region:'ES'});
+    const place=result.results?.[0];
+    if(!place){
+      $('nsPos').textContent='Google Maps не нашёл адрес. Уточните улицу/номер или выберите точку вручную.';
       return;
     }
-    const p={lat:Number(data[0].lat),lng:Number(data[0].lon)};
+    const loc=place.geometry.location;
+    const p={lat:loc.lat(),lng:loc.lng()};
     setNewCoords(p);
-    if(map){map.setView([p.lat,p.lng],17)}
-    $('nsPos').textContent='Адрес найден: '+(data[0].display_name||'')+` · ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`;
+    if(map){map.setCenter(p);map.setZoom(17)}
+    if(place.formatted_address)$('nsAddress').value=place.formatted_address;
+    const cityComp=place.address_components?.find(c=>c.types.includes('locality')||c.types.includes('postal_town')||c.types.includes('administrative_area_level_3'));
+    if(cityComp)$('nsCity').value=cityComp.long_name;
+    $('nsPos').textContent='Google Maps: '+place.formatted_address+` · ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`;
   }catch(e){
-    $('nsPos').textContent='Не удалось определить адрес автоматически. Можно выбрать точку на карте или GPS.';
+    $('nsPos').textContent='Не удалось определить адрес через Google Maps: '+(e.message||String(e));
   }
 }
 function scheduleAddressLookup(){
@@ -377,8 +441,8 @@ $('nsAddress').addEventListener('input',scheduleAddressLookup);
 $('nsCity').addEventListener('input',scheduleAddressLookup);
 $('nsAddress').addEventListener('change',geocodeNewShopAddress);
 
-window.useMyLocation=()=>navigator.geolocation?.getCurrentPosition(p=>{setNewCoords({lat:p.coords.latitude,lng:p.coords.longitude});toast('Местоположение определено')},()=>toast('Не удалось получить GPS'));
-window.pickOnMap=()=>{closeModals();showPage('map');initMap();picking=true;toast('Нажмите на место магазина на карте')};
+window.useMyLocation=()=>navigator.geolocation?.getCurrentPosition(async p=>{await initMap();const pos={lat:p.coords.latitude,lng:p.coords.longitude};setNewCoords(pos);if(map){map.setCenter(pos);map.setZoom(17)}toast('Местоположение определено')},()=>toast('Не удалось получить GPS'));
+window.pickOnMap=async()=>{closeModals();showPage('map');await initMap();picking=true;toast('Нажмите на место магазина на Google Maps')};
 window.saveNewShop=async()=>{const name=$('nsName').value.trim();if(!name)return toast('Введите название');if(!newCoords&&$('nsAddress').value.trim().length>=5)await geocodeNewShopAddress();if(!newCoords)return toast('Не удалось определить адрес. Выберите место на карте или GPS');const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,lat:newCoords.lat,lng:newCoords.lng,created_by:user.id,agent_id:user.id};const {error}=await db.from('shops').insert(row);if(error)return toast(error.message);closeModals();toast('Магазин добавлен');await refreshAll()};
 window.openVisit=()=>{if(!selectedShop)return;closeModals();$('vStatus').value=selectedShop.status==='Не посещён'?'Заинтересован':selectedShop.status;$('vComment').value='';$('vNext').value='';openModal('visitModal')};
 function getGeo(){return new Promise(r=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>r({lat:p.coords.latitude,lng:p.coords.longitude}),()=>r(null),{timeout:7000}):r(null))}
