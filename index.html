@@ -174,7 +174,7 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
   <label>Комментарий</label><textarea id="nsComment"></textarea>
   <label>Статус</label><select id="nsStatus"></select>
   <div class="row"><button class="light" onclick="useMyLocation()">📍 Моё местоположение</button><button class="light" onclick="pickOnMap()">🗺️ Выбрать на карте</button></div>
-  <p id="nsPos" class="muted">Координаты не выбраны.</p>
+  <p id="nsPos" class="muted">Введите адрес — система попробует автоматически поставить точку на карту.</p>
   <button class="primary" style="width:100%" onclick="saveNewShop()">Добавить магазин</button>
 </div></div>
 
@@ -345,9 +345,41 @@ window.openShopById=id=>{const s=shops.find(x=>x.id===id);if(s)openShop(s)};
 function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');$('shopDetail').innerHTML=`<div class="grid3"><div><b>Статус</b><p>${esc(s.status)}</p></div><div><b>Телефон</b><p>${esc(s.phone||'—')}</p></div><div><b>Комментарий</b><p>${esc(s.comment||'—')}</p></div></div>`;const vv=visits.filter(v=>v.shop_id===s.id);$('visitHistory').innerHTML=vv.length?vv.map(v=>`<div class="card" style="margin:6px 0"><b>${esc(v.status)}</b><div>${esc(v.comment||'')}</div><span class="muted">${new Date(v.created_at).toLocaleString('ru-RU')}</span></div>`).join(''):'<p class="muted">Визитов пока нет</p>';$('routeBtn').onclick=()=>window.open('https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng,'_blank');openModal('shopModal')}
 window.openNewShop=()=>{setNewCoords(null);openModal('newShopModal')};
 function setNewCoords(p){newCoords=p;if(draftPin&&map){map.removeLayer(draftPin);draftPin=null}if(p&&map)draftPin=L.marker([p.lat,p.lng],{icon:pin('Не посещён')}).addTo(map);$('nsPos').textContent=p?`Координаты: ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`:'Координаты не выбраны.'}
+let addressLookupTimer=null;
+async function geocodeNewShopAddress(){
+  const address=$('nsAddress').value.trim();
+  const city=$('nsCity').value.trim();
+  if(address.length<5)return;
+  $('nsPos').textContent='Ищем адрес на карте…';
+  try{
+    const query=[address,city,'Spain'].filter(Boolean).join(', ');
+    const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=es&q='+encodeURIComponent(query);
+    const res=await fetch(url,{headers:{'Accept-Language':'ru,es;q=0.9,en;q=0.8'}});
+    if(!res.ok)throw new Error('Ошибка геокодирования');
+    const data=await res.json();
+    if(!data.length){
+      $('nsPos').textContent='Адрес не найден. Уточните улицу/номер или выберите точку вручную.';
+      return;
+    }
+    const p={lat:Number(data[0].lat),lng:Number(data[0].lon)};
+    setNewCoords(p);
+    if(map){map.setView([p.lat,p.lng],17)}
+    $('nsPos').textContent='Адрес найден: '+(data[0].display_name||'')+` · ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`;
+  }catch(e){
+    $('nsPos').textContent='Не удалось определить адрес автоматически. Можно выбрать точку на карте или GPS.';
+  }
+}
+function scheduleAddressLookup(){
+  clearTimeout(addressLookupTimer);
+  addressLookupTimer=setTimeout(geocodeNewShopAddress,900);
+}
+$('nsAddress').addEventListener('input',scheduleAddressLookup);
+$('nsCity').addEventListener('input',scheduleAddressLookup);
+$('nsAddress').addEventListener('change',geocodeNewShopAddress);
+
 window.useMyLocation=()=>navigator.geolocation?.getCurrentPosition(p=>{setNewCoords({lat:p.coords.latitude,lng:p.coords.longitude});toast('Местоположение определено')},()=>toast('Не удалось получить GPS'));
 window.pickOnMap=()=>{closeModals();showPage('map');initMap();picking=true;toast('Нажмите на место магазина на карте')};
-window.saveNewShop=async()=>{const name=$('nsName').value.trim();if(!name)return toast('Введите название');if(!newCoords)return toast('Укажите место на карте или GPS');const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,lat:newCoords.lat,lng:newCoords.lng,created_by:user.id,agent_id:user.id};const {error}=await db.from('shops').insert(row);if(error)return toast(error.message);closeModals();toast('Магазин добавлен');await refreshAll()};
+window.saveNewShop=async()=>{const name=$('nsName').value.trim();if(!name)return toast('Введите название');if(!newCoords&&$('nsAddress').value.trim().length>=5)await geocodeNewShopAddress();if(!newCoords)return toast('Не удалось определить адрес. Выберите место на карте или GPS');const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,lat:newCoords.lat,lng:newCoords.lng,created_by:user.id,agent_id:user.id};const {error}=await db.from('shops').insert(row);if(error)return toast(error.message);closeModals();toast('Магазин добавлен');await refreshAll()};
 window.openVisit=()=>{if(!selectedShop)return;closeModals();$('vStatus').value=selectedShop.status==='Не посещён'?'Заинтересован':selectedShop.status;$('vComment').value='';$('vNext').value='';openModal('visitModal')};
 function getGeo(){return new Promise(r=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>r({lat:p.coords.latitude,lng:p.coords.longitude}),()=>r(null),{timeout:7000}):r(null))}
 window.saveVisit=async()=>{if(!selectedShop)return;const pos=await getGeo();const row={shop_id:selectedShop.id,agent_id:user.id,status:$('vStatus').value,comment:$('vComment').value,next_visit:$('vNext').value||null,...(pos||{})};let x=await db.from('visits').insert(row);if(x.error)return toast(x.error.message);await db.from('shops').update({status:row.status,comment:row.comment,next_visit:row.next_visit}).eq('id',selectedShop.id);closeModals();toast('Визит сохранён');await refreshAll()};
