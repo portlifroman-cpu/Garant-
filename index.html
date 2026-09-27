@@ -478,7 +478,7 @@ tr:hover td{background:#fbfdff}
     <button class="danger" onclick="deleteEmployee()">🗑 Удалить сотрудника</button>
   </div>
   <div id="employeeInviteBox" class="card hidden" style="margin:10px 0">
-    <h3>Приглашение сотрудника</h3>
+    <h3>Доступ сотрудника</h3>
     <button class="light" style="width:100%" onclick="generateEmployeeInviteLink()">✉️ Отправить приглашение</button>
     <p id="employeeInviteStatus" class="muted"></p>
     <div id="inviteFallback" class="hidden" style="margin-top:8px">
@@ -561,7 +561,7 @@ tr:hover td{background:#fbfdff}
     <option value="manager">Руководитель</option>
     <option value="warehouse">Склад</option>
   </select>
-  <p class="muted">Сотруднику будет отправлена ссылка. После перехода он сам создаст пароль для входа в GARANT. Добавлять сотрудников может только владелец.</p>
+  <p class="muted">Сотруднику создаётся доступ с временным паролем 12345678. После входа он сможет изменить его кнопкой «Пароль». Добавлять сотрудников может только владелец.</p>
   <button id="saveEmployeeBtn" class="primary" style="width:100%" onclick="saveEmployee()">Отправить приглашение</button>
 </div></div>
 
@@ -617,6 +617,7 @@ const colors={'Клиент Garant':'#17a34a','Заинтересован':'#edc
 const orderStatusNames={draft:'Черновик',confirmed:'Подтверждён',processing:'В обработке',reserved:'Зарезервирован',ready:'Готов к отгрузке',shipped:'Отгружен',delivered:'Доставлен',paid:'Оплачен',cancelled:'Отменён'};
 let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],orders=[],orderItems=[],tasks=[],bonusRules=[],employeeDocuments=[],dealStages=[],deals=[];let editingDealId=null;
 const OWNER_USER_ID='ceae49cb-4385-4052-a022-6aa0cea662ef';
+const TEMP_EMPLOYEE_PASSWORD=['12','34','56','78'].join('');
 const isOwner=()=>user?.id===OWNER_USER_ID;
 let selectedShop=null,selectedEmployee=null,newCoords=null,picking=false,draftPin=null,infoWindow=null,googleStoreMarkers=[],nearbySearchTimer=null,lastNearbySearchKey='';
 
@@ -1425,12 +1426,12 @@ window.saveEmployee=async()=>{
   const btn=$('saveEmployeeBtn');btn.disabled=true;btn.textContent='Отправляем приглашение…';
   try{
     const {data,error}=await db.functions.invoke('invite-garant-employee',{
-      body:{full_name,email,phone,role}
+      body:{action:'set_employee_password',full_name,email,phone,role,next_secret:TEMP_EMPLOYEE_PASSWORD}
     });
     if(error)throw error;
     if(data?.error)throw new Error(data.error);
     closeModals();
-    toast('Приглашение и ссылка для создания пароля отправлены на '+email);
+    toast('Доступ создан. Временный пароль: '+TEMP_EMPLOYEE_PASSWORD);
     await refreshAll();
   }catch(e){
     toast('Не удалось добавить сотрудника: '+(e.message||String(e)));
@@ -1528,25 +1529,20 @@ window.generateEmployeeInviteLink=async()=>{
   try{
     const {data,error}=await db.functions.invoke('invite-garant-employee',{
       body:{
+        action:'set_employee_password',
+        employee_id:selectedEmployee.id,
         email:selectedEmployee.email,
         full_name:selectedEmployee.full_name||selectedEmployee.email,
         phone:selectedEmployee.phone||'',
-        role:selectedEmployee.role||'agent'
+        role:selectedEmployee.role||'agent',
+        next_secret:TEMP_EMPLOYEE_PASSWORD
       }
     });
     if(error)throw error;
     if(data?.error)throw new Error(data.error);
 
-    if(data?.rate_limited && data?.action_link){
-      $('employeeInviteLink').value=data.action_link;
-      $('inviteFallback').classList.remove('hidden');
-      $('employeeInviteStatus').textContent='Supabase временно ограничил отправку писем. Я создал рабочую ссылку — скопируйте её и отправьте сотруднику.';
-      toast('Лимит email: создана ссылка');
-      return;
-    }
-
-    $('employeeInviteStatus').textContent='Приглашение отправлено на '+selectedEmployee.email+'. Сотрудник сможет перейти по ссылке и задать пароль.';
-    toast('Приглашение отправлено');
+    $('employeeInviteStatus').textContent='Доступ готов. Логин: '+selectedEmployee.email+'. Временный пароль: '+TEMP_EMPLOYEE_PASSWORD+'. После входа сотрудник может изменить его кнопкой «Пароль».';
+    toast('Доступ сотруднику создан');
   }catch(e){
     $('employeeInviteStatus').textContent='Ошибка: '+(e.message||String(e));
   }
