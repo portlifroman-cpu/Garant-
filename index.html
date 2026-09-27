@@ -200,7 +200,7 @@ tr:hover td{background:#fbfdff}
     <div class="brand brand-pro">
       <div class="brand-logo-wrap"><img class="brand-logo-img" src="/assets/garant-logo-exact.svg?v=5" alt="GARANT"></div><div class="brand-copy"><small>Система управления продажами</small></div>
     </div>
-    <div class="who"><span id="who"></span><button id="signout">Выйти</button></div>
+    <div class="who"><span id="who"></span><button id="changePasswordBtn" type="button">Пароль</button><button id="signout">Выйти</button></div>
   </div>
   <div class="app">
     <div class="tabs" id="tabs">
@@ -559,8 +559,17 @@ tr:hover td{background:#fbfdff}
     <option value="manager">Руководитель</option>
     <option value="warehouse">Склад</option>
   </select>
-  <p class="muted">Сотруднику будет отправлено приглашение на рабочую почту. Добавлять сотрудников может только владелец.</p>
+  <p class="muted">Сотруднику будет отправлена ссылка. После перехода он сам создаст пароль для входа в GARANT. Добавлять сотрудников может только владелец.</p>
   <button id="saveEmployeeBtn" class="primary" style="width:100%" onclick="saveEmployee()">Отправить приглашение</button>
+</div></div>
+
+<div class="modal" id="passwordModal"><div class="sheet">
+  <div class="head"><h2>Новый пароль</h2><button class="close">×</button></div>
+  <p id="passwordHelp" class="muted">Придумайте новый пароль для входа в GARANT.</p>
+  <label>Новый пароль</label><input id="newPassword" type="password" autocomplete="new-password" minlength="8" placeholder="Минимум 8 символов">
+  <label>Повторите пароль</label><input id="newPassword2" type="password" autocomplete="new-password" minlength="8" placeholder="Повторите пароль">
+  <button id="savePasswordBtn" class="primary" style="width:100%" onclick="saveNewPassword()">Сохранить пароль</button>
+  <p id="passwordStatus" class="muted"></p>
 </div></div>
 
 <div class="modal" id="taskModal"><div class="sheet">
@@ -672,6 +681,41 @@ $('login').onclick=login;$('password').addEventListener('keydown',e=>{if(e.key==
 $('recover').onclick=async()=>{const email=$('email').value.trim();if(!email)return toast('Введите рабочую почту');const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});toast(error?error.message:'Проверьте почту')};
 $('signout').onclick=async()=>{await db.auth.signOut();location.reload()};
 
+function shouldSetPassword(){
+  const q=new URLSearchParams(location.search);
+  const h=new URLSearchParams(location.hash.replace(/^#/,''));
+  return q.get('set_password')==='1'||h.get('type')==='invite'||h.get('type')==='recovery';
+}
+function openPasswordModal(firstSetup=false){
+  $('newPassword').value='';$('newPassword2').value='';$('passwordStatus').textContent='';
+  $('passwordHelp').textContent=firstSetup?'Создайте пароль для первого входа в GARANT.':'Введите новый пароль для вашей учётной записи.';
+  openModal('passwordModal');
+  setTimeout(()=>$('newPassword')?.focus(),100);
+}
+window.saveNewPassword=async()=>{
+  const p1=$('newPassword').value,p2=$('newPassword2').value;
+  if(p1.length<8)return $('passwordStatus').textContent='Пароль должен быть не короче 8 символов';
+  if(p1!==p2)return $('passwordStatus').textContent='Пароли не совпадают';
+  const btn=$('savePasswordBtn');btn.disabled=true;btn.textContent='Сохраняем…';$('passwordStatus').textContent='';
+  try{
+    const {error}=await db.auth.updateUser({password:p1});
+    if(error)throw error;
+    $('passwordStatus').textContent='Пароль сохранён';
+    const u=new URL(location.href);u.searchParams.delete('set_password');u.hash='';history.replaceState({},'',u.pathname+u.search);
+    setTimeout(()=>{closeModals();toast('Пароль успешно изменён')},500);
+  }catch(e){
+    $('passwordStatus').textContent='Ошибка: '+(e.message||String(e));
+  }finally{
+    btn.disabled=false;btn.textContent='Сохранить пароль';
+  }
+};
+$('changePasswordBtn').onclick=()=>openPasswordModal(false);
+db.auth.onAuthStateChange((event,session)=>{
+  if((event==='PASSWORD_RECOVERY'||event==='SIGNED_IN'||event==='INITIAL_SESSION')&&session&&shouldSetPassword()){
+    setTimeout(()=>openPasswordModal(true),150);
+  }
+});
+
 async function boot(){
  const u=await db.auth.getUser();user=u.data.user;if(!user)return;
  const p=await db.from('profiles').select('*').eq('id',user.id).single();
@@ -680,7 +724,7 @@ async function boot(){
  $('auth').classList.add('hidden');$('mainApp').classList.remove('hidden');
  if(!isManager()){['addProductBtn','addWarehouseBtn','adjustStockBtn'].forEach(id=>$(id)?.classList.add('hidden'))}
  if(isOwner())$('addEmployeeBtn')?.classList.remove('hidden');
- await refreshAll();showPage('dashboard');
+ await refreshAll();showPage('dashboard');if(shouldSetPassword())setTimeout(()=>openPasswordModal(true),200);
 }
 
 async function refreshAll(){
@@ -1384,7 +1428,7 @@ window.saveEmployee=async()=>{
     if(error)throw error;
     if(data?.error)throw new Error(data.error);
     closeModals();
-    toast('Приглашение отправлено на '+email);
+    toast('Приглашение и ссылка для создания пароля отправлены на '+email);
     await refreshAll();
   }catch(e){
     toast('Не удалось добавить сотрудника: '+(e.message||String(e)));
@@ -1462,7 +1506,7 @@ window.generateEmployeeInviteLink=async()=>{
     if(!data?.action_link)throw new Error('Supabase не вернул ссылку');
     $('employeeInviteLink').value=data.action_link;
     $('inviteLinkWrap').classList.remove('hidden');
-    $('employeeInviteStatus').textContent='Новая ссылка создана. Её можно отправить сотруднику вручную.';
+    $('employeeInviteStatus').textContent='Новая ссылка создана. По ней сотрудник сможет задать новый пароль.';
   }catch(e){
     $('employeeInviteStatus').textContent='Ошибка: '+(e.message||String(e));
   }
