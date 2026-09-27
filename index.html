@@ -1255,10 +1255,40 @@ function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAdd
   </div>
   <div class="card" style="margin:8px 0">
     <h3 style="margin-top:0">Товар, поставленный в магазин</h3>
+    <div id="shopPlacementEntry" style="margin-bottom:10px">
+      <div class="row3">
+        <div><label>Агент</label><select id="shopPlacementAgent"></select></div>
+        <div><label>Вкус / товар</label><select id="shopPlacementProduct"></select></div>
+        <div><label>Количество, шт.</label><input id="shopPlacementQty" type="number" min="1" value="1"></div>
+      </div>
+      <button class="primary" style="width:100%" onclick="placeStockFromShopCard()">Поставить в магазин</button>
+      <p id="shopPlacementHint" class="muted"></p>
+    </div>
     ${placedRows?`<div class="tablewrap"><table><thead><tr><th>Вкус / товар</th><th>Всего поставлено</th></tr></thead><tbody>${placedRows}</tbody></table></div>`:'<p class="muted">Поставок товара пока нет.</p>'}
   </div>
   ${s.google_maps_url?`<p><a href="${esc(s.google_maps_url)}" target="_blank" rel="noopener noreferrer">Открыть исходную точку в Google Maps</a></p>`:''}
  `;
+ 
+ const placementAgent=$('shopPlacementAgent');
+ const placementProduct=$('shopPlacementProduct');
+ const targetAgentId=(isManager()?(s.agent_id||user.id):user.id);
+ if(placementAgent){
+   const allowedAgents=isManager()?profiles.filter(p=>p.active&&['agent','regional_manager','manager'].includes(p.role)):[profile];
+   placementAgent.innerHTML=allowedAgents.map(p=>`<option value="${p.id}">${esc(p.full_name||p.email||'Сотрудник')}</option>`).join('');
+   placementAgent.value=targetAgentId;
+ }
+ function refreshShopPlacementProducts(){
+   if(!placementAgent||!placementProduct)return;
+   const aid=placementAgent.value;
+   const stock=agentStockBalances.filter(b=>b.agent_id===aid&&Number(b.quantity||0)>0);
+   placementProduct.innerHTML=stock.map(b=>{
+     const p=products.find(x=>x.id===b.product_id);
+     return p?`<option value="${p.id}">${esc(p.name)} · остаток ${Number(b.quantity||0)}</option>`:'';
+   }).join('');
+   $('shopPlacementHint').textContent=stock.length?'Количество будет списано с личного остатка выбранного агента.':'У выбранного агента нет товара на остатке.';
+ }
+ placementAgent?.addEventListener('change',refreshShopPlacementProducts);
+ refreshShopPlacementProducts();
  const vv=visits.filter(v=>v.shop_id===s.id);
  $('visitHistory').innerHTML=vv.length?vv.map(v=>{
    const vm=agentStockMovements.filter(m=>m.visit_id===v.id&&m.movement_type==='shop_placement');
@@ -1268,6 +1298,28 @@ function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAdd
  $('routeBtn').onclick=()=>{if(s.address||s.city){const dest=encodeURIComponent([s.address,s.city,'Spain'].filter(Boolean).join(', '));window.open('https://www.google.com/maps/dir/?api=1&destination='+dest,'_blank');return}if(s.lat!=null&&s.lng!=null){window.open('https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng,'_blank');return}toast('У магазина пока нет адреса или координат для маршрута')};
  $('shopPhotoStatus').textContent='';$('existingShopPhotos').value='';openModal('shopModal');loadShopPhotos(s.id)
 }
+window.placeStockFromShopCard=async()=>{
+  if(!selectedShop)return;
+  const agent_id=$('shopPlacementAgent')?.value||user.id;
+  const product_id=$('shopPlacementProduct')?.value||'';
+  const quantity=Math.floor(Number($('shopPlacementQty')?.value||0));
+  if(!product_id||quantity<=0)return toast('Выберите вкус и количество');
+  const have=Number(agentStockBalances.find(b=>b.agent_id===agent_id&&b.product_id===product_id)?.quantity||0);
+  if(quantity>have)return toast('У агента недостаточно товара. Остаток: '+have);
+  const r=await db.rpc('place_stock_from_agent',{
+    p_agent_id:agent_id,
+    p_shop_id:selectedShop.id,
+    p_product_id:product_id,
+    p_qty:quantity,
+    p_comment:'Поставка из карточки магазина'
+  });
+  if(r.error)return toast('Не удалось поставить товар: '+r.error.message);
+  toast('Товар поставлен в магазин и списан со склада агента');
+  await refreshAll();
+  const fresh=shops.find(x=>x.id===selectedShop.id);
+  if(fresh)openShop(fresh);
+};
+
 window.openNewShop=()=>{window.__pendingGooglePlaceId=null;window.__pendingGoogleMapsUrl=null;setNewCoords(null);$('nsName').value='';$('nsAddress').value='';$('nsPhone').value='';$('nsComment').value='';$('nsCreatedByName').value=profile?.full_name||'Сотрудник';$('nsAgent').value=user.id;$('nsAgent').disabled=!isManager();openModal('newShopModal')};
 function setNewCoords(p){
  newCoords=p;
