@@ -1235,7 +1235,15 @@ function employeeName(id){
   return p?.full_name||'Неизвестный сотрудник';
 }
 
-function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');$('shopDetail').innerHTML=`
+function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');
+ const placed=agentStockMovements.filter(m=>m.shop_id===s.id&&m.movement_type==='shop_placement');
+ const placedByProduct={};
+ placed.forEach(m=>{placedByProduct[m.product_id]=(placedByProduct[m.product_id]||0)+Number(m.quantity||0)});
+ const placedRows=Object.entries(placedByProduct).map(([pid,qty])=>{
+   const p=products.find(x=>x.id===pid);
+   return `<tr><td><b>${esc(p?.name||'—')}</b><div class="muted">${esc(p?.flavor||'')}</div></td><td><b>${qty} шт.</b></td></tr>`;
+ }).join('');
+ $('shopDetail').innerHTML=`
   <div class="card" style="margin:8px 0">
     <div><b>Кто открыл клиента:</b> ${esc(s.opened_by_name||employeeName(s.created_by))}</div>
     <div style="margin-top:7px"><b>Кто обслуживает магазин:</b> ${esc(employeeName(s.agent_id))}</div>
@@ -1245,8 +1253,21 @@ function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAdd
     <div><b>Телефон</b><p>${esc(s.phone||'—')}</p></div>
     <div><b>Комментарий</b><p>${esc(s.comment||'—')}</p></div>
   </div>
+  <div class="card" style="margin:8px 0">
+    <h3 style="margin-top:0">Товар, поставленный в магазин</h3>
+    ${placedRows?`<div class="tablewrap"><table><thead><tr><th>Вкус / товар</th><th>Всего поставлено</th></tr></thead><tbody>${placedRows}</tbody></table></div>`:'<p class="muted">Поставок товара пока нет.</p>'}
+  </div>
   ${s.google_maps_url?`<p><a href="${esc(s.google_maps_url)}" target="_blank" rel="noopener noreferrer">Открыть исходную точку в Google Maps</a></p>`:''}
-`;const vv=visits.filter(v=>v.shop_id===s.id);$('visitHistory').innerHTML=vv.length?vv.map(v=>`<div class="card" style="margin:6px 0"><b>${esc(v.status)}</b><div>${esc(v.comment||'')}</div><span class="muted">${new Date(v.created_at).toLocaleString('ru-RU')}</span></div>`).join(''):'<p class="muted">Визитов пока нет</p>';$('routeBtn').onclick=()=>{if(s.address||s.city){const dest=encodeURIComponent([s.address,s.city,'Spain'].filter(Boolean).join(', '));window.open('https://www.google.com/maps/dir/?api=1&destination='+dest,'_blank');return}if(s.lat!=null&&s.lng!=null){window.open('https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng,'_blank');return}toast('У магазина пока нет адреса или координат для маршрута')};$('shopPhotoStatus').textContent='';$('existingShopPhotos').value='';openModal('shopModal');loadShopPhotos(s.id)}
+ `;
+ const vv=visits.filter(v=>v.shop_id===s.id);
+ $('visitHistory').innerHTML=vv.length?vv.map(v=>{
+   const vm=agentStockMovements.filter(m=>m.visit_id===v.id&&m.movement_type==='shop_placement');
+   const goods=vm.length?`<div style="margin-top:6px"><b>Поставлено:</b> ${vm.map(m=>{const p=products.find(x=>x.id===m.product_id);return esc((p?.name||'Товар')+' — '+Number(m.quantity||0)+' шт.');}).join(', ')}</div>`:'';
+   return `<div class="card" style="margin:6px 0"><b>${esc(v.status)}</b><div>${esc(v.comment||'')}</div>${goods}<span class="muted">${new Date(v.created_at).toLocaleString('ru-RU')}</span></div>`;
+ }).join(''):'<p class="muted">Визитов пока нет</p>';
+ $('routeBtn').onclick=()=>{if(s.address||s.city){const dest=encodeURIComponent([s.address,s.city,'Spain'].filter(Boolean).join(', '));window.open('https://www.google.com/maps/dir/?api=1&destination='+dest,'_blank');return}if(s.lat!=null&&s.lng!=null){window.open('https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng,'_blank');return}toast('У магазина пока нет адреса или координат для маршрута')};
+ $('shopPhotoStatus').textContent='';$('existingShopPhotos').value='';openModal('shopModal');loadShopPhotos(s.id)
+}
 window.openNewShop=()=>{window.__pendingGooglePlaceId=null;window.__pendingGoogleMapsUrl=null;setNewCoords(null);$('nsName').value='';$('nsAddress').value='';$('nsPhone').value='';$('nsComment').value='';$('nsCreatedByName').value=profile?.full_name||'Сотрудник';$('nsAgent').value=user.id;$('nsAgent').disabled=!isManager();openModal('newShopModal')};
 function setNewCoords(p){
  newCoords=p;
