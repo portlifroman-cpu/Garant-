@@ -48,10 +48,10 @@ label{font-size:12px;font-weight:700}
   gap:12px;position:sticky;top:0;z-index:1200;box-shadow:0 8px 24px rgba(8,28,48,.20)
 }
 .brand-pro{display:flex;align-items:center;gap:12px;min-width:0}
-.brand-logo-wrap{
+.brand-logo-img{width:100%;height:100%;object-fit:contain;display:block}.brand-logo-wrap{
   height:50px;width:130px;border-radius:14px;overflow:hidden;background:#fff;
   box-shadow:0 6px 18px rgba(0,0,0,.16);display:flex;align-items:center;justify-content:center;flex:0 0 auto
-}.text-logo span{font-weight:900;font-size:28px;letter-spacing:-1px;color:#111}.garant-hero-logo.text-logo span{font-size:34px}
+}
 
 .brand-copy{display:flex;flex-direction:column;line-height:1.05}
 .brand-copy b{font-size:22px;font-weight:800}
@@ -202,7 +202,7 @@ tr:hover td{background:#fbfdff}
 <div id="mainApp" class="hidden">
   <div class="top">
     <div class="brand brand-pro">
-      <div class="brand-logo-wrap text-logo"><span>GARANT</span></div><div class="brand-copy">
+      <div class="brand-logo-wrap"><img class="brand-logo-img" src="/assets/garant-logo-official.png?v=1" alt="GARANT"></div><div class="brand-copy">
         <b>GARANT</b>
         <small>Система управления продажами</small>
       </div>
@@ -227,7 +227,7 @@ tr:hover td{background:#fbfdff}
     <section id="page-dashboard" class="page">
       <div class="garant-hero">
         <div class="garant-hero-content">
-          <div class="garant-hero-logo text-logo"><span>GARANT</span></div>
+          <img class="garant-hero-logo" src="/assets/garant-logo-official.png?v=1" alt="GARANT">
           <div class="garant-hero-kicker">GARANT · SALES CRM</div>
           <div class="garant-hero-title">Система управления продажами</div>
           <div class="garant-hero-subtitle">Магазины, агенты, сделки, визиты, заказы и склад — в одной рабочей системе GARANT.</div>
