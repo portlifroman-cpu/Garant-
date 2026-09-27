@@ -34,6 +34,16 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
 .mobile-nav{display:none}
 @media(max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}.grid3,.grid2{grid-template-columns:1fr}.mapLayout{display:block}.mapLayout>.card:first-child{margin-bottom:8px}#map{height:60vh;min-height:420px}.row,.row3{grid-template-columns:1fr}.tabs{top:51px}}
 @media(max-width:620px){.page{padding:7px}.top{padding:10px}.brand small{display:none}.grid4{grid-template-columns:1fr 1fr}.tabs{padding:7px}.tabs button{font-size:12px}.sheet{border-radius:16px 16px 0 0;width:100%}.modal{align-items:flex-end;padding:0}}
+
+.pipeline-board{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;align-items:flex-start}
+.pipeline-col{min-width:270px;max-width:300px;background:#eef3f8;border:1px solid var(--line);border-radius:14px;padding:10px}
+.pipeline-col h3{display:flex;justify-content:space-between;gap:8px;align-items:center;margin:0 0 8px;font-size:14px}
+.deal-card{background:#fff;border:1px solid #dfe7ee;border-radius:12px;padding:10px;margin:8px 0;cursor:grab}
+.deal-card:active{cursor:grabbing}.deal-card .title{font-weight:750}.deal-card .meta{font-size:12px;color:var(--muted);margin-top:4px}
+.deal-card.overdue{border-color:#e79b9b}.deal-value{font-weight:800}
+.pipeline-drop{min-height:70px}
+.deal-mobile-actions{display:flex;gap:6px;margin-top:8px}.deal-mobile-actions button{padding:6px 8px;font-size:11px}
+
 </style>
 </head>
 <body>
@@ -54,13 +64,14 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
   <div class="app">
     <div class="tabs" id="tabs">
       <button data-page="dashboard" class="active">Главная</button>
+      <button data-page="deals">Сделки</button>
       <button data-page="map">Карта</button>
       <button data-page="shops">Магазины</button>
       <button data-page="orders">Заказы</button>
-      <button data-page="products">Товары</button>
-      <button data-page="stock">Склад</button>
-      <button data-page="employees">Сотрудники</button>
       <button data-page="tasks">Задачи</button>
+      <button data-page="stock">Склад</button>
+      <button data-page="products">Товары</button>
+      <button data-page="employees">Команда</button>
       <button data-page="bonuses">Бонусы</button>
       <button data-page="reports">Отчёты</button>
     </div>
@@ -74,8 +85,18 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
       </div>
       <div class="grid3" style="margin-top:10px">
         <div class="card"><h3>Сегодня</h3><p>Визитов: <b id="dVisits">0</b></p><p>Новых точек: <b id="dNewShops">0</b></p><p>Просроченных задач: <b id="dOverdue">0</b></p></div>
+        <div class="card"><h3>Продажи</h3><p>Открытых сделок: <b id="dOpenDeals">0</b></p><p>Сумма в работе: <b id="dPipelineValue">0 €</b></p><p>Заказов: <b id="dOrders2">0</b></p></div>
         <div class="card"><h3>Склад</h3><p>SKU: <b id="dSku">0</b></p><p>Доступно единиц: <b id="dAvailable">0</b></p><p>Низкий остаток: <b id="dLow">0</b></p></div>
-        <div class="card"><h3>Быстрые действия</h3><div class="actions"><button class="primary" onclick="openNewShop()">+ Магазин</button><button class="light" onclick="showPage('orders');openNewOrder()">+ Заказ</button><button class="light" onclick="showPage('stock')">Склад</button></div></div>
+      </div>
+      <div class="card" style="margin-top:10px">
+        <h3>Рабочий процесс GARANT</h3>
+        <p class="muted">Новая точка → Сделка → Визит / образцы → Заказ → Оплата → Активный клиент</p>
+        <div class="actions">
+          <button class="primary" onclick="openNewShop()">+ Магазин</button>
+          <button class="light" onclick="showPage('deals');openDeal()">+ Сделка</button>
+          <button class="light" onclick="showPage('orders');openNewOrder()">+ Заказ</button>
+          <button class="light" onclick="showPage('tasks');openTask()">+ Задача</button>
+        </div>
       </div>
     </section>
 
@@ -101,6 +122,15 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
         <button class="primary" onclick="openNewShop()">+ Добавить магазин</button>
       </div>
       <div id="shopsTable" class="tablewrap"></div>
+    </section>
+
+    <section id="page-deals" class="page hidden">
+      <div class="toolbar">
+        <div><label>Ответственный</label><select id="dealOwnerFilter"><option value="">Все</option></select></div>
+        <div><label>Поиск</label><input id="dealSearch" placeholder="Сделка или магазин"></div>
+        <button class="primary" onclick="openDeal()">+ Новая сделка</button>
+      </div>
+      <div id="pipelineBoard" class="pipeline-board"></div>
     </section>
 
     <section id="page-orders" class="page hidden">
@@ -173,7 +203,13 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
     <p id="shopPhotoStatus" class="muted"></p>
   </div>
   <h3>История визитов</h3><div id="visitHistory"></div>
-  <div class="actions"><button class="primary" onclick="openVisit()">Записать визит</button><button class="light" onclick="openOrderForSelected()">Создать заказ</button><button class="light" onclick="openEditShop()">✏️ Редактировать</button><button class="light" id="routeBtn">Маршрут</button></div>
+  <div class="actions">
+    <button class="primary" onclick="openVisit()">Записать визит</button>
+    <button class="light" onclick="openDealForSelected()">Сделка</button>
+    <button class="light" onclick="openOrderForSelected()">Заказ</button>
+    <button class="light" onclick="openEditShop()">✏️ Редактировать</button>
+    <button class="light" id="routeBtn">Маршрут</button>
+  </div>
 </div></div>
 
 <div class="modal" id="newShopModal"><div class="sheet">
@@ -185,6 +221,10 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
   <label>Фото магазина</label><input id="nsPhotos" type="file" accept="image/*" multiple>
   <p class="muted">Можно добавить фото витрины, входа или выкладки. До 8 МБ на файл.</p>
   <label>Статус</label><select id="nsStatus"></select>
+  <label style="display:flex;gap:8px;align-items:center;margin:4px 0 12px">
+    <input id="nsCreateDeal" type="checkbox" checked style="width:auto;margin:0">
+    Сразу создать сделку по этому магазину
+  </label>
   <div class="row"><button class="light" onclick="useMyLocation()">📍 Моё местоположение</button><button id="pickOnMapBtn" class="light" onclick="pickOnMap()">🗺️ Поставить точку на карте вручную</button></div>
   <p id="nsPos" class="muted">GPS необязателен. По адресу GARANT найдёт точку автоматически. Любой сотрудник может также поставить точку вручную на карте.</p>
   <button class="primary" style="width:100%" onclick="saveNewShop()">Добавить магазин</button>
@@ -209,6 +249,18 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
   <div class="row"><button class="light" onclick="editUseMyLocation()">📍 Взять GPS</button><button class="light" onclick="editPickOnMap()">🗺️ Поставить точку на карте</button></div>
   <p id="esPos" class="muted"></p>
   <button class="primary" style="width:100%" onclick="saveEditShop()">Сохранить изменения</button>
+</div></div>
+
+
+<div class="modal" id="dealModal"><div class="sheet">
+  <div class="head"><h2 id="dealModalTitle">Новая сделка</h2><button class="close">×</button></div>
+  <label>Название сделки *</label><input id="dTitle" placeholder="Например: Estanco Centro — первый заказ">
+  <label>Магазин</label><select id="dShop"></select>
+  <div class="row"><div><label>Этап</label><select id="dStage"></select></div><div><label>Ответственный</label><select id="dOwner"></select></div></div>
+  <div class="row"><div><label>Сумма, €</label><input id="dValue" type="number" min="0" step="0.01"></div><div><label>Вероятность, %</label><input id="dProb" type="number" min="0" max="100" value="20"></div></div>
+  <div class="row"><div><label>Ожидаемое закрытие</label><input id="dClose" type="date"></div><div><label>Следующее действие</label><input id="dNext" type="datetime-local"></div></div>
+  <label>Заметки</label><textarea id="dNotes" rows="3"></textarea>
+  <button class="primary" style="width:100%" onclick="saveDeal()">Сохранить сделку</button>
 </div></div>
 
 <!-- Заказ -->
@@ -248,8 +300,36 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
 </div></div>
 
 
+
+<div class="modal" id="employeeCardModal"><div class="sheet wide">
+  <div class="head"><div><h2 id="ecName">Сотрудник</h2><div id="ecMeta" class="muted"></div></div><button class="close">×</button></div>
+  <div id="ecInfo"></div>
+  <h3>Документы сотрудника</h3>
+  <div id="employeeDocs"></div>
+  <div class="card" style="margin-top:10px">
+    <label>Тип документа</label>
+    <select id="docType">
+      <option value="identity_document">Паспорт / удостоверение личности</option>
+      <option value="dni_nie">DNI / NIE</option>
+      <option value="driver_license">Водительское удостоверение</option>
+      <option value="contract">Договор</option>
+      <option value="other">Другой документ</option>
+    </select>
+    <div class="row">
+      <div><label>Номер документа</label><input id="docNumber" placeholder="Необязательно"></div>
+      <div><label>Срок действия</label><input id="docExpiry" type="date"></div>
+    </div>
+    <label>Файл документа</label>
+    <input id="docFile" type="file" accept="image/*,.pdf,application/pdf">
+    <label>Комментарий</label>
+    <textarea id="docComment" rows="2"></textarea>
+    <button id="uploadDocBtn" class="primary" style="width:100%" onclick="uploadEmployeeDocument()">📎 Прикрепить документ</button>
+    <p id="docStatus" class="muted"></p>
+  </div>
+</div></div>
+
 <div class="modal" id="employeeModal"><div class="sheet">
-  <div class="head"><h2>Добавить сотрудника</h2><button class="close">×</button></div>
+  <div class="head"><h2>Добавить сотрудника в команду</h2><button class="close">×</button></div>
   <label>Имя и фамилия *</label><input id="eName" placeholder="Имя Фамилия">
   <label>Рабочая почта *</label><input id="eEmail" type="email" placeholder="name@company.com">
   <label>Телефон</label><input id="ePhone" type="tel">
@@ -305,10 +385,10 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const money=n=>(Number(n)||0).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
 const colors={'Клиент Garant':'#17a34a','Заинтересован':'#edc200','Оставили образцы':'#1375f2','Повторный визит':'#fa7b21','Отказ':'#db3434','Не посещён':'#98a4b1'};
 const orderStatusNames={draft:'Черновик',confirmed:'Подтверждён',processing:'В обработке',reserved:'Зарезервирован',ready:'Готов к отгрузке',shipped:'Отгружен',delivered:'Доставлен',paid:'Оплачен',cancelled:'Отменён'};
-let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],orders=[],orderItems=[],tasks=[],bonusRules=[];
+let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],orders=[],orderItems=[],tasks=[],bonusRules=[],employeeDocuments=[],dealStages=[],deals=[];let editingDealId=null;
 const OWNER_USER_ID='ceae49cb-4385-4052-a022-6aa0cea662ef';
 const isOwner=()=>user?.id===OWNER_USER_ID;
-let selectedShop=null,newCoords=null,picking=false,draftPin=null,infoWindow=null;
+let selectedShop=null,selectedEmployee=null,newCoords=null,picking=false,draftPin=null,infoWindow=null;
 
 function toast(s){$('toast').textContent=s;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3200)}
 function openModal(id){$(id).classList.add('open')} function closeModals(){document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'))}
@@ -396,10 +476,13 @@ async function refreshAll(){
   db.from('sales_orders').select('*').order('created_at',{ascending:false}).limit(1000),
   db.from('sales_order_items').select('*').limit(5000),
   db.from('tasks').select('*').order('due_at',{ascending:true}).limit(1000),
-  db.from('bonus_rules').select('*').eq('active',true).limit(10)
+  db.from('bonus_rules').select('*').eq('active',true).limit(10),
+  db.from('employee_documents').select('*').order('created_at',{ascending:false}).limit(1000),
+  db.from('pipeline_stages').select('*').eq('active',true).order('position'),
+  db.from('deals').select('*').order('updated_at',{ascending:false}).limit(2000)
  ];
  const r=await Promise.all(qs.map(q=>q.then(x=>x).catch(e=>({error:e}))));
- shops=safeData(r[0],'shops');visits=safeData(r[1],'visits');profiles=safeData(r[2],'profiles');products=safeData(r[3],'products');warehouses=safeData(r[4],'warehouses');balances=safeData(r[5],'inventory_balances');movements=safeData(r[6],'inventory_movements');orders=safeData(r[7],'sales_orders');orderItems=safeData(r[8],'sales_order_items');tasks=safeData(r[9],'tasks');bonusRules=safeData(r[10],'bonus_rules');
+ shops=safeData(r[0],'shops');visits=safeData(r[1],'visits');profiles=safeData(r[2],'profiles');products=safeData(r[3],'products');warehouses=safeData(r[4],'warehouses');balances=safeData(r[5],'inventory_balances');movements=safeData(r[6],'inventory_movements');orders=safeData(r[7],'sales_orders');orderItems=safeData(r[8],'sales_order_items');tasks=safeData(r[9],'tasks');bonusRules=safeData(r[10],'bonus_rules');employeeDocuments=safeData(r[11],'employee_documents');dealStages=safeData(r[12],'pipeline_stages');deals=safeData(r[13],'deals');
  renderAll();
 }
 
@@ -410,16 +493,17 @@ function showPage(name){
 }
 window.showPage=showPage;document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
 
-function renderAll(){fillSelects();renderDashboard();renderShops();renderOrders();renderProducts();renderStock();renderEmployees();renderTasks();renderBonuses();renderReports();if(map)drawMap()}
+function renderAll(){fillSelects();renderDashboard();renderShops();renderDeals();renderOrders();renderProducts();renderStock();renderEmployees();renderTasks();renderBonuses();renderReports();if(map)drawMap()}
 function fillSelects(){
  const statusOptions=Object.keys(colors).map(x=>`<option>${esc(x)}</option>`).join('');
  $('mapStatus').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('shopStatusFilter').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('nsStatus').innerHTML=statusOptions;$('esStatus').innerHTML=statusOptions;$('vStatus').innerHTML=Object.keys(colors).filter(x=>x!=='Не посещён').map(x=>`<option>${esc(x)}</option>`).join('');
  const people=profiles.map(p=>`<option value="${p.id}">${esc(p.full_name||p.id)} · ${esc(p.role)}</option>`).join('');
- $('mapAgent').innerHTML='<option value="">Все агенты</option>'+people;$('tEmployee').innerHTML=people;
+ $('mapAgent').innerHTML='<option value="">Все агенты</option>'+people;$('tEmployee').innerHTML=people;$('dOwner').innerHTML=people;$('dealOwnerFilter').innerHTML='<option value="">Все</option>'+people;
+ $('dStage').innerHTML=dealStages.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
  const wh=warehouses.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('');
  ['stockWarehouse','oWarehouse','mWarehouse'].forEach(id=>{if($(id))$(id).innerHTML=(id==='stockWarehouse'?'<option value="">Все склады</option>':'')+wh});
  const sh=shops.map(s=>`<option value="${s.id}">${esc(s.name)} — ${esc(s.city||'')}</option>`).join('');
- $('oShop').innerHTML=sh;$('tShop').innerHTML='<option value="">Без магазина</option>'+sh;
+ $('oShop').innerHTML=sh;$('tShop').innerHTML='<option value="">Без магазина</option>'+sh;$('dShop').innerHTML='<option value="">Без магазина</option>'+sh;
  $('mProduct').innerHTML=products.map(p=>`<option value="${p.id}">${esc(p.name)}${p.sku?' · '+esc(p.sku):''}</option>`).join('');
  $('orderStatusFilter').innerHTML='<option value="">Все</option>'+Object.entries(orderStatusNames).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
 }
@@ -429,6 +513,7 @@ function renderDashboard(){
  $('dSales').textContent=money(orders.filter(o=>o.payment_status==='paid'||o.status==='paid').reduce((a,o)=>a+Number(o.total||0),0));
  const today=new Date().toDateString();$('dVisits').textContent=visits.filter(v=>new Date(v.created_at).toDateString()===today).length;$('dNewShops').textContent=shops.filter(s=>new Date(s.created_at).toDateString()===today).length;
  $('dOverdue').textContent=tasks.filter(t=>t.status==='planned'&&t.due_at&&new Date(t.due_at)<new Date()).length;
+ const openDeals=deals.filter(d=>d.status==='open');$('dOpenDeals').textContent=openDeals.length;$('dPipelineValue').textContent=money(openDeals.reduce((a,d)=>a+Number(d.value||0),0));$('dOrders2').textContent=orders.length;
  $('dSku').textContent=products.length;const av=balances.reduce((a,b)=>a+Math.max(0,(b.physical_qty||0)-(b.reserved_qty||0)),0);$('dAvailable').textContent=av;
  $('dLow').textContent=balances.filter(b=>{const p=products.find(x=>x.id===b.product_id);return p&&((b.physical_qty||0)-(b.reserved_qty||0))<Number(p.min_stock||0)}).length;
 }
@@ -552,6 +637,21 @@ window.saveNewShop=async()=>{
  const files=Array.from($('nsPhotos').files||[]);
  let photoResult={uploaded:0,failed:[]};
  if(files.length)photoResult=await uploadShopPhotos(data.id,files);
+ if($('nsCreateDeal')?.checked){
+   const stage=stageForShopStatus(row.status)||dealStages[0];
+   if(stage){
+     await db.from('deals').insert({
+       title:row.name+' — сделка',
+       shop_id:data.id,
+       owner_id:user.id,
+       stage_id:stage.id,
+       value:0,
+       probability:row.status==='Клиент Garant'?100:20,
+       status:stage.is_won?'won':stage.is_lost?'lost':'open',
+       created_by:user.id
+     });
+   }
+ }
  $('nsPhotos').value='';
  closeModals();
  toast((newCoords?'Магазин добавлен и отмечен на карте':'Магазин добавлен без геопозиции')+(files.length?' · фото: '+photoResult.uploaded:''));
@@ -559,7 +659,7 @@ window.saveNewShop=async()=>{
 };
 window.openVisit=()=>{if(!selectedShop)return;closeModals();$('vStatus').value=selectedShop.status==='Не посещён'?'Заинтересован':selectedShop.status;$('vComment').value='';$('vNext').value='';openModal('visitModal')};
 function getGeo(){return new Promise(r=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>r({lat:p.coords.latitude,lng:p.coords.longitude}),()=>r(null),{timeout:7000}):r(null))}
-window.saveVisit=async()=>{if(!selectedShop)return;const pos=await getGeo();const row={shop_id:selectedShop.id,agent_id:user.id,status:$('vStatus').value,comment:$('vComment').value,next_visit:$('vNext').value||null,...(pos||{})};let x=await db.from('visits').insert(row);if(x.error)return toast(x.error.message);await db.from('shops').update({status:row.status,comment:row.comment,next_visit:row.next_visit}).eq('id',selectedShop.id);closeModals();toast('Визит сохранён');await refreshAll()};
+window.saveVisit=async()=>{if(!selectedShop)return;const pos=await getGeo();const row={shop_id:selectedShop.id,agent_id:user.id,status:$('vStatus').value,comment:$('vComment').value,next_visit:$('vNext').value||null,...(pos||{})};let x=await db.from('visits').insert(row);if(x.error)return toast(x.error.message);await db.from('shops').update({status:row.status,comment:row.comment,next_visit:row.next_visit}).eq('id',selectedShop.id);await syncShopDealStage(selectedShop.id,row.status);closeModals();toast('Визит сохранён');await refreshAll()};
 
 
 let editCoords=null;
@@ -607,12 +707,119 @@ window.saveEditShop=async()=>{
   };
   const {error}=await db.from('shops').update(row).eq('id',selectedShop.id);
   if(error)return toast('Не удалось сохранить: '+error.message);
+  await syncShopDealStage(selectedShop.id,row.status);
   closeModals();toast('Карточка магазина обновлена');await refreshAll();
   const fresh=shops.find(s=>s.id===selectedShop.id);if(fresh)openShop(fresh);
 };
 
 function productPrice(id){return Number(products.find(p=>p.id===id)?.price||0)}
 function availableFor(productId,warehouseId){const b=balances.find(x=>x.product_id===productId&&x.warehouse_id===warehouseId);return Math.max(0,Number(b?.physical_qty||0)-Number(b?.reserved_qty||0))}
+
+
+function stageByName(name){return dealStages.find(s=>s.name===name)}
+function stageForShopStatus(status){
+  const map={
+    'Не посещён':'Новый лид',
+    'Заинтересован':'Связались',
+    'Оставили образцы':'Оставили образцы',
+    'Повторный визит':'Переговоры',
+    'Клиент Garant':'Активный клиент',
+    'Отказ':'Отказ'
+  };
+  return stageByName(map[status]||'Новый лид')||dealStages[0];
+}
+async function syncShopDealStage(shopId,status){
+  const deal=deals.find(d=>d.shop_id===shopId&&d.status==='open')||deals.find(d=>d.shop_id===shopId);
+  const stage=stageForShopStatus(status);
+  if(!deal||!stage)return;
+  const newStatus=stage.is_won?'won':stage.is_lost?'lost':'open';
+  await db.from('deals').update({stage_id:stage.id,status:newStatus,updated_at:new Date().toISOString()}).eq('id',deal.id);
+}
+window.openDealForSelected=()=>{
+  if(!selectedShop)return;
+  closeModals();showPage('deals');openDeal();
+  $('dShop').value=selectedShop.id;
+  $('dTitle').value=selectedShop.name+' — сделка';
+  const st=stageForShopStatus(selectedShop.status);if(st)$('dStage').value=st.id;
+};
+
+function renderDeals(){
+ const owner=$('dealOwnerFilter')?.value||'',q=($('dealSearch')?.value||'').toLowerCase();
+ const filtered=deals.filter(d=>(!owner||d.owner_id===owner)&&(!q||((d.title||'')+' '+(shops.find(s=>s.id===d.shop_id)?.name||'')).toLowerCase().includes(q)));
+ const board=$('pipelineBoard');if(!board)return;
+ board.innerHTML=dealStages.map((stage,idx)=>{
+   const ds=filtered.filter(d=>d.stage_id===stage.id);
+   const sum=ds.reduce((a,d)=>a+Number(d.value||0),0);
+   return `<div class="pipeline-col" data-stage="${stage.id}">
+     <h3><span>${esc(stage.name)}</span><span class="badge">${ds.length} · ${money(sum)}</span></h3>
+     <div class="pipeline-drop" data-stage="${stage.id}">
+       ${ds.map(d=>{
+         const shop=shops.find(s=>s.id===d.shop_id),ownerP=profiles.find(p=>p.id===d.owner_id);
+         const overdue=d.next_activity_at&&new Date(d.next_activity_at)<new Date()&&d.status==='open';
+         return `<div class="deal-card ${overdue?'overdue':''}" draggable="true" data-deal="${d.id}" onclick="editDeal('${d.id}')">
+           <div class="title">${esc(d.title)}</div>
+           <div class="meta">${esc(shop?.name||'Без магазина')}</div>
+           <div class="meta">${esc(ownerP?.full_name||'')} · ${d.probability||0}%</div>
+           <div class="deal-value">${money(d.value)}</div>
+           <div class="meta">${d.next_activity_at?'След.: '+new Date(d.next_activity_at).toLocaleString('ru-RU'):''}</div>
+           <div class="deal-mobile-actions">
+             <button type="button" class="light" onclick="event.stopPropagation();moveDeal('${d.id}',-1)">←</button>
+             <button type="button" class="light" onclick="event.stopPropagation();moveDeal('${d.id}',1)">→</button>
+           </div>
+         </div>`
+       }).join('')}
+     </div>
+   </div>`
+ }).join('');
+ board.querySelectorAll('.deal-card').forEach(card=>card.addEventListener('dragstart',e=>e.dataTransfer.setData('text/plain',card.dataset.deal)));
+ board.querySelectorAll('.pipeline-drop').forEach(col=>{
+   col.addEventListener('dragover',e=>e.preventDefault());
+   col.addEventListener('drop',async e=>{e.preventDefault();const id=e.dataTransfer.getData('text/plain');await updateDealStage(id,col.dataset.stage)});
+ });
+}
+$('dealOwnerFilter').addEventListener('change',renderDeals);
+$('dealSearch').addEventListener('input',renderDeals);
+
+window.openDeal=()=>{
+ editingDealId=null;$('dealModalTitle').textContent='Новая сделка';
+ $('dTitle').value='';$('dShop').value='';$('dStage').value=dealStages[0]?.id||'';$('dOwner').value=user.id;$('dValue').value='';$('dProb').value='20';$('dClose').value='';$('dNext').value='';$('dNotes').value='';
+ openModal('dealModal');
+};
+window.editDeal=id=>{
+ const d=deals.find(x=>x.id===id);if(!d)return;
+ editingDealId=id;$('dealModalTitle').textContent='Редактировать сделку';
+ $('dTitle').value=d.title||'';$('dShop').value=d.shop_id||'';$('dStage').value=d.stage_id;$('dOwner').value=d.owner_id;$('dValue').value=d.value||0;$('dProb').value=d.probability||0;$('dClose').value=d.expected_close_date||'';$('dNext').value=d.next_activity_at?new Date(d.next_activity_at).toISOString().slice(0,16):'';$('dNotes').value=d.notes||'';
+ openModal('dealModal');
+};
+window.saveDeal=async()=>{
+ const row={
+  title:$('dTitle').value.trim(),
+  shop_id:$('dShop').value||null,
+  stage_id:$('dStage').value,
+  owner_id:$('dOwner').value||user.id,
+  value:Number($('dValue').value||0),
+  probability:Math.max(0,Math.min(100,Number($('dProb').value||0))),
+  expected_close_date:$('dClose').value||null,
+  next_activity_at:$('dNext').value?new Date($('dNext').value).toISOString():null,
+  notes:$('dNotes').value.trim(),
+  updated_at:new Date().toISOString()
+ };
+ if(!row.title||!row.stage_id)return toast('Введите название и этап');
+ let r;
+ if(editingDealId)r=await db.from('deals').update(row).eq('id',editingDealId);
+ else r=await db.from('deals').insert({...row,status:'open',created_by:user.id});
+ if(r.error)return toast(r.error.message);
+ closeModals();toast(editingDealId?'Сделка обновлена':'Сделка создана');editingDealId=null;await refreshAll();showPage('deals');
+};
+async function updateDealStage(id,stageId){
+ const stage=dealStages.find(s=>s.id===stageId);const row={stage_id:stageId,updated_at:new Date().toISOString(),status:stage?.is_won?'won':stage?.is_lost?'lost':'open'};
+ const {error}=await db.from('deals').update(row).eq('id',id);if(error)return toast(error.message);const d=deals.find(x=>x.id===id);if(d)Object.assign(d,row);renderDeals();
+}
+window.moveDeal=async(id,dir)=>{
+ const d=deals.find(x=>x.id===id),i=dealStages.findIndex(s=>s.id===d?.stage_id);if(!d||i<0)return;
+ const ni=Math.max(0,Math.min(dealStages.length-1,i+dir));if(ni===i)return;await updateDealStage(id,dealStages[ni].id);
+};
+
 function renderOrders(){
  const st=$('orderStatusFilter').value;const rows=orders.filter(o=>!st||o.status===st);
  $('ordersTable').innerHTML=`<table><thead><tr><th>Дата</th><th>Магазин</th><th>Агент</th><th>Статус</th><th>Оплата</th><th>Сумма</th></tr></thead><tbody>${rows.map(o=>{const s=shops.find(x=>x.id===o.shop_id),a=profiles.find(x=>x.id===o.agent_id);return `<tr><td>${new Date(o.created_at).toLocaleDateString('ru-RU')}</td><td>${esc(s?.name||'—')}</td><td>${esc(a?.full_name||'—')}</td><td><span class="badge">${esc(orderStatusNames[o.status]||o.status)}</span></td><td>${esc(o.payment_status||'')}</td><td><b>${money(o.total)}</b></td></tr>`}).join('')}</tbody></table>`;
@@ -623,7 +830,10 @@ window.openOrderForSelected=()=>{if(!selectedShop)return;closeModals();openNewOr
 window.addOrderLine=()=>{const div=document.createElement('div');div.className='row3 orderLine';div.innerHTML=`<div><label>Товар</label><select class="olProduct">${products.map(p=>`<option value="${p.id}">${esc(p.name)}${p.sku?' · '+esc(p.sku):''}</option>`).join('')}</select></div><div><label>Количество</label><input class="olQty" type="number" min="1" value="1"></div><div><label>Цена / доступно</label><div class="olInfo" style="padding:10px 0"></div></div>`;div.querySelectorAll('select,input').forEach(x=>x.addEventListener('change',updateOrderTotal));$('orderLines').appendChild(div);updateOrderTotal()};
 function updateOrderTotal(){let total=0;const wid=$('oWarehouse').value;document.querySelectorAll('.orderLine').forEach(l=>{const pid=l.querySelector('.olProduct').value,q=Number(l.querySelector('.olQty').value||0),p=productPrice(pid),av=availableFor(pid,wid);l.querySelector('.olInfo').textContent=money(p)+' / '+av+' шт.';total+=q*p});$('oTotal').textContent=money(total)}
 $('oWarehouse').addEventListener('change',updateOrderTotal);
-window.saveOrder=async()=>{const shop_id=$('oShop').value,warehouse_id=$('oWarehouse').value,status=$('oStatus').value;const lines=[...document.querySelectorAll('.orderLine')].map(l=>({product_id:l.querySelector('.olProduct').value,quantity:Number(l.querySelector('.olQty').value||0)})).filter(x=>x.quantity>0);if(!shop_id||!lines.length)return toast('Заполните заказ');let total=0;for(const l of lines){if(warehouse_id&&availableFor(l.product_id,warehouse_id)<l.quantity)return toast('Недостаточно товара на складе');total+=productPrice(l.product_id)*l.quantity}const {data:o,error}=await db.from('sales_orders').insert({shop_id,agent_id:user.id,warehouse_id:warehouse_id||null,status,payment_status:'unpaid',total,comment:$('oComment').value,created_by:user.id}).select('id').single();if(error)return toast('Таблица заказов не настроена: '+error.message);const items=lines.map(l=>({order_id:o.id,product_id:l.product_id,quantity:l.quantity,unit_price:productPrice(l.product_id)}));const x=await db.from('sales_order_items').insert(items);if(x.error)return toast(x.error.message);closeModals();toast('Заказ сохранён');await refreshAll()};
+window.saveOrder=async()=>{const shop_id=$('oShop').value,warehouse_id=$('oWarehouse').value,status=$('oStatus').value;const lines=[...document.querySelectorAll('.orderLine')].map(l=>({product_id:l.querySelector('.olProduct').value,quantity:Number(l.querySelector('.olQty').value||0)})).filter(x=>x.quantity>0);if(!shop_id||!lines.length)return toast('Заполните заказ');let total=0;for(const l of lines){if(warehouse_id&&availableFor(l.product_id,warehouse_id)<l.quantity)return toast('Недостаточно товара на складе');total+=productPrice(l.product_id)*l.quantity}const {data:o,error}=await db.from('sales_orders').insert({shop_id,agent_id:user.id,warehouse_id:warehouse_id||null,status,payment_status:'unpaid',total,comment:$('oComment').value,created_by:user.id}).select('id').single();if(error)return toast('Таблица заказов не настроена: '+error.message);const items=lines.map(l=>({order_id:o.id,product_id:l.product_id,quantity:l.quantity,unit_price:productPrice(l.product_id)}));const x=await db.from('sales_order_items').insert(items);if(x.error)return toast(x.error.message);
+ const testStage=stageByName('Тестовый заказ');const linked=deals.find(d=>d.shop_id===shop_id&&d.status==='open');
+ if(testStage&&linked)await db.from('deals').update({stage_id:testStage.id,status:'open',updated_at:new Date().toISOString()}).eq('id',linked.id);
+ closeModals();toast('Заказ сохранён');await refreshAll()};
 
 function renderProducts(){const q=$('productSearch').value.toLowerCase(),rows=products.filter(p=>(p.name+' '+(p.sku||'')+' '+(p.flavor||'')).toLowerCase().includes(q));$('productsTable').innerHTML=`<table><thead><tr><th>Товар</th><th>SKU</th><th>Вкус</th><th>Категория</th><th>Цена</th><th>Мин. остаток</th></tr></thead><tbody>${rows.map(p=>`<tr><td><b>${esc(p.name)}</b></td><td>${esc(p.sku||'')}</td><td>${esc(p.flavor||'')}</td><td>${esc(p.category||'')}</td><td>${money(p.price)}</td><td>${p.min_stock||0}</td></tr>`).join('')}</tbody></table>`}
 $('productSearch').addEventListener('input',renderProducts);
@@ -675,7 +885,106 @@ window.saveEmployee=async()=>{
   }
 };
 
-function renderEmployees(){const q=$('employeeSearch').value.toLowerCase(),rows=profiles.filter(p=>((p.full_name||'')+' '+p.role).toLowerCase().includes(q));$('employeesTable').innerHTML=`<table><thead><tr><th>Сотрудник</th><th>Роль</th><th>Телефон</th><th>Статус</th><th>Активен</th></tr></thead><tbody>${rows.map(p=>`<tr><td><b>${esc(p.full_name||'')}</b></td><td>${esc(p.role)}</td><td>${esc(p.phone||'')}</td><td>${esc(p.status||'')}</td><td>${p.active?'Да':'Нет'}</td></tr>`).join('')}</tbody></table>`}
+
+const EMP_DOC_BUCKET='employee-documents';
+const EMP_DOC_MAX_BYTES=12*1024*1024;
+
+window.openEmployeeCard=async(id)=>{
+  const emp=profiles.find(p=>p.id===id);if(!emp)return;
+  selectedEmployee=emp;
+  $('ecName').textContent=emp.full_name||'Сотрудник';
+  $('ecMeta').textContent=(emp.role||'')+(emp.status?' · '+emp.status:'');
+  $('ecInfo').innerHTML=`<div class="grid3">
+    <div><b>Телефон</b><p>${esc(emp.phone||'—')}</p></div>
+    <div><b>Дата начала</b><p>${esc(emp.start_date||'—')}</p></div>
+    <div><b>Активен</b><p>${emp.active?'Да':'Нет'}</p></div>
+  </div>`;
+  $('docType').value='identity_document';$('docNumber').value='';$('docExpiry').value='';$('docFile').value='';$('docComment').value='';$('docStatus').textContent='';
+  openModal('employeeCardModal');
+  await renderEmployeeDocuments();
+};
+
+async function renderEmployeeDocuments(){
+  if(!selectedEmployee)return;
+  const holder=$('employeeDocs');
+  const docs=employeeDocuments.filter(d=>d.employee_id===selectedEmployee.id);
+  if(!docs.length){holder.innerHTML='<p class="muted">Документы пока не прикреплены.</p>';return}
+  holder.innerHTML='';
+  for(const d of docs){
+    let url='';
+    try{
+      const {data}=await db.storage.from(EMP_DOC_BUCKET).createSignedUrl(d.file_path,3600);
+      url=data?.signedUrl||'';
+    }catch{}
+    const label=({identity_document:'Паспорт / ID',dni_nie:'DNI / NIE',driver_license:'Водительское удостоверение',contract:'Договор',other:'Другой документ'})[d.document_type]||d.document_type;
+    const div=document.createElement('div');div.className='card';div.style.margin='6px 0';
+    div.innerHTML=`<div class="row">
+      <div><b>${esc(label)}</b><div class="muted">${esc(d.file_name||'')}</div></div>
+      <div>${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Открыть документ</a>`:''}</div>
+    </div>
+    <div class="muted">Загружен: ${new Date(d.created_at).toLocaleString('ru-RU')}</div>`;
+    holder.appendChild(div);
+  }
+}
+
+window.uploadEmployeeDocument=async()=>{
+  if(!selectedEmployee)return;
+  const file=$('docFile').files?.[0];
+  if(!file)return toast('Выберите файл документа');
+  if(file.size>EMP_DOC_MAX_BYTES)return toast('Файл больше 12 МБ');
+  const allowed=file.type.startsWith('image/')||file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf');
+  if(!allowed)return toast('Можно загрузить изображение или PDF');
+  const btn=$('uploadDocBtn');btn.disabled=true;$('docStatus').textContent='Загружаем документ…';
+  try{
+    const ext=(file.name.split('.').pop()||'bin').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8)||'bin';
+    const filePath=selectedEmployee.id+'/'+crypto.randomUUID()+'.'+ext;
+    const up=await db.storage.from(EMP_DOC_BUCKET).upload(filePath,file,{contentType:file.type||undefined,upsert:false});
+    if(up.error)throw up.error;
+    const metadata={
+      document_number:$('docNumber').value.trim()||null,
+      expiry_date:$('docExpiry').value||null,
+      comment:$('docComment').value.trim()||null
+    };
+    const row={
+      employee_id:selectedEmployee.id,
+      document_type:$('docType').value,
+      file_path:filePath,
+      file_name:file.name,
+      mime_type:file.type||null,
+      uploaded_by:user.id
+    };
+    // Current schema stores the file link and type. Extra metadata is kept in audit log if available.
+    const ins=await db.from('employee_documents').insert(row);
+    if(ins.error){
+      await db.storage.from(EMP_DOC_BUCKET).remove([filePath]);
+      throw ins.error;
+    }
+    if(metadata.document_number||metadata.expiry_date||metadata.comment){
+      await db.from('audit_log').insert({
+        actor_id:user.id,action:'employee_document_metadata',entity_type:'employee_document',
+        entity_id:filePath,details:metadata
+      }).catch(()=>{});
+    }
+    $('docFile').value='';$('docNumber').value='';$('docExpiry').value='';$('docComment').value='';
+    $('docStatus').textContent='Документ прикреплён';
+    const r=await db.from('employee_documents').select('*').order('created_at',{ascending:false}).limit(1000);
+    employeeDocuments=safeData(r,'employee_documents');
+    renderEmployees();
+    await renderEmployeeDocuments();
+  }catch(e){
+    $('docStatus').textContent='Ошибка: '+(e.message||String(e));
+  }finally{
+    btn.disabled=false;
+  }
+};
+
+function renderEmployees(){
+ const q=$('employeeSearch').value.toLowerCase(),rows=profiles.filter(p=>((p.full_name||'')+' '+p.role).toLowerCase().includes(q));
+ $('employeesTable').innerHTML=`<table><thead><tr><th>Сотрудник</th><th>Роль</th><th>Телефон</th><th>Статус</th><th>Документы</th><th>Активен</th></tr></thead><tbody>${rows.map(p=>{
+   const docs=employeeDocuments.filter(d=>d.employee_id===p.id).length;
+   return `<tr onclick="openEmployeeCard('${p.id}')" style="cursor:pointer"><td><b>${esc(p.full_name||'')}</b></td><td>${esc(p.role)}</td><td>${esc(p.phone||'')}</td><td>${esc(p.status||'')}</td><td>${docs}</td><td>${p.active?'Да':'Нет'}</td></tr>`
+ }).join('')}</tbody></table>`
+}
 $('employeeSearch').addEventListener('input',renderEmployees);
 
 function renderTasks(){const st=$('taskStatusFilter').value;const rows=tasks.filter(t=>!st||t.status===st);$('tasksTable').innerHTML=`<table><thead><tr><th>Срок</th><th>Задача</th><th>Магазин</th><th>Исполнитель</th><th>Статус</th></tr></thead><tbody>${rows.map(t=>{const overdue=t.status==='planned'&&t.due_at&&new Date(t.due_at)<new Date();return `<tr><td class="${overdue?'negative':''}">${t.due_at?new Date(t.due_at).toLocaleString('ru-RU'):'—'}</td><td><b>${esc(t.title)}</b><div class="muted">${esc(t.comment||'')}</div></td><td>${esc(shops.find(s=>s.id===t.shop_id)?.name||'—')}</td><td>${esc(profiles.find(p=>p.id===t.assigned_to)?.full_name||'—')}</td><td>${esc(overdue?'Просрочена':t.status)}</td></tr>`}).join('')}</tbody></table>`}
