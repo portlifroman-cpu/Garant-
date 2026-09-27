@@ -326,6 +326,19 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
 <div class="modal" id="employeeCardModal"><div class="sheet wide">
   <div class="head"><div><h2 id="ecName">Сотрудник</h2><div id="ecMeta" class="muted"></div></div><button class="close">×</button></div>
   <div id="ecInfo"></div>
+  <div id="employeeInviteBox" class="card hidden" style="margin:10px 0">
+    <h3>Приглашение сотрудника</h3>
+    <button class="light" style="width:100%" onclick="generateEmployeeInviteLink()">🔗 Получить новую ссылку приглашения</button>
+    <div id="inviteLinkWrap" class="hidden" style="margin-top:8px">
+      <label>Ссылка приглашения</label>
+      <input id="employeeInviteLink" readonly>
+      <div class="actions">
+        <button class="light" onclick="copyEmployeeInviteLink()">Копировать</button>
+        <button class="primary" onclick="openEmployeeInviteLink()">Открыть</button>
+      </div>
+    </div>
+    <p id="employeeInviteStatus" class="muted"></p>
+  </div>
   <h3>Документы сотрудника</h3>
   <div id="employeeDocs"></div>
   <div class="card" style="margin-top:10px">
@@ -490,7 +503,7 @@ async function refreshAll(){
  const qs=[
   db.from('shops').select('*').order('created_at',{ascending:false}),
   db.from('visits').select('*').order('created_at',{ascending:false}).limit(2000),
-  db.from('profiles').select('id,full_name,role,active,phone,status,start_date').order('full_name'),
+  db.from('profiles').select('id,email,full_name,role,active,phone,status,start_date').order('full_name'),
   db.from('products').select('*').order('name'),
   db.from('warehouses').select('*').order('name'),
   db.from('inventory_balances').select('*'),
@@ -1200,16 +1213,56 @@ window.saveEmployee=async()=>{
 const EMP_DOC_BUCKET='employee-documents';
 const EMP_DOC_MAX_BYTES=12*1024*1024;
 
+
+window.generateEmployeeInviteLink=async()=>{
+  if(!isOwner())return toast('Только владелец может создавать ссылки приглашения');
+  if(!selectedEmployee?.email)return toast('У сотрудника не указана рабочая почта');
+  $('employeeInviteStatus').textContent='Создаём новую ссылку…';
+  try{
+    const {data,error}=await db.functions.invoke('invite-garant-employee',{
+      body:{action:'generate_link',email:selectedEmployee.email}
+    });
+    if(error)throw error;
+    if(data?.error)throw new Error(data.error);
+    if(!data?.action_link)throw new Error('Supabase не вернул ссылку');
+    $('employeeInviteLink').value=data.action_link;
+    $('inviteLinkWrap').classList.remove('hidden');
+    $('employeeInviteStatus').textContent='Новая ссылка создана. Её можно отправить сотруднику вручную.';
+  }catch(e){
+    $('employeeInviteStatus').textContent='Ошибка: '+(e.message||String(e));
+  }
+};
+window.copyEmployeeInviteLink=async()=>{
+  const input=$('employeeInviteLink');
+  if(!input.value)return;
+  try{
+    await navigator.clipboard.writeText(input.value);
+    toast('Ссылка скопирована');
+  }catch{
+    input.focus();input.select();
+    toast('Ссылка выделена — скопируйте её');
+  }
+};
+window.openEmployeeInviteLink=()=>{
+  const url=$('employeeInviteLink').value;
+  if(url)window.open(url,'_blank');
+};
+
 window.openEmployeeCard=async(id)=>{
   const emp=profiles.find(p=>p.id===id);if(!emp)return;
   selectedEmployee=emp;
   $('ecName').textContent=emp.full_name||'Сотрудник';
   $('ecMeta').textContent=(emp.role||'')+(emp.status?' · '+emp.status:'');
   $('ecInfo').innerHTML=`<div class="grid3">
+    <div><b>Email</b><p>${esc(emp.email||'—')}</p></div>
     <div><b>Телефон</b><p>${esc(emp.phone||'—')}</p></div>
     <div><b>Дата начала</b><p>${esc(emp.start_date||'—')}</p></div>
     <div><b>Активен</b><p>${emp.active?'Да':'Нет'}</p></div>
   </div>`;
+  $('employeeInviteBox').classList.toggle('hidden',!isOwner());
+  $('inviteLinkWrap').classList.add('hidden');
+  $('employeeInviteLink').value='';
+  $('employeeInviteStatus').textContent='';
   $('docType').value='identity_document';$('docNumber').value='';$('docExpiry').value='';$('docFile').value='';$('docComment').value='';$('docStatus').textContent='';
   openModal('employeeCardModal');
   await renderEmployeeDocuments();
@@ -1291,9 +1344,9 @@ window.uploadEmployeeDocument=async()=>{
 
 function renderEmployees(){
  const q=$('employeeSearch').value.toLowerCase(),rows=profiles.filter(p=>((p.full_name||'')+' '+p.role).toLowerCase().includes(q));
- $('employeesTable').innerHTML=`<table><thead><tr><th>Сотрудник</th><th>Роль</th><th>Телефон</th><th>Статус</th><th>Документы</th><th>Активен</th></tr></thead><tbody>${rows.map(p=>{
+ $('employeesTable').innerHTML=`<table><thead><tr><th>Сотрудник</th><th>Email</th><th>Роль</th><th>Телефон</th><th>Статус</th><th>Документы</th><th>Активен</th></tr></thead><tbody>${rows.map(p=>{
    const docs=employeeDocuments.filter(d=>d.employee_id===p.id).length;
-   return `<tr onclick="openEmployeeCard('${p.id}')" style="cursor:pointer"><td><b>${esc(p.full_name||'')}</b></td><td>${esc(p.role)}</td><td>${esc(p.phone||'')}</td><td>${esc(p.status||'')}</td><td>${docs}</td><td>${p.active?'Да':'Нет'}</td></tr>`
+   return `<tr onclick="openEmployeeCard('${p.id}')" style="cursor:pointer"><td><b>${esc(p.full_name||'')}</b></td><td>${esc(p.email||'')}</td><td>${esc(p.role)}</td><td>${esc(p.phone||'')}</td><td>${esc(p.status||'')}</td><td>${docs}</td><td>${p.active?'Да':'Нет'}</td></tr>`
  }).join('')}</tbody></table>`
 }
 $('employeeSearch').addEventListener('input',renderEmployees);
