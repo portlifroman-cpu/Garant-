@@ -491,6 +491,14 @@ tr:hover td{background:#fbfdff}
     <div><label>Вес одного пауча, г</label><input id="pPouchWeight" type="number" step="0.01"></div>
     <div><label>Общий вес, г</label><input id="pTotalWeight" type="number" step="0.1"></div>
   </div>
+  <div class="card" style="margin:10px 0">
+    <h3 style="margin-top:0">Остаток на складе</h3>
+    <div class="row">
+      <div><label>Склад</label><select id="pWarehouse"></select></div>
+      <div><label>Количество, шт.</label><input id="pStockQty" type="number" min="0" step="1"></div>
+    </div>
+    <p class="muted">Фактический остаток выбранного товара на выбранном складе.</p>
+  </div>
   <button id="saveProductBtn" class="primary" style="width:100%" onclick="saveProduct()">Сохранить</button>
 </div></div>
 
@@ -1501,7 +1509,8 @@ window.saveOrder=async()=>{const shop_id=$('oShop').value,warehouse_id=$('oWareh
 
 let productSort={key:'name',dir:1};
 function productSortValue(p,key){
- const numericKeys=['nicotine_mg_g','nicotine_mg_pouch','pouches_per_can','pouch_weight_g','total_weight_g','price'];
+ const numericKeys=['nicotine_mg_g','nicotine_mg_pouch','pouches_per_can','pouch_weight_g','total_weight_g','price','stock_qty'];
+ if(key==='stock_qty')return totalProductStock(p.id);
  if(numericKeys.includes(key))return p[key]==null?-Infinity:Number(p[key]);
  return String(p[key]??'').toLocaleLowerCase('ru');
 }
@@ -1512,6 +1521,16 @@ window.sortProductsBy=(key)=>{
 };
 function productSortArrow(key){
  return productSort.key===key?(productSort.dir===1?' ▲':' ▼'):' ⇅';
+}
+function totalProductStock(productId){
+ return balances.filter(b=>b.product_id===productId).reduce((a,b)=>a+Number(b.physical_qty||0),0);
+}
+function updateProductStockField(){
+ if(!$('pWarehouse')||!$('pStockQty'))return;
+ const wid=$('pWarehouse').value;
+ if(!editingProductId||!wid){$('pStockQty').value='';return}
+ const b=balances.find(x=>x.product_id===editingProductId&&x.warehouse_id===wid);
+ $('pStockQty').value=b?Number(b.physical_qty||0):0;
 }
 function renderProducts(){
  const q=$('productSearch').value.toLowerCase();
@@ -1533,6 +1552,7 @@ function renderProducts(){
    ${th('Вес пауча, г','pouch_weight_g')}
    ${th('Вес банки, г','total_weight_g')}
    ${th('Цена','price')}
+   ${th('На складе','stock_qty')}
    <th>Изменить</th>
  </tr></thead><tbody>${rows.map(p=>`<tr>
    <td><b>${esc(p.name)}</b><div class="muted">${esc(p.sku||'')}</div></td>
@@ -1544,6 +1564,7 @@ function renderProducts(){
    <td>${p.pouch_weight_g??'—'}</td>
    <td>${p.total_weight_g??'—'}</td>
    <td><b>${money(p.price)}</b></td>
+   <td><b>${totalProductStock(p.id)}</b></td>
    <td>${isManager()?`<button class="light" onclick="event.stopPropagation();editProduct('${p.id}')">✏️ Редактировать</button>`:'—'}</td>
  </tr>`).join('')}</tbody></table>`;
 }
@@ -1552,7 +1573,7 @@ $('productSearch').addEventListener('input',renderProducts);
 function resetProductForm(){
  editingProductId=null;
  ['pName','pSku','pFlavor','pCategory','pStrength','pNicotineMgG','pNicotineMgPouch','pPouches','pPouchWeight','pTotalWeight'].forEach(id=>{if($(id))$(id).value=''});
- $('pPrice').value='';$('pMin').value='';$('pBox').value='1';
+ $('pPrice').value='';$('pMin').value='';$('pBox').value='1'; if($('pStockQty'))$('pStockQty').value=''; if($('pWarehouse')&&warehouses.length)$('pWarehouse').value=warehouses[0].id;
  if($('productModalTitle'))$('productModalTitle').textContent='Новый товар';
  if($('saveProductBtn'))$('saveProductBtn').textContent='Сохранить';
 }
@@ -1577,10 +1598,15 @@ window.editProduct=(id)=>{
  $('pPouches').value=p.pouches_per_can??'';
  $('pPouchWeight').value=p.pouch_weight_g??'';
  $('pTotalWeight').value=p.total_weight_g??'';
+ const firstBalance=balances.find(b=>b.product_id===id);
+ if($('pWarehouse')){ if(firstBalance)$('pWarehouse').value=firstBalance.warehouse_id; else if(warehouses.length)$('pWarehouse').value=warehouses[0].id; }
+ updateProductStockField();
  openModal('productModal');
 };
 
-function updateProductStockField(){\n if(!$('pWarehouse')||!$('pStockQty'))return;\n const wid=$('pWarehouse').value;\n if(!editingProductId||!wid){$('pStockQty').value='';return}\n const b=balances.find(x=>x.product_id===editingProductId&&x.warehouse_id===wid);\n $('pStockQty').value=b?Number(b.physical_qty||0):0;\n}\n$('pWarehouse')?.addEventListener('change',updateProductStockField);\n\nwindow.saveProduct=async()=>{
+$('pWarehouse')?.addEventListener('change',updateProductStockField);
+
+window.saveProduct=async()=>{
  if(!isManager())return toast('Только руководитель');
  const val=id=>$(id).value===''?null:Number($(id).value);
  const row={
@@ -1600,17 +1626,48 @@ function updateProductStockField(){\n if(!$('pWarehouse')||!$('pStockQty'))retur
    total_weight_g:val('pTotalWeight')
  };
  if(!row.name)return toast('Введите название');
+
  const wasEditing=!!editingProductId;
- const result=wasEditing
-   ? await db.from('products').update(row).eq('id',editingProductId)
-   : await db.from('products').insert(row);
+ let productId=editingProductId;
+ let result;
+ if(wasEditing){
+   result=await db.from('products').update(row).eq('id',editingProductId);
+ }else{
+   result=await db.from('products').insert(row).select('id').single();
+   productId=result.data?.id||null;
+ }
  if(result.error)return toast(result.error.message);
+
+ const wid=$('pWarehouse')?.value||'';
+ const qtyText=$('pStockQty')?.value??'';
+ if(productId&&wid&&qtyText!==''){
+   const qty=Math.max(0,Math.floor(Number(qtyText)||0));
+   const existing=balances.find(x=>x.product_id===productId&&x.warehouse_id===wid);
+   const stockResult=await db.from('inventory_balances').upsert({
+     warehouse_id:wid,
+     product_id:productId,
+     physical_qty:qty,
+     reserved_qty:Number(existing?.reserved_qty||0),
+     in_transit_qty:Number(existing?.in_transit_qty||0),
+     damaged_qty:Number(existing?.damaged_qty||0),
+     updated_at:new Date().toISOString()
+   },{onConflict:'warehouse_id,product_id'});
+   if(stockResult.error)return toast('Товар сохранён, но остаток не обновлён: '+stockResult.error.message);
+   await db.from('inventory_movements').insert({
+     warehouse_id:wid,
+     product_id:productId,
+     movement_type:'adjustment',
+     quantity:qty,
+     comment:'Корректировка остатка из карточки товара',
+     created_by:user.id
+   });
+ }
+
  resetProductForm();
  closeModals();
- toast(wasEditing?'Товар обновлён':'Товар добавлен');
+ toast(wasEditing?'Товар и остаток обновлены':'Товар добавлен');
  await refreshAll();
 };
-
 function renderStock(){
  const wid=$('stockWarehouse').value,q=$('stockSearch').value.toLowerCase();let rows=balances.filter(b=>(!wid||b.warehouse_id===wid));rows=rows.filter(b=>{const p=products.find(x=>x.id===b.product_id);return !q||((p?.name||'')+' '+(p?.sku||'')).toLowerCase().includes(q)});const phys=rows.reduce((a,b)=>a+Number(b.physical_qty||0),0),res=rows.reduce((a,b)=>a+Number(b.reserved_qty||0),0),tr=rows.reduce((a,b)=>a+Number(b.in_transit_qty||0),0);$('sPhysical').textContent=phys;$('sReserved').textContent=res;$('sAvailable').textContent=phys-res;$('sTransit').textContent=tr;
  $('stockTable').innerHTML=`<table><thead><tr><th>Склад</th><th>Товар</th><th>SKU</th><th>Физически</th><th>Резерв</th><th>Доступно</th><th>В пути</th><th>Мин.</th></tr></thead><tbody>${rows.map(b=>{const p=products.find(x=>x.id===b.product_id),w=warehouses.find(x=>x.id===b.warehouse_id),av=Number(b.physical_qty||0)-Number(b.reserved_qty||0),low=p&&av<Number(p.min_stock||0);return `<tr class="${low?'low':''}"><td>${esc(w?.name||'—')}</td><td><b>${esc(p?.name||'—')}</b></td><td>${esc(p?.sku||'')}</td><td>${b.physical_qty||0}</td><td>${b.reserved_qty||0}</td><td><b>${av}</b></td><td>${b.in_transit_qty||0}</td><td>${p?.min_stock||0}</td></tr>`}).join('')}</tbody></table>`;
