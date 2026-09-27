@@ -430,6 +430,12 @@ tr:hover td{background:#fbfdff}
   <div class="head"><h2>Новый визит</h2><button class="close">×</button></div>
   <label>Результат</label><select id="vStatus"></select>
   <label>Комментарий</label><textarea id="vComment"></textarea>
+  <div class="card" style="margin:10px 0">
+    <h3 style="margin-top:0">Товар, поставленный в магазин</h3>
+    <p class="muted">Укажите вкус и количество. После сохранения это количество автоматически спишется с личного остатка агента.</p>
+    <div id="visitPlacementLines"></div>
+    <button type="button" class="light" onclick="addVisitPlacementLine()">+ Добавить вкус</button>
+  </div>
   <label>Следующий визит</label><input id="vNext" type="date">
   <button class="primary" style="width:100%" onclick="saveVisit()">Сохранить визит</button>
 </div></div>
@@ -523,6 +529,21 @@ tr:hover td{background:#fbfdff}
 <div class="modal" id="employeeCardModal"><div class="sheet wide">
   <div class="head"><div><h2 id="ecName">Сотрудник</h2><div id="ecMeta" class="muted"></div></div><button class="close">×</button></div>
   <div id="ecInfo"></div>
+  <div class="card" style="margin:10px 0">
+    <h3 style="margin-top:0">Товар у агента</h3>
+    <div id="agentStockTable"></div>
+    <div id="agentIssueBox" class="hidden" style="margin-top:12px">
+      <h4>Выдать товар со склада</h4>
+      <div class="row3">
+        <div><label>Склад</label><select id="agentIssueWarehouse"></select></div>
+        <div><label>Товар / вкус</label><select id="agentIssueProduct"></select></div>
+        <div><label>Количество, шт.</label><input id="agentIssueQty" type="number" min="1" value="1"></div>
+      </div>
+      <button class="primary" style="width:100%" onclick="issueStockToSelectedAgent()">Выдать агенту</button>
+    </div>
+    <h4 style="margin-bottom:6px">Последние движения</h4>
+    <div id="agentStockHistory"></div>
+  </div>
   <div id="employeeEditActions" class="actions hidden" style="margin:8px 0 10px">
     <button class="light" onclick="openEditEmployee()">✏️ Редактировать карточку</button>
     <button class="danger" onclick="deleteEmployee()">🗑 Удалить сотрудника</button>
@@ -665,7 +686,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const money=n=>(Number(n)||0).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
 const colors={'Клиент Garant':'#17a34a','Заинтересован':'#edc200','Оставили образцы':'#1375f2','Повторный визит':'#fa7b21','Отказ':'#db3434','Не посещён':'#98a4b1'};
 const orderStatusNames={draft:'Черновик',confirmed:'Подтверждён',processing:'В обработке',reserved:'Зарезервирован',ready:'Готов к отгрузке',shipped:'Отгружен',delivered:'Доставлен',paid:'Оплачен',cancelled:'Отменён'};
-let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],orders=[],orderItems=[],tasks=[],bonusRules=[],employeeDocuments=[],dealStages=[],deals=[];let editingDealId=null,editingProductId=null;
+let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],agentStockBalances=[],agentStockMovements=[],orders=[],orderItems=[],tasks=[],bonusRules=[],employeeDocuments=[],dealStages=[],deals=[];let editingDealId=null,editingProductId=null;
 const OWNER_USER_ID='ceae49cb-4385-4052-a022-6aa0cea662ef';
 const TEMP_EMPLOYEE_PASSWORD=['12','34','56','78'].join('');
 const isOwner=()=>user?.id===OWNER_USER_ID;
@@ -789,6 +810,8 @@ async function refreshAll(){
   db.from('warehouses').select('*').order('name'),
   db.from('inventory_balances').select('*'),
   db.from('inventory_movements').select('*').order('created_at',{ascending:false}).limit(300),
+  db.from('agent_stock_balances').select('*'),
+  db.from('agent_stock_movements').select('*').order('created_at',{ascending:false}).limit(2000),
   db.from('sales_orders').select('*').order('created_at',{ascending:false}).limit(1000),
   db.from('sales_order_items').select('*').limit(5000),
   db.from('tasks').select('*').order('due_at',{ascending:true}).limit(1000),
@@ -798,7 +821,7 @@ async function refreshAll(){
   db.from('deals').select('*').order('updated_at',{ascending:false}).limit(2000)
  ];
  const r=await Promise.all(qs.map(q=>q.then(x=>x).catch(e=>({error:e}))));
- shops=safeData(r[0],'shops');visits=safeData(r[1],'visits');profiles=safeData(r[2],'profiles');products=safeData(r[3],'products');warehouses=safeData(r[4],'warehouses');balances=safeData(r[5],'inventory_balances');movements=safeData(r[6],'inventory_movements');orders=safeData(r[7],'sales_orders');orderItems=safeData(r[8],'sales_order_items');tasks=safeData(r[9],'tasks');bonusRules=safeData(r[10],'bonus_rules');employeeDocuments=safeData(r[11],'employee_documents');dealStages=safeData(r[12],'pipeline_stages');deals=safeData(r[13],'deals');
+ shops=safeData(r[0],'shops');visits=safeData(r[1],'visits');profiles=safeData(r[2],'profiles');products=safeData(r[3],'products');warehouses=safeData(r[4],'warehouses');balances=safeData(r[5],'inventory_balances');movements=safeData(r[6],'inventory_movements');agentStockBalances=safeData(r[7],'agent_stock_balances');agentStockMovements=safeData(r[8],'agent_stock_movements');orders=safeData(r[9],'sales_orders');orderItems=safeData(r[10],'sales_order_items');tasks=safeData(r[11],'tasks');bonusRules=safeData(r[12],'bonus_rules');employeeDocuments=safeData(r[13],'employee_documents');dealStages=safeData(r[14],'pipeline_stages');deals=safeData(r[15],'deals');
  renderAll();
 }
 
@@ -1305,10 +1328,72 @@ window.saveNewShop=async()=>{
  toast((newCoords?'Магазин добавлен и отмечен на карте':'Магазин добавлен без геопозиции')+(files.length?' · фото: '+photoResult.uploaded:''));
  await refreshAll();
 };
-window.openVisit=()=>{if(!selectedShop)return;closeModals();$('vStatus').value=selectedShop.status==='Не посещён'?'Заинтересован':selectedShop.status;$('vComment').value='';$('vNext').value='';openModal('visitModal')};
+function agentAvailableProductOptions(){
+ const stock=agentStockBalances.filter(b=>b.agent_id===user.id&&Number(b.quantity||0)>0);
+ return stock.map(b=>{
+   const p=products.find(x=>x.id===b.product_id);
+   if(!p)return '';
+   return `<option value="${p.id}">${esc(p.name)} · остаток ${Number(b.quantity||0)}</option>`;
+ }).join('');
+}
+window.addVisitPlacementLine=()=>{
+ const holder=$('visitPlacementLines');
+ const opts=agentAvailableProductOptions();
+ if(!opts){toast('У вас сейчас нет товара на личном остатке');return}
+ const div=document.createElement('div');
+ div.className='row visitPlacementLine';
+ div.style.marginBottom='6px';
+ div.innerHTML=`<div><select class="vpProduct">${opts}</select></div><div style="display:flex;gap:6px"><input class="vpQty" type="number" min="1" value="1"><button type="button" class="light" onclick="this.closest('.visitPlacementLine').remove()">×</button></div>`;
+ holder.appendChild(div);
+};
+window.openVisit=()=>{
+ if(!selectedShop)return;
+ closeModals();
+ $('vStatus').value=selectedShop.status==='Не посещён'?'Заинтересован':selectedShop.status;
+ $('vComment').value='';
+ $('vNext').value='';
+ $('visitPlacementLines').innerHTML='';
+ openModal('visitModal');
+};
 function getGeo(){return new Promise(r=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>r({lat:p.coords.latitude,lng:p.coords.longitude}),()=>r(null),{timeout:7000}):r(null))}
-window.saveVisit=async()=>{if(!selectedShop)return;const pos=await getGeo();const row={shop_id:selectedShop.id,agent_id:user.id,status:$('vStatus').value,comment:$('vComment').value,next_visit:$('vNext').value||null,...(pos||{})};let x=await db.from('visits').insert(row);if(x.error)return toast(x.error.message);await db.from('shops').update({status:row.status,comment:row.comment,next_visit:row.next_visit}).eq('id',selectedShop.id);await syncShopDealStage(selectedShop.id,row.status);closeModals();toast('Визит сохранён');await refreshAll()};
+window.saveVisit=async()=>{
+ if(!selectedShop)return;
+ const placementItems=[...document.querySelectorAll('.visitPlacementLine')].map(line=>({
+   product_id:line.querySelector('.vpProduct').value,
+   quantity:Number(line.querySelector('.vpQty').value||0)
+ })).filter(x=>x.product_id&&x.quantity>0);
 
+ // Merge duplicate flavours so the stock check is correct.
+ const merged={};
+ for(const item of placementItems)merged[item.product_id]=(merged[item.product_id]||0)+item.quantity;
+ const items=Object.entries(merged).map(([product_id,quantity])=>({product_id,quantity}));
+ for(const item of items){
+   const have=Number(agentStockBalances.find(b=>b.agent_id===user.id&&b.product_id===item.product_id)?.quantity||0);
+   if(item.quantity>have){
+     const p=products.find(x=>x.id===item.product_id);
+     return toast('Недостаточно товара у агента: '+(p?.name||'товар')+'. Остаток '+have);
+   }
+ }
+
+ const pos=await getGeo();
+ const row={shop_id:selectedShop.id,agent_id:user.id,status:$('vStatus').value,comment:$('vComment').value,next_visit:$('vNext').value||null,...(pos||{})};
+ const x=await db.from('visits').insert(row).select('id').single();
+ if(x.error)return toast(x.error.message);
+
+ if(items.length){
+   const move=await db.rpc('place_agent_stock',{p_shop_id:selectedShop.id,p_visit_id:x.data.id,p_items:items,p_comment:row.comment||''});
+   if(move.error){
+     await db.from('visits').delete().eq('id',x.data.id);
+     return toast('Не удалось списать товар: '+move.error.message);
+   }
+ }
+
+ await db.from('shops').update({status:row.status,comment:row.comment,next_visit:row.next_visit}).eq('id',selectedShop.id);
+ await syncShopDealStage(selectedShop.id,row.status);
+ closeModals();
+ toast(items.length?'Визит сохранён, товар списан с остатка агента':'Визит сохранён');
+ await refreshAll();
+};
 
 let editCoords=null;
 window.openEditShop=()=>{
@@ -1831,6 +1916,50 @@ window.openEmployeeInviteLink=()=>{
   if(url)window.open(url,'_blank');
 };
 
+function renderSelectedAgentStock(){
+ if(!selectedEmployee)return;
+ const rows=agentStockBalances.filter(b=>b.agent_id===selectedEmployee.id&&Number(b.quantity||0)>0)
+   .sort((a,b)=>(products.find(p=>p.id===a.product_id)?.name||'').localeCompare(products.find(p=>p.id===b.product_id)?.name||'','ru'));
+ const total=rows.reduce((a,b)=>a+Number(b.quantity||0),0);
+ $('agentStockTable').innerHTML=rows.length
+   ? `<div class="tablewrap"><table><thead><tr><th>Вкус / товар</th><th>Количество</th></tr></thead><tbody>${rows.map(b=>{const p=products.find(x=>x.id===b.product_id);return `<tr><td><b>${esc(p?.name||'—')}</b><div class="muted">${esc(p?.flavor||'')}</div></td><td><b>${Number(b.quantity||0)} шт.</b></td></tr>`}).join('')}</tbody></table></div><p><b>Всего у агента: ${total} шт.</b></p>`
+   : '<p class="muted">У агента сейчас нет товара.</p>';
+
+ const history=agentStockMovements.filter(m=>m.agent_id===selectedEmployee.id).slice(0,30);
+ $('agentStockHistory').innerHTML=history.length
+   ? `<div class="tablewrap"><table><thead><tr><th>Дата</th><th>Операция</th><th>Товар</th><th>Кол-во</th><th>Куда / откуда</th></tr></thead><tbody>${history.map(m=>{
+       const p=products.find(x=>x.id===m.product_id);
+       const shop=shops.find(x=>x.id===m.shop_id);
+       const wh=warehouses.find(x=>x.id===m.warehouse_id);
+       const type=m.movement_type==='warehouse_issue'?'Получил со склада':m.movement_type==='shop_placement'?'Поставил в магазин':m.movement_type==='return_to_warehouse'?'Вернул на склад':'Корректировка';
+       return `<tr><td>${new Date(m.created_at).toLocaleString('ru-RU')}</td><td>${esc(type)}</td><td>${esc(p?.name||'—')}</td><td>${Number(m.quantity||0)}</td><td>${esc(shop?.name||wh?.name||'—')}</td></tr>`;
+     }).join('')}</tbody></table></div>`
+   : '<p class="muted">Движений пока нет.</p>';
+
+ const canIssue=isManager();
+ $('agentIssueBox').classList.toggle('hidden',!canIssue);
+ if(canIssue){
+   $('agentIssueWarehouse').innerHTML=warehouses.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('');
+   $('agentIssueProduct').innerHTML=products.filter(p=>p.active!==false).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+ }
+}
+
+window.issueStockToSelectedAgent=async()=>{
+ if(!selectedEmployee||!isManager())return;
+ const warehouse_id=$('agentIssueWarehouse').value;
+ const product_id=$('agentIssueProduct').value;
+ const quantity=Math.floor(Number($('agentIssueQty').value||0));
+ if(!warehouse_id||!product_id||quantity<=0)return toast('Выберите склад, товар и количество');
+ const available=Number(balances.find(b=>b.warehouse_id===warehouse_id&&b.product_id===product_id)?.physical_qty||0);
+ if(quantity>available)return toast('На складе недостаточно товара. Остаток: '+available);
+ const r=await db.rpc('issue_stock_to_agent',{p_agent_id:selectedEmployee.id,p_product_id:product_id,p_warehouse_id:warehouse_id,p_qty:quantity,p_comment:'Выдано агенту из карточки сотрудника'});
+ if(r.error)return toast('Не удалось выдать товар: '+r.error.message);
+ toast('Товар выдан агенту');
+ await refreshAll();
+ const fresh=profiles.find(p=>p.id===selectedEmployee.id);
+ if(fresh){selectedEmployee=fresh;renderSelectedAgentStock()}
+};
+
 window.openEmployeeCard=async(id)=>{
   const emp=profiles.find(p=>p.id===id);if(!emp)return;
   selectedEmployee=emp;
@@ -1849,6 +1978,7 @@ window.openEmployeeCard=async(id)=>{
   if($('employeeInviteLink'))$('employeeInviteLink').value='';
   $('docType').value='identity_document';$('docNumber').value='';$('docExpiry').value='';$('docFile').value='';$('docComment').value='';$('docStatus').textContent='';
   openModal('employeeCardModal');
+  renderSelectedAgentStock();
   await renderEmployeeDocuments();
 };
 
