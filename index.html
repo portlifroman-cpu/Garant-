@@ -261,6 +261,7 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
   <label>Адрес</label><input id="esAddress">
   <label>Комментарий</label><textarea id="esComment"></textarea>
   <label>Статус</label><select id="esStatus"></select>
+  <label>Обслуживающий агент</label><select id="esAgent"></select>
   <div class="row"><button class="light" onclick="editUseMyLocation()">📍 Взять GPS</button><button class="light" onclick="editPickOnMap()">🗺️ Поставить точку на карте</button></div>
   <p id="esPos" class="muted"></p>
   <button class="primary" style="width:100%" onclick="saveEditShop()">Сохранить изменения</button>
@@ -513,7 +514,7 @@ function fillSelects(){
  const statusOptions=Object.keys(colors).map(x=>`<option>${esc(x)}</option>`).join('');
  $('mapStatus').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('shopStatusFilter').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('nsStatus').innerHTML=statusOptions;$('esStatus').innerHTML=statusOptions;$('vStatus').innerHTML=Object.keys(colors).filter(x=>x!=='Не посещён').map(x=>`<option>${esc(x)}</option>`).join('');
  const people=profiles.map(p=>`<option value="${p.id}">${esc(p.full_name||p.id)} · ${esc(p.role)}</option>`).join('');
- $('mapAgent').innerHTML='<option value="">Все агенты</option>'+people;$('tEmployee').innerHTML=people;$('dOwner').innerHTML=people;$('dealOwnerFilter').innerHTML='<option value="">Все</option>'+people;
+ $('mapAgent').innerHTML='<option value="">Все агенты</option>'+people;$('tEmployee').innerHTML=people;$('dOwner').innerHTML=people;$('dealOwnerFilter').innerHTML='<option value="">Все</option>'+people;$('esAgent').innerHTML='<option value="">Не назначен</option>'+people;
  $('dStage').innerHTML=dealStages.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
  const wh=warehouses.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('');
  ['stockWarehouse','oWarehouse','mWarehouse'].forEach(id=>{if($(id))$(id).innerHTML=(id==='stockWarehouse'?'<option value="">Все склады</option>':'')+wh});
@@ -852,7 +853,25 @@ function renderShops(){
 }
 $('shopSearch').addEventListener('input',renderShops);$('shopStatusFilter').addEventListener('change',renderShops);
 window.openShopById=id=>{const s=shops.find(x=>x.id===id);if(s)openShop(s)};
-function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');$('shopDetail').innerHTML=`<div class="grid3"><div><b>Статус</b><p>${esc(s.status)}</p></div><div><b>Телефон</b><p>${esc(s.phone||'—')}</p></div><div><b>Комментарий</b><p>${esc(s.comment||'—')}</p></div></div>${s.google_maps_url?`<p><a href="${esc(s.google_maps_url)}" target="_blank" rel="noopener noreferrer">Открыть исходную точку в Google Maps</a></p>`:''}`;const vv=visits.filter(v=>v.shop_id===s.id);$('visitHistory').innerHTML=vv.length?vv.map(v=>`<div class="card" style="margin:6px 0"><b>${esc(v.status)}</b><div>${esc(v.comment||'')}</div><span class="muted">${new Date(v.created_at).toLocaleString('ru-RU')}</span></div>`).join(''):'<p class="muted">Визитов пока нет</p>';$('routeBtn').onclick=()=>{if(s.address||s.city){const dest=encodeURIComponent([s.address,s.city,'Spain'].filter(Boolean).join(', '));window.open('https://www.google.com/maps/dir/?api=1&destination='+dest,'_blank');return}if(s.lat!=null&&s.lng!=null){window.open('https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng,'_blank');return}toast('У магазина пока нет адреса или координат для маршрута')};$('shopPhotoStatus').textContent='';$('existingShopPhotos').value='';openModal('shopModal');loadShopPhotos(s.id)}
+
+function employeeName(id){
+  if(!id)return 'Не назначен';
+  const p=profiles.find(x=>x.id===id);
+  return p?.full_name||'Неизвестный сотрудник';
+}
+
+function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');$('shopDetail').innerHTML=`
+  <div class="card" style="margin:8px 0">
+    <div><b>Кто открыл магазин:</b> ${esc(employeeName(s.created_by))}</div>
+    <div style="margin-top:7px"><b>Кто обслуживает магазин:</b> ${esc(employeeName(s.agent_id))}</div>
+  </div>
+  <div class="grid3">
+    <div><b>Статус</b><p>${esc(s.status)}</p></div>
+    <div><b>Телефон</b><p>${esc(s.phone||'—')}</p></div>
+    <div><b>Комментарий</b><p>${esc(s.comment||'—')}</p></div>
+  </div>
+  ${s.google_maps_url?`<p><a href="${esc(s.google_maps_url)}" target="_blank" rel="noopener noreferrer">Открыть исходную точку в Google Maps</a></p>`:''}
+`;const vv=visits.filter(v=>v.shop_id===s.id);$('visitHistory').innerHTML=vv.length?vv.map(v=>`<div class="card" style="margin:6px 0"><b>${esc(v.status)}</b><div>${esc(v.comment||'')}</div><span class="muted">${new Date(v.created_at).toLocaleString('ru-RU')}</span></div>`).join(''):'<p class="muted">Визитов пока нет</p>';$('routeBtn').onclick=()=>{if(s.address||s.city){const dest=encodeURIComponent([s.address,s.city,'Spain'].filter(Boolean).join(', '));window.open('https://www.google.com/maps/dir/?api=1&destination='+dest,'_blank');return}if(s.lat!=null&&s.lng!=null){window.open('https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng,'_blank');return}toast('У магазина пока нет адреса или координат для маршрута')};$('shopPhotoStatus').textContent='';$('existingShopPhotos').value='';openModal('shopModal');loadShopPhotos(s.id)}
 window.openNewShop=()=>{window.__pendingGooglePlaceId=null;window.__pendingGoogleMapsUrl=null;setNewCoords(null);$('nsName').value='';$('nsAddress').value='';$('nsPhone').value='';$('nsComment').value='';openModal('newShopModal')};
 function setNewCoords(p){
  newCoords=p;
@@ -950,6 +969,8 @@ window.openEditShop=()=>{
   $('esAddress').value=selectedShop.address||'';
   $('esComment').value=selectedShop.comment||'';
   $('esStatus').value=selectedShop.status||'Не посещён';
+  $('esAgent').value=selectedShop.agent_id||'';
+  $('esAgent').disabled=!isManager();
   editCoords=(selectedShop.lat!=null&&selectedShop.lng!=null)?{lat:Number(selectedShop.lat),lng:Number(selectedShop.lng)}:null;
   $('esPos').textContent=editCoords?`Точка: ${editCoords.lat.toFixed(6)}, ${editCoords.lng.toFixed(6)}`:'Точка на карте не задана';
   openModal('editShopModal');
@@ -978,6 +999,7 @@ window.saveEditShop=async()=>{
     phone:$('esPhone').value.trim(),
     comment:$('esComment').value.trim(),
     status:$('esStatus').value,
+    agent_id:isManager()?($('esAgent').value||null):selectedShop.agent_id,
     lat:editCoords?.lat??selectedShop.lat??null,
     lng:editCoords?.lng??selectedShop.lng??null,
     updated_at:new Date().toISOString()
