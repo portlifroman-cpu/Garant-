@@ -10,9 +10,13 @@
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,sans-serif;color:var(--ink);background:linear-gradient(180deg,#fff,#f4f7fb);min-height:100vh}
 .wrap{max-width:1100px;margin:auto;padding:18px}.hero{background:#fff;border:1px solid var(--line);border-radius:24px;padding:26px;box-shadow:0 16px 45px rgba(20,42,62,.08);display:flex;align-items:center;gap:20px;flex-wrap:wrap}
 .logo{width:210px;height:90px;object-fit:contain}.hero h1{font-size:34px;margin:0}.hero p{color:var(--muted);margin:7px 0 0}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 10px 25px rgba(20,42,62,.06)}.product-img{width:100%;aspect-ratio:1/1;object-fit:contain;border-radius:14px;background:#f7f9fb;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}
+.card{position:relative;min-height:220px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px 112px 16px 16px;box-shadow:0 10px 25px rgba(20,42,62,.06);overflow:hidden}
+.product-img{position:absolute;right:12px;top:58%;transform:translateY(-40%);width:88px;height:88px;object-fit:contain;border-radius:14px;background:transparent;filter:drop-shadow(0 8px 12px rgba(20,42,62,.16))}
+.card h3{padding-right:2px}
+
 .card h3{margin:0 0 8px}.meta{color:var(--muted);font-size:14px;line-height:1.45}.price{font-size:22px;font-weight:800;margin-top:12px}.empty{background:#fff;border:1px dashed #cbd7e3;border-radius:18px;padding:26px;text-align:center;color:var(--muted);margin-top:18px}
-@media(max-width:780px){.grid{grid-template-columns:1fr}.hero h1{font-size:28px}.logo{width:170px;height:74px}}
+@media(max-width:780px){.grid{grid-template-columns:1fr}.hero h1{font-size:28px}.logo{width:170px;height:74px}.card{min-height:210px;padding-right:108px}.product-img{width:82px;height:82px;right:10px;top:60%}}
 </style>
 </head>
 <body>
@@ -34,7 +38,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
     const j=await r.json();
     const p=Array.isArray(j.products)?j.products:[];
     if(!p.length){empty.style.display='block';return}
-    holder.innerHTML=p.map(x=>`<article class="card">${x.image_url?'<img class="product-img" src="'+esc(x.image_url)+'" alt="'+esc(x.name)+'">':''}<h3>${esc(x.name)}</h3><div class="meta">${x.category?'<div>Линейка: '+esc(x.category)+'</div>':''}${x.flavor?'<div>Вкус: '+esc(x.flavor)+'</div>':''}${x.strength?'<div>Крепость: '+esc(x.strength)+'</div>':''}${x.pouches_per_can?'<div>Порций в банке: '+esc(x.pouches_per_can)+'</div>':''}${x.total_weight_g?'<div>Вес: '+esc(x.total_weight_g)+' г</div>':''}${x.product_type?'<div>Тип: '+esc(x.product_type)+'</div>':''}</div>${x.description?'<p class="meta" style="margin-top:10px">'+esc(x.description)+'</p>':''}${x.source_url?'<p><a href="'+esc(x.source_url)+'" target="_blank" rel="noopener noreferrer">Страница товара</a></p>':''}${x.price>0?'<div class="price">'+Number(x.price).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' €</div>':''}</article>`).join('');
+    holder.innerHTML=p.map(x=>`<article class="card"><h3>${esc(x.name)}</h3>${x.image_url?'<img class="product-img" src="'+esc(x.image_url)+'" alt="'+esc(x.name)+'">':''}<div class="meta">${x.category?'<div>Линейка: '+esc(x.category)+'</div>':''}${x.flavor?'<div>Вкус: '+esc(x.flavor)+'</div>':''}${x.strength?'<div>Крепость: '+esc(x.strength)+'</div>':''}${x.pouches_per_can?'<div>Порций в банке: '+esc(x.pouches_per_can)+'</div>':''}${x.total_weight_g?'<div>Вес: '+esc(x.total_weight_g)+' г</div>':''}${x.product_type?'<div>Тип: '+esc(x.product_type)+'</div>':''}</div>${x.description?'<p class="meta" style="margin-top:10px">'+esc(x.description)+'</p>':''}${x.source_url?'<p><a href="'+esc(x.source_url)+'" target="_blank" rel="noopener noreferrer">Страница товара</a></p>':''}${x.price>0?'<div class="price">'+Number(x.price).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' €</div>':''}</article>`).join('');
   }catch(e){empty.style.display='block';empty.textContent='Не удалось загрузить каталог. Попробуйте обновить страницу.'}
 })();
 </script>
