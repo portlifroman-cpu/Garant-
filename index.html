@@ -478,8 +478,8 @@ tr:hover td{background:#fbfdff}
     <button class="danger" onclick="deleteEmployee()">🗑 Удалить сотрудника</button>
   </div>
   <div id="employeeInviteBox" class="card hidden" style="margin:10px 0">
-    <h3>Доступ сотрудника</h3>
-    <button class="light" style="width:100%" onclick="generateEmployeeInviteLink()">✉️ Отправить приглашение</button>
+    <h3>Доступ сотрудника</h3><p class="muted">Письмо не требуется. Сотрудник входит по рабочей почте и временному паролю.</p>
+    <button class="light" style="width:100%" onclick="generateEmployeeInviteLink()">🔑 Создать / сбросить доступ</button>
     <p id="employeeInviteStatus" class="muted"></p>
     <div id="inviteFallback" class="hidden" style="margin-top:8px">
       <label>Ссылка для установки пароля</label>
@@ -561,7 +561,7 @@ tr:hover td{background:#fbfdff}
     <option value="manager">Руководитель</option>
     <option value="warehouse">Склад</option>
   </select>
-  <p class="muted">Сотруднику создаётся доступ с временным паролем 12345678. После входа он сможет изменить его кнопкой «Пароль». Добавлять сотрудников может только владелец.</p>
+  <p class="muted">Письмо не требуется. Сотруднику создаётся доступ с временным паролем 12345678. После входа он сможет изменить его кнопкой «Пароль». Добавлять сотрудников может только владелец.</p>
   <button id="saveEmployeeBtn" class="primary" style="width:100%" onclick="saveEmployee()">Отправить приглашение</button>
 </div></div>
 
@@ -1541,7 +1541,7 @@ window.generateEmployeeInviteLink=async()=>{
     if(error)throw error;
     if(data?.error)throw new Error(data.error);
 
-    $('employeeInviteStatus').textContent='Доступ готов. Логин: '+selectedEmployee.email+'. Временный пароль: '+TEMP_EMPLOYEE_PASSWORD+'. После входа сотрудник может изменить его кнопкой «Пароль».';
+    $('employeeInviteStatus').innerHTML='<b>Доступ готов</b><br>Логин: <b>'+esc(selectedEmployee.email)+'</b><br>Временный пароль: <b>'+TEMP_EMPLOYEE_PASSWORD+'</b><br>После входа сотрудник может изменить пароль кнопкой «Пароль».';
     toast('Доступ сотруднику создан');
   }catch(e){
     $('employeeInviteStatus').textContent='Ошибка: '+(e.message||String(e));
