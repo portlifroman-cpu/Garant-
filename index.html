@@ -481,6 +481,14 @@ tr:hover td{background:#fbfdff}
     <h3>Приглашение сотрудника</h3>
     <button class="light" style="width:100%" onclick="generateEmployeeInviteLink()">✉️ Отправить приглашение</button>
     <p id="employeeInviteStatus" class="muted"></p>
+    <div id="inviteFallback" class="hidden" style="margin-top:8px">
+      <label>Ссылка для установки пароля</label>
+      <input id="employeeInviteLink" readonly>
+      <div class="actions">
+        <button class="light" onclick="copyEmployeeInviteLink()">Копировать ссылку</button>
+        <button class="primary" onclick="openEmployeeInviteLink()">Открыть</button>
+      </div>
+    </div>
   </div>
   <h3>Документы сотрудника</h3>
   <div id="employeeDocs"></div>
@@ -1515,6 +1523,8 @@ window.generateEmployeeInviteLink=async()=>{
   if(!isOwner())return toast('Только владелец может отправлять приглашения');
   if(!selectedEmployee?.email)return toast('У сотрудника не указана рабочая почта');
   $('employeeInviteStatus').textContent='Отправляем приглашение…';
+  $('inviteFallback').classList.add('hidden');
+  $('employeeInviteLink').value='';
   try{
     const {data,error}=await db.functions.invoke('invite-garant-employee',{
       body:{
@@ -1526,11 +1536,30 @@ window.generateEmployeeInviteLink=async()=>{
     });
     if(error)throw error;
     if(data?.error)throw new Error(data.error);
+
+    if(data?.rate_limited && data?.action_link){
+      $('employeeInviteLink').value=data.action_link;
+      $('inviteFallback').classList.remove('hidden');
+      $('employeeInviteStatus').textContent='Supabase временно ограничил отправку писем. Я создал рабочую ссылку — скопируйте её и отправьте сотруднику.';
+      toast('Лимит email: создана ссылка');
+      return;
+    }
+
     $('employeeInviteStatus').textContent='Приглашение отправлено на '+selectedEmployee.email+'. Сотрудник сможет перейти по ссылке и задать пароль.';
     toast('Приглашение отправлено');
   }catch(e){
     $('employeeInviteStatus').textContent='Ошибка: '+(e.message||String(e));
   }
+};
+window.copyEmployeeInviteLink=async()=>{
+  const input=$('employeeInviteLink');
+  if(!input.value)return;
+  try{await navigator.clipboard.writeText(input.value);toast('Ссылка скопирована')}
+  catch{input.focus();input.select();toast('Ссылка выделена — скопируйте её')}
+};
+window.openEmployeeInviteLink=()=>{
+  const url=$('employeeInviteLink').value;
+  if(url)window.open(url,'_blank');
 };
 
 window.openEmployeeCard=async(id)=>{
@@ -1547,6 +1576,8 @@ window.openEmployeeCard=async(id)=>{
   $('employeeInviteBox').classList.toggle('hidden',!isOwner());
   $('employeeEditActions').classList.toggle('hidden',!isOwner());
   $('employeeInviteStatus').textContent='';
+  $('inviteFallback')?.classList.add('hidden');
+  if($('employeeInviteLink'))$('employeeInviteLink').value='';
   $('docType').value='identity_document';$('docNumber').value='';$('docExpiry').value='';$('docFile').value='';$('docComment').value='';$('docStatus').textContent='';
   openModal('employeeCardModal');
   await renderEmployeeDocuments();
