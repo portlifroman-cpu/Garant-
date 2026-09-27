@@ -477,7 +477,7 @@ tr:hover td{background:#fbfdff}
 </div></div>
 
 <div class="modal" id="productModal"><div class="sheet">
-  <div class="head"><h2>Товар</h2><button class="close">×</button></div>
+  <div class="head"><h2 id="productModalTitle">Товар</h2><button class="close">×</button></div>
   <div class="row"><div><label>Название *</label><input id="pName"></div><div><label>SKU</label><input id="pSku"></div></div>
   <div class="row"><div><label>Вкус</label><input id="pFlavor"></div><div><label>Категория</label><input id="pCategory"></div></div>
   <div class="row"><div><label>Цена, €</label><input id="pPrice" type="number" step="0.01"></div><div><label>Мин. остаток</label><input id="pMin" type="number"></div></div>
@@ -491,7 +491,7 @@ tr:hover td{background:#fbfdff}
     <div><label>Вес одного пауча, г</label><input id="pPouchWeight" type="number" step="0.01"></div>
     <div><label>Общий вес, г</label><input id="pTotalWeight" type="number" step="0.1"></div>
   </div>
-  <button class="primary" style="width:100%" onclick="saveProduct()">Сохранить</button>
+  <button id="saveProductBtn" class="primary" style="width:100%" onclick="saveProduct()">Сохранить</button>
 </div></div>
 
 <div class="modal" id="warehouseModal"><div class="sheet">
@@ -657,7 +657,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const money=n=>(Number(n)||0).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
 const colors={'Клиент Garant':'#17a34a','Заинтересован':'#edc200','Оставили образцы':'#1375f2','Повторный визит':'#fa7b21','Отказ':'#db3434','Не посещён':'#98a4b1'};
 const orderStatusNames={draft:'Черновик',confirmed:'Подтверждён',processing:'В обработке',reserved:'Зарезервирован',ready:'Готов к отгрузке',shipped:'Отгружен',delivered:'Доставлен',paid:'Оплачен',cancelled:'Отменён'};
-let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],orders=[],orderItems=[],tasks=[],bonusRules=[],employeeDocuments=[],dealStages=[],deals=[];let editingDealId=null;
+let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],orders=[],orderItems=[],tasks=[],bonusRules=[],employeeDocuments=[],dealStages=[],deals=[];let editingDealId=null,editingProductId=null;
 const OWNER_USER_ID='ceae49cb-4385-4052-a022-6aa0cea662ef';
 const TEMP_EMPLOYEE_PASSWORD=['12','34','56','78'].join('');
 const isOwner=()=>user?.id===OWNER_USER_ID;
@@ -1533,23 +1533,82 @@ function renderProducts(){
    ${th('Вес пауча, г','pouch_weight_g')}
    ${th('Вес банки, г','total_weight_g')}
    ${th('Цена','price')}
- </tr></thead><tbody>${rows.map(p=>`<tr><td><b>${esc(p.name)}</b><div class="muted">${esc(p.sku||'')}</div></td><td>${esc(p.flavor||'')}</td><td>${esc(p.category||'')}</td><td>${p.nicotine_mg_g??'—'}</td><td>${p.nicotine_mg_pouch??'—'}</td><td>${p.pouches_per_can??'—'}</td><td>${p.pouch_weight_g??'—'}</td><td>${p.total_weight_g??'—'}</td><td>${money(p.price)}</td></tr>`).join('')}</tbody></table>`;
+   <th>Изменить</th>
+ </tr></thead><tbody>${rows.map(p=>`<tr>
+   <td><b>${esc(p.name)}</b><div class="muted">${esc(p.sku||'')}</div></td>
+   <td>${esc(p.flavor||'')}</td>
+   <td>${esc(p.category||'')}</td>
+   <td>${p.nicotine_mg_g??'—'}</td>
+   <td>${p.nicotine_mg_pouch??'—'}</td>
+   <td>${p.pouches_per_can??'—'}</td>
+   <td>${p.pouch_weight_g??'—'}</td>
+   <td>${p.total_weight_g??'—'}</td>
+   <td><b>${money(p.price)}</b></td>
+   <td>${isManager()?`<button class="light" onclick="event.stopPropagation();editProduct('${p.id}')">✏️ Редактировать</button>`:'—'}</td>
+ </tr>`).join('')}</tbody></table>`;
 }
 $('productSearch').addEventListener('input',renderProducts);
-window.openProduct=()=>{['pName','pSku','pFlavor','pCategory','pStrength','pNicotineMgG','pNicotineMgPouch','pPouches','pPouchWeight','pTotalWeight'].forEach(id=>{if($(id))$(id).value=''});$('pPrice').value='';$('pMin').value='';$('pBox').value='1';openModal('productModal')};
+
+function resetProductForm(){
+ editingProductId=null;
+ ['pName','pSku','pFlavor','pCategory','pStrength','pNicotineMgG','pNicotineMgPouch','pPouches','pPouchWeight','pTotalWeight'].forEach(id=>{if($(id))$(id).value=''});
+ $('pPrice').value='';$('pMin').value='';$('pBox').value='1';
+ if($('productModalTitle'))$('productModalTitle').textContent='Новый товар';
+ if($('saveProductBtn'))$('saveProductBtn').textContent='Сохранить';
+}
+window.openProduct=()=>{resetProductForm();openModal('productModal')};
+
+window.editProduct=(id)=>{
+ if(!isManager())return toast('Только руководитель');
+ const p=products.find(x=>x.id===id);if(!p)return;
+ editingProductId=id;
+ $('productModalTitle').textContent='Редактировать товар';
+ $('saveProductBtn').textContent='Сохранить изменения';
+ $('pName').value=p.name||'';
+ $('pSku').value=p.sku||'';
+ $('pFlavor').value=p.flavor||'';
+ $('pCategory').value=p.category||'';
+ $('pPrice').value=p.price??0;
+ $('pMin').value=p.min_stock??0;
+ $('pBox').value=p.units_per_box??1;
+ $('pStrength').value=p.strength||'';
+ $('pNicotineMgG').value=p.nicotine_mg_g??'';
+ $('pNicotineMgPouch').value=p.nicotine_mg_pouch??'';
+ $('pPouches').value=p.pouches_per_can??'';
+ $('pPouchWeight').value=p.pouch_weight_g??'';
+ $('pTotalWeight').value=p.total_weight_g??'';
+ openModal('productModal');
+};
+
 window.saveProduct=async()=>{
  if(!isManager())return toast('Только руководитель');
  const val=id=>$(id).value===''?null:Number($(id).value);
  const row={
-   name:$('pName').value.trim(),sku:$('pSku').value.trim()||null,flavor:$('pFlavor').value.trim(),category:$('pCategory').value.trim(),
-   price:Number($('pPrice').value||0),min_stock:Number($('pMin').value||0),units_per_box:Number($('pBox').value||1),
-   strength:$('pStrength').value.trim(),brand:'GARANT',
-   nicotine_mg_g:val('pNicotineMgG'),nicotine_mg_pouch:val('pNicotineMgPouch'),
-   pouches_per_can:val('pPouches'),pouch_weight_g:val('pPouchWeight'),total_weight_g:val('pTotalWeight')
+   name:$('pName').value.trim(),
+   sku:$('pSku').value.trim()||null,
+   flavor:$('pFlavor').value.trim(),
+   category:$('pCategory').value.trim(),
+   price:Number($('pPrice').value||0),
+   min_stock:Number($('pMin').value||0),
+   units_per_box:Number($('pBox').value||1),
+   strength:$('pStrength').value.trim(),
+   brand:'GARANT',
+   nicotine_mg_g:val('pNicotineMgG'),
+   nicotine_mg_pouch:val('pNicotineMgPouch'),
+   pouches_per_can:val('pPouches'),
+   pouch_weight_g:val('pPouchWeight'),
+   total_weight_g:val('pTotalWeight')
  };
  if(!row.name)return toast('Введите название');
- const {error}=await db.from('products').insert(row);if(error)return toast(error.message);
- closeModals();toast('Товар добавлен');await refreshAll()
+ const wasEditing=!!editingProductId;
+ const result=wasEditing
+   ? await db.from('products').update(row).eq('id',editingProductId)
+   : await db.from('products').insert(row);
+ if(result.error)return toast(result.error.message);
+ resetProductForm();
+ closeModals();
+ toast(wasEditing?'Товар обновлён':'Товар добавлен');
+ await refreshAll();
 };
 
 function renderStock(){
