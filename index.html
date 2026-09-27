@@ -326,6 +326,9 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
 <div class="modal" id="employeeCardModal"><div class="sheet wide">
   <div class="head"><div><h2 id="ecName">Сотрудник</h2><div id="ecMeta" class="muted"></div></div><button class="close">×</button></div>
   <div id="ecInfo"></div>
+  <div id="employeeEditActions" class="actions hidden" style="margin:8px 0 10px">
+    <button class="light" onclick="openEditEmployee()">✏️ Редактировать карточку</button>
+  </div>
   <div id="employeeInviteBox" class="card hidden" style="margin:10px 0">
     <h3>Приглашение сотрудника</h3>
     <button class="light" style="width:100%" onclick="generateEmployeeInviteLink()">🔗 Получить новую ссылку приглашения</button>
@@ -361,6 +364,41 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
     <button id="uploadDocBtn" class="primary" style="width:100%" onclick="uploadEmployeeDocument()">📎 Прикрепить документ</button>
     <p id="docStatus" class="muted"></p>
   </div>
+</div></div>
+
+
+<div class="modal" id="editEmployeeModal"><div class="sheet">
+  <div class="head"><h2>Редактировать сотрудника</h2><button class="close">×</button></div>
+  <label>Имя и фамилия *</label><input id="eeName">
+  <label>Рабочая почта</label><input id="eeEmail" readonly>
+  <label>Телефон</label><input id="eePhone" type="tel">
+  <div class="row">
+    <div>
+      <label>Роль</label>
+      <select id="eeRole">
+        <option value="agent">Агент</option>
+        <option value="regional_manager">Региональный руководитель</option>
+        <option value="manager">Руководитель</option>
+        <option value="warehouse">Склад</option>
+      </select>
+    </div>
+    <div>
+      <label>Статус</label>
+      <select id="eeStatus">
+        <option value="invited">Приглашён</option>
+        <option value="pending">Ожидает</option>
+        <option value="active">Активен</option>
+        <option value="suspended">Приостановлен</option>
+        <option value="terminated">Уволен</option>
+      </select>
+    </div>
+  </div>
+  <label>Дата начала работы</label><input id="eeStartDate" type="date">
+  <label style="display:flex;align-items:center;gap:8px;margin:8px 0 14px">
+    <input id="eeActive" type="checkbox" style="width:auto;margin:0">
+    Аккаунт активен
+  </label>
+  <button id="saveEmployeeEditBtn" class="primary" style="width:100%" onclick="saveEmployeeEdit()">Сохранить изменения</button>
 </div></div>
 
 <div class="modal" id="employeeModal"><div class="sheet">
@@ -1214,6 +1252,51 @@ const EMP_DOC_BUCKET='employee-documents';
 const EMP_DOC_MAX_BYTES=12*1024*1024;
 
 
+
+window.openEditEmployee=()=>{
+  if(!isOwner())return toast('Редактировать сотрудников может только владелец');
+  if(!selectedEmployee)return;
+  $('eeName').value=selectedEmployee.full_name||'';
+  $('eeEmail').value=selectedEmployee.email||'';
+  $('eePhone').value=selectedEmployee.phone||'';
+  $('eeRole').value=selectedEmployee.role||'agent';
+  $('eeStatus').value=selectedEmployee.status||'active';
+  $('eeStartDate').value=selectedEmployee.start_date||'';
+  $('eeActive').checked=!!selectedEmployee.active;
+  closeModals();
+  openModal('editEmployeeModal');
+};
+
+window.saveEmployeeEdit=async()=>{
+  if(!isOwner())return toast('Редактировать сотрудников может только владелец');
+  if(!selectedEmployee)return;
+  const full_name=$('eeName').value.trim();
+  if(!full_name)return toast('Введите имя сотрудника');
+  const row={
+    full_name,
+    phone:$('eePhone').value.trim(),
+    role:$('eeRole').value,
+    status:$('eeStatus').value,
+    start_date:$('eeStartDate').value||null,
+    active:$('eeActive').checked
+  };
+  const btn=$('saveEmployeeEditBtn');btn.disabled=true;btn.textContent='Сохраняем…';
+  try{
+    const {error}=await db.from('profiles').update(row).eq('id',selectedEmployee.id);
+    if(error)throw error;
+    Object.assign(selectedEmployee,row);
+    toast('Карточка сотрудника обновлена');
+    closeModals();
+    await refreshAll();
+    const fresh=profiles.find(p=>p.id===selectedEmployee.id);
+    if(fresh)await openEmployeeCard(fresh.id);
+  }catch(e){
+    toast('Не удалось сохранить: '+(e.message||String(e)));
+  }finally{
+    btn.disabled=false;btn.textContent='Сохранить изменения';
+  }
+};
+
 window.generateEmployeeInviteLink=async()=>{
   if(!isOwner())return toast('Только владелец может создавать ссылки приглашения');
   if(!selectedEmployee?.email)return toast('У сотрудника не указана рабочая почта');
@@ -1260,6 +1343,7 @@ window.openEmployeeCard=async(id)=>{
     <div><b>Активен</b><p>${emp.active?'Да':'Нет'}</p></div>
   </div>`;
   $('employeeInviteBox').classList.toggle('hidden',!isOwner());
+  $('employeeEditActions').classList.toggle('hidden',!isOwner());
   $('inviteLinkWrap').classList.add('hidden');
   $('employeeInviteLink').value='';
   $('employeeInviteStatus').textContent='';
