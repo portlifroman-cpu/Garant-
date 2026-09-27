@@ -411,7 +411,11 @@ tr:hover td{background:#fbfdff}
   <div class="head"><h2>Редактировать магазин</h2><button class="close">×</button></div>
   <div class="row"><div><label>Название *</label><input id="esName"></div><div><label>Тип</label><select id="esType"><option>Estanco</option><option>Gasolinera</option><option>Minimarket</option><option>Supermercado</option><option>Kiosco</option><option>Vape Shop</option><option>Bar</option><option>Restaurante</option><option>Tienda 24h</option><option>Другое</option></select></div></div>
   <div class="row"><div><label>Город</label><input id="esCity"></div><div><label>Телефон</label><input id="esPhone"></div></div>
-  <label>Адрес</label><input id="esAddress">
+  <label>Адрес</label>
+  <div class="row" style="grid-template-columns:1fr auto;align-items:end">
+    <input id="esAddress">
+    <button type="button" class="light" onclick="openEditAddressInGoogleMaps()">Google Maps</button>
+  </div>
   <label>Комментарий</label><textarea id="esComment"></textarea>
   <label>Статус</label><select id="esStatus"></select>
   <label>Кто открыл клиента</label><input id="esCreatedByName" readonly>
@@ -1233,6 +1237,24 @@ window.openEditShop=()=>{
   $('esPos').textContent=editCoords?`Точка: ${editCoords.lat.toFixed(6)}, ${editCoords.lng.toFixed(6)}`:'Точка на карте не задана';
   openModal('editShopModal');
 };
+window.openEditAddressInGoogleMaps=()=>{
+  if(!selectedShop)return;
+  const url=selectedShop.google_maps_url;
+  if(url){window.open(url,'_blank');return}
+  const address=$('esAddress').value.trim()||selectedShop.address||'';
+  const city=$('esCity').value.trim()||selectedShop.city||'';
+  if(address||city){
+    const q=encodeURIComponent([address,city,'Spain'].filter(Boolean).join(', '));
+    window.open('https://www.google.com/maps/search/?api=1&query='+q,'_blank');
+    return;
+  }
+  if(selectedShop.lat!=null&&selectedShop.lng!=null){
+    window.open('https://www.google.com/maps/search/?api=1&query='+selectedShop.lat+','+selectedShop.lng,'_blank');
+    return;
+  }
+  toast('Для этого магазина пока нет адреса или координат');
+};
+
 window.editUseMyLocation=()=>navigator.geolocation?.getCurrentPosition(p=>{
   editCoords={lat:p.coords.latitude,lng:p.coords.longitude};
   $('esPos').textContent=`GPS: ${editCoords.lat.toFixed(6)}, ${editCoords.lng.toFixed(6)}`;
