@@ -1878,8 +1878,10 @@ const EMP_DOC_MAX_BYTES=12*1024*1024;
 
 
 window.openEditEmployee=()=>{
-  if(!isOwner())return toast('Редактировать сотрудников может только владелец');
   if(!selectedEmployee)return;
+  const editingSelf=selectedEmployee.id===user.id;
+  if(!isOwner()&&!editingSelf)return toast('Можно редактировать только свою карточку');
+
   $('eeName').value=selectedEmployee.full_name||'';
   $('eeEmail').value=selectedEmployee.email||'';
   $('eePhone').value=selectedEmployee.phone||'';
@@ -1887,34 +1889,56 @@ window.openEditEmployee=()=>{
   $('eeStatus').value=selectedEmployee.status||'active';
   $('eeStartDate').value=selectedEmployee.start_date||'';
   $('eeActive').checked=!!selectedEmployee.active;
+
+  // Агент может менять только свои базовые данные.
+  $('eeEmail').disabled=!isOwner();
+  $('eeRole').disabled=!isOwner();
+  $('eeStatus').disabled=!isOwner();
+  $('eeStartDate').disabled=!isOwner();
+  $('eeActive').disabled=!isOwner();
+
   closeModals();
   openModal('editEmployeeModal');
 };
 
 window.saveEmployeeEdit=async()=>{
-  if(!isOwner())return toast('Редактировать сотрудников может только владелец');
   if(!selectedEmployee)return;
+  const editingSelf=selectedEmployee.id===user.id;
+  if(!isOwner()&&!editingSelf)return toast('Можно редактировать только свою карточку');
+
   const full_name=$('eeName').value.trim();
-  const email=$('eeEmail').value.trim().toLowerCase();
+  const phone=$('eePhone').value.trim();
   if(!full_name)return toast('Введите имя сотрудника');
-  if(!email)return toast('Введите рабочую почту');
-  const row={
-    full_name,
-    email,
-    phone:$('eePhone').value.trim(),
-    role:$('eeRole').value,
-    status:$('eeStatus').value,
-    start_date:$('eeStartDate').value||null,
-    active:$('eeActive').checked
-  };
+
   const btn=$('saveEmployeeEditBtn');btn.disabled=true;btn.textContent='Сохраняем…';
   try{
-    const {data,error}=await db.functions.invoke('invite-garant-employee',{
-      body:{action:'update_employee',employee_id:selectedEmployee.id,...row}
-    });
-    if(error)throw error;
-    if(data?.error)throw new Error(data.error);
-    Object.assign(selectedEmployee,row);
+    if(isOwner()){
+      const email=$('eeEmail').value.trim().toLowerCase();
+      if(!email)return toast('Введите рабочую почту');
+      const row={
+        full_name,
+        email,
+        phone,
+        role:$('eeRole').value,
+        status:$('eeStatus').value,
+        start_date:$('eeStartDate').value||null,
+        active:$('eeActive').checked
+      };
+      const {data,error}=await db.functions.invoke('invite-garant-employee',{
+        body:{action:'update_employee',employee_id:selectedEmployee.id,...row}
+      });
+      if(error)throw error;
+      if(data?.error)throw new Error(data.error);
+      Object.assign(selectedEmployee,row);
+    }else{
+      const {error}=await db.rpc('update_own_basic_profile',{p_full_name:full_name,p_phone:phone});
+      if(error)throw error;
+      selectedEmployee.full_name=full_name;
+      selectedEmployee.phone=phone;
+      if(profile?.id===user.id){profile.full_name=full_name;profile.phone=phone}
+      $('who').textContent=(profile.full_name||'Сотрудник')+' · '+(isManager()?'Руководитель':'Агент');
+    }
+
     toast('Карточка сотрудника обновлена');
     closeModals();
     await refreshAll();
@@ -2057,7 +2081,9 @@ window.openEmployeeCard=async(id)=>{
     ${openedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Когда открыт</th><th>Статус</th></tr></thead><tbody>${openedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b></td><td>${esc(s.city||'')}</td><td>${s.created_at?new Date(s.created_at).toLocaleDateString('ru-RU'):'—'}</td><td>${esc(s.status||'')}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">Открытых этим агентом магазинов пока нет.</p>'}
   </div>`;
   $('employeeInviteBox').classList.toggle('hidden',!isOwner());
-  $('employeeEditActions').classList.toggle('hidden',!isOwner());
+  const canEditEmployee=isOwner()||emp.id===user.id;
+  $('employeeEditActions').classList.toggle('hidden',!canEditEmployee);
+  const deleteBtn=$('employeeEditActions')?.querySelector('.danger'); if(deleteBtn)deleteBtn.classList.toggle('hidden',!isOwner());
   $('employeeInviteStatus').textContent='';
   $('inviteFallback')?.classList.add('hidden');
   if($('employeeInviteLink'))$('employeeInviteLink').value='';
