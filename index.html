@@ -475,6 +475,7 @@ tr:hover td{background:#fbfdff}
   <div id="ecInfo"></div>
   <div id="employeeEditActions" class="actions hidden" style="margin:8px 0 10px">
     <button class="light" onclick="openEditEmployee()">✏️ Редактировать карточку</button>
+    <button class="danger" onclick="deleteEmployee()">🗑 Удалить сотрудника</button>
   </div>
   <div id="employeeInviteBox" class="card hidden" style="margin:10px 0">
     <h3>Приглашение сотрудника</h3>
@@ -1494,6 +1495,30 @@ window.saveEmployeeEdit=async()=>{
   }
 };
 
+window.deleteEmployee=async()=>{
+  if(!isOwner())return toast('Удалять сотрудников может только владелец');
+  if(!selectedEmployee)return;
+  if(selectedEmployee.id===OWNER_USER_ID)return toast('Учётную запись владельца удалить нельзя');
+  const name=selectedEmployee.full_name||selectedEmployee.email||'сотрудника';
+  if(!confirm('Удалить '+name+' из команды?\n\nДоступ к GARANT будет заблокирован. История продаж, визитов и заказов сохранится.'))return;
+  try{
+    const {data,error}=await db.functions.invoke('invite-garant-employee',{
+      body:{action:'delete_employee',employee_id:selectedEmployee.id}
+    });
+    if(error)throw error;
+    if(data?.error)throw new Error(data.error);
+    const deletedId=selectedEmployee.id;
+    selectedEmployee=null;
+    closeModals();
+    toast('Сотрудник удалён из команды');
+    await refreshAll();
+    profiles=profiles.filter(p=>p.id!==deletedId);
+    renderEmployees();
+  }catch(e){
+    toast('Не удалось удалить сотрудника: '+(e.message||String(e)));
+  }
+};
+
 window.generateEmployeeInviteLink=async()=>{
   if(!isOwner())return toast('Только владелец может создавать ссылки приглашения');
   if(!selectedEmployee?.email)return toast('У сотрудника не указана рабочая почта');
@@ -1624,7 +1649,7 @@ window.uploadEmployeeDocument=async()=>{
 };
 
 function renderEmployees(){
- const q=$('employeeSearch').value.toLowerCase(),rows=profiles.filter(p=>((p.full_name||'')+' '+p.role).toLowerCase().includes(q));
+ const q=$('employeeSearch').value.toLowerCase(),rows=profiles.filter(p=>p.status!=='terminated'&&((p.full_name||'')+' '+p.role).toLowerCase().includes(q));
  $('employeesTable').innerHTML=`<table><thead><tr><th>Сотрудник</th><th>Email</th><th>Роль</th><th>Телефон</th><th>Статус</th><th>Документы</th><th>Активен</th></tr></thead><tbody>${rows.map(p=>{
    const docs=employeeDocuments.filter(d=>d.employee_id===p.id).length;
    return `<tr onclick="openEmployeeCard('${p.id}')" style="cursor:pointer"><td><b>${esc(p.full_name||'')}</b></td><td>${esc(p.email||'')}</td><td>${esc(p.role)}</td><td>${esc(p.phone||'')}</td><td>${esc(p.status||'')}</td><td>${docs}</td><td>${p.active?'Да':'Нет'}</td></tr>`
