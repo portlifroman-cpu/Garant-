@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>GARANT — Каталог</title>
+<style>
+:root{--ink:#142a3e;--muted:#6d7d8d;--line:#dfe8ef;--blue:#0876ed;--bg:#f3f6fa}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,sans-serif;color:var(--ink);background:linear-gradient(180deg,#fff,#f4f7fb);min-height:100vh}
+.wrap{max-width:1100px;margin:auto;padding:18px}.hero{background:#fff;border:1px solid var(--line);border-radius:24px;padding:26px;box-shadow:0 16px 45px rgba(20,42,62,.08);display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.logo{width:210px;height:90px;object-fit:contain}.hero h1{font-size:34px;margin:0}.hero p{color:var(--muted);margin:7px 0 0}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 10px 25px rgba(20,42,62,.06)}
+.card h3{margin:0 0 8px}.meta{color:var(--muted);font-size:14px;line-height:1.45}.price{font-size:22px;font-weight:800;margin-top:12px}.empty{background:#fff;border:1px dashed #cbd7e3;border-radius:18px;padding:26px;text-align:center;color:var(--muted);margin-top:18px}
+@media(max-width:780px){.grid{grid-template-columns:1fr}.hero h1{font-size:28px}.logo{width:170px;height:74px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <img class="logo" src="/assets/garant-logo-exact.svg?v=5" alt="GARANT">
+    <div><h1>Каталог GARANT</h1><p>Актуальные товары компании. Данные берутся напрямую из GARANT CRM.</p></div>
+  </div>
+  <div id="catalog" class="grid"></div>
+  <div id="empty" class="empty" style="display:none">Каталог пока пуст. Добавьте товары в CRM → раздел «Товары», и они появятся здесь автоматически.</div>
+</div>
+<script>
+const ENDPOINT='https://bxibrptyonhxcdnizacp.supabase.co/functions/v1/public-catalog-products';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+(async()=>{
+  const holder=document.getElementById('catalog'),empty=document.getElementById('empty');
+  try{
+    const r=await fetch(ENDPOINT);
+    const j=await r.json();
+    const p=Array.isArray(j.products)?j.products:[];
+    if(!p.length){empty.style.display='block';return}
+    holder.innerHTML=p.map(x=>`<article class="card"><h3>${esc(x.name)}</h3><div class="meta">${x.category?'<div>Категория: '+esc(x.category)+'</div>':''}${x.flavor?'<div>Вкус: '+esc(x.flavor)+'</div>':''}${x.strength?'<div>Крепость: '+esc(x.strength)+'</div>':''}${x.sku?'<div>SKU: '+esc(x.sku)+'</div>':''}</div>${x.price!=null?'<div class="price">'+Number(x.price).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' €</div>':''}</article>`).join('');
+  }catch(e){empty.style.display='block';empty.textContent='Не удалось загрузить каталог. Попробуйте обновить страницу.'}
+})();
+</script>
+</body>
+</html>
