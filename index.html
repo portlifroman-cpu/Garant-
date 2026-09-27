@@ -233,6 +233,12 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
   <div class="row"><div><label>Город</label><input id="nsCity" value="Marbella"></div><div><label>Телефон</label><input id="nsPhone"></div></div>
   <label>Адрес</label><input id="nsAddress">
   <label>Комментарий</label><textarea id="nsComment"></textarea>
+  <div class="card" style="margin:8px 0">
+    <label>Кто открыл магазин</label>
+    <input id="nsCreatedByName" readonly>
+    <label>Кто обслуживает магазин</label>
+    <select id="nsAgent"></select>
+  </div>
   <label>Фото магазина</label><input id="nsPhotos" type="file" accept="image/*" multiple>
   <p class="muted">Можно добавить фото витрины, входа или выкладки. До 8 МБ на файл.</p>
   <label>Статус</label><select id="nsStatus"></select>
@@ -514,7 +520,7 @@ function fillSelects(){
  const statusOptions=Object.keys(colors).map(x=>`<option>${esc(x)}</option>`).join('');
  $('mapStatus').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('shopStatusFilter').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('nsStatus').innerHTML=statusOptions;$('esStatus').innerHTML=statusOptions;$('vStatus').innerHTML=Object.keys(colors).filter(x=>x!=='Не посещён').map(x=>`<option>${esc(x)}</option>`).join('');
  const people=profiles.map(p=>`<option value="${p.id}">${esc(p.full_name||p.id)} · ${esc(p.role)}</option>`).join('');
- $('mapAgent').innerHTML='<option value="">Все агенты</option>'+people;$('tEmployee').innerHTML=people;$('dOwner').innerHTML=people;$('dealOwnerFilter').innerHTML='<option value="">Все</option>'+people;$('esAgent').innerHTML='<option value="">Не назначен</option>'+people;
+ $('mapAgent').innerHTML='<option value="">Все агенты</option>'+people;$('tEmployee').innerHTML=people;$('dOwner').innerHTML=people;$('dealOwnerFilter').innerHTML='<option value="">Все</option>'+people;$('esAgent').innerHTML='<option value="">Не назначен</option>'+people;$('nsAgent').innerHTML=people;
  $('dStage').innerHTML=dealStages.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
  const wh=warehouses.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('');
  ['stockWarehouse','oWarehouse','mWarehouse'].forEach(id=>{if($(id))$(id).innerHTML=(id==='stockWarehouse'?'<option value="">Все склады</option>':'')+wh});
@@ -624,6 +630,9 @@ async function centerOnSearchTarget(target,label=''){
     window.__pendingGooglePlaceId=null;window.__pendingGoogleMapsUrl=null;
     newCoords=pos;
     $('nsName').value=label||'';
+    $('nsCreatedByName').value=profile?.full_name||'Сотрудник';
+    $('nsAgent').value=user.id;
+    $('nsAgent').disabled=!isManager();
     $('nsAddress').value='';
     $('nsCity').value='';
     try{
@@ -791,6 +800,9 @@ async function importGooglePlaceToNewShop(place){
     if(c)city=c.long_name;
   }catch{}
   if(city)$('nsCity').value=city;
+  $('nsCreatedByName').value=profile?.full_name||'Сотрудник';
+  $('nsAgent').value=user.id;
+  $('nsAgent').disabled=!isManager();
   setNewCoords(pos);
   window.__pendingGooglePlaceId=place.id||null;
   window.__pendingGoogleMapsUrl=place.googleMapsURI||null;
@@ -872,7 +884,7 @@ function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAdd
   </div>
   ${s.google_maps_url?`<p><a href="${esc(s.google_maps_url)}" target="_blank" rel="noopener noreferrer">Открыть исходную точку в Google Maps</a></p>`:''}
 `;const vv=visits.filter(v=>v.shop_id===s.id);$('visitHistory').innerHTML=vv.length?vv.map(v=>`<div class="card" style="margin:6px 0"><b>${esc(v.status)}</b><div>${esc(v.comment||'')}</div><span class="muted">${new Date(v.created_at).toLocaleString('ru-RU')}</span></div>`).join(''):'<p class="muted">Визитов пока нет</p>';$('routeBtn').onclick=()=>{if(s.address||s.city){const dest=encodeURIComponent([s.address,s.city,'Spain'].filter(Boolean).join(', '));window.open('https://www.google.com/maps/dir/?api=1&destination='+dest,'_blank');return}if(s.lat!=null&&s.lng!=null){window.open('https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng,'_blank');return}toast('У магазина пока нет адреса или координат для маршрута')};$('shopPhotoStatus').textContent='';$('existingShopPhotos').value='';openModal('shopModal');loadShopPhotos(s.id)}
-window.openNewShop=()=>{window.__pendingGooglePlaceId=null;window.__pendingGoogleMapsUrl=null;setNewCoords(null);$('nsName').value='';$('nsAddress').value='';$('nsPhone').value='';$('nsComment').value='';openModal('newShopModal')};
+window.openNewShop=()=>{window.__pendingGooglePlaceId=null;window.__pendingGoogleMapsUrl=null;setNewCoords(null);$('nsName').value='';$('nsAddress').value='';$('nsPhone').value='';$('nsComment').value='';$('nsCreatedByName').value=profile?.full_name||'Сотрудник';$('nsAgent').value=user.id;$('nsAgent').disabled=!isManager();openModal('newShopModal')};
 function setNewCoords(p){
  newCoords=p;
  if(draftPin){draftPin.setMap(null);draftPin=null}
@@ -927,7 +939,7 @@ window.pickOnMap=async()=>{closeModals();showPage('map');await initMap();picking
 window.saveNewShop=async()=>{
  const name=$('nsName').value.trim();if(!name)return toast('Введите название');
  if(!newCoords&&$('nsAddress').value.trim().length>=5)await geocodeNewShopAddress();
- const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,lat:newCoords?.lat??null,lng:newCoords?.lng??null,created_by:user.id,agent_id:user.id,google_place_id:window.__pendingGooglePlaceId||null,google_maps_url:window.__pendingGoogleMapsUrl||null};
+ const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,lat:newCoords?.lat??null,lng:newCoords?.lng??null,created_by:user.id,agent_id:isManager()?($('nsAgent').value||user.id):user.id,google_place_id:window.__pendingGooglePlaceId||null,google_maps_url:window.__pendingGoogleMapsUrl||null};
  const {data,error}=await db.from('shops').insert(row).select('id').single();
  if(error)return toast(error.message);
  const files=Array.from($('nsPhotos').files||[]);
