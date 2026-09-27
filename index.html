@@ -381,8 +381,8 @@ tr:hover td{background:#fbfdff}
   <label>Адрес</label><input id="nsAddress">
   <label>Комментарий</label><textarea id="nsComment"></textarea>
   <div class="card" style="margin:8px 0">
-    <label>Кто открыл магазин</label>
-    <input id="nsCreatedByName" readonly>
+    <label>Кто открыл клиента</label>
+    <input id="nsCreatedByName" placeholder="Имя сотрудника или внешнего человека">
     <label>Кто обслуживает магазин</label>
     <select id="nsAgent"></select>
   </div>
@@ -418,7 +418,7 @@ tr:hover td{background:#fbfdff}
   </div>
   <label>Комментарий</label><textarea id="esComment"></textarea>
   <label>Статус</label><select id="esStatus"></select>
-  <label>Кто открыл клиента</label><select id="esCreatedBy"></select>
+  <label>Кто открыл клиента</label><input id="esOpenedByName" placeholder="Имя сотрудника или внешнего человека">
   <label>Обслуживающий агент</label><select id="esAgent"></select>
   <div class="row"><button class="light" onclick="editUseMyLocation()">📍 Взять GPS</button><button class="light" onclick="editPickOnMap()">🗺️ Поставить точку на карте</button></div>
   <p id="esPos" class="muted"></p>
@@ -769,7 +769,7 @@ function fillSelects(){
  const statusOptions=Object.keys(colors).map(x=>`<option>${esc(x)}</option>`).join('');
  $('mapStatus').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('shopStatusFilter').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('nsStatus').innerHTML=statusOptions;$('esStatus').innerHTML=statusOptions;$('vStatus').innerHTML=Object.keys(colors).filter(x=>x!=='Не посещён').map(x=>`<option>${esc(x)}</option>`).join('');
  const people=profiles.map(p=>`<option value="${p.id}">${esc(p.full_name||p.id)} · ${esc(p.role)}</option>`).join('');
- $('mapAgent').innerHTML='<option value="">Все агенты</option>'+people;$('tEmployee').innerHTML=people;$('dOwner').innerHTML=people;$('dealOwnerFilter').innerHTML='<option value="">Все</option>'+people;$('esAgent').innerHTML='<option value="">Не назначен</option>'+people;$('esCreatedBy').innerHTML=people;$('nsAgent').innerHTML=people;
+ $('mapAgent').innerHTML='<option value="">Все агенты</option>'+people;$('tEmployee').innerHTML=people;$('dOwner').innerHTML=people;$('dealOwnerFilter').innerHTML='<option value="">Все</option>'+people;$('esAgent').innerHTML='<option value="">Не назначен</option>'+people;$('nsAgent').innerHTML=people;
  $('dStage').innerHTML=dealStages.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
  const wh=warehouses.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('');
  ['stockWarehouse','oWarehouse','mWarehouse'].forEach(id=>{if($(id))$(id).innerHTML=(id==='stockWarehouse'?'<option value="">Все склады</option>':'')+wh});
@@ -1123,7 +1123,7 @@ function employeeName(id){
 
 function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');$('shopDetail').innerHTML=`
   <div class="card" style="margin:8px 0">
-    <div><b>Кто открыл магазин:</b> ${esc(employeeName(s.created_by))}</div>
+    <div><b>Кто открыл клиента:</b> ${esc(s.opened_by_name||employeeName(s.created_by))}</div>
     <div style="margin-top:7px"><b>Кто обслуживает магазин:</b> ${esc(employeeName(s.agent_id))}</div>
   </div>
   <div class="grid3">
@@ -1188,7 +1188,7 @@ window.pickOnMap=async()=>{closeModals();showPage('map');await initMap();picking
 window.saveNewShop=async()=>{
  const name=$('nsName').value.trim();if(!name)return toast('Введите название');
  if(!newCoords&&$('nsAddress').value.trim().length>=5)await geocodeNewShopAddress();
- const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,lat:newCoords?.lat??null,lng:newCoords?.lng??null,created_by:user.id,agent_id:isManager()?($('nsAgent').value||user.id):user.id,google_place_id:window.__pendingGooglePlaceId||null,google_maps_url:window.__pendingGoogleMapsUrl||null};
+ const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,opened_by_name:$('nsCreatedByName').value.trim()||profile?.full_name||'Сотрудник',lat:newCoords?.lat??null,lng:newCoords?.lng??null,created_by:user.id,agent_id:isManager()?($('nsAgent').value||user.id):user.id,google_place_id:window.__pendingGooglePlaceId||null,google_maps_url:window.__pendingGoogleMapsUrl||null};
  const {data,error}=await db.from('shops').insert(row).select('id').single();
  if(error)return toast(error.message);
  const files=Array.from($('nsPhotos').files||[]);
@@ -1230,8 +1230,8 @@ window.openEditShop=()=>{
   $('esAddress').value=selectedShop.address||'';
   $('esComment').value=selectedShop.comment||'';
   $('esStatus').value=selectedShop.status||'Не посещён';
-  $('esCreatedBy').value=selectedShop.created_by||user.id;
-  $('esCreatedBy').disabled=!isManager();
+  $('esOpenedByName').value=selectedShop.opened_by_name||employeeName(selectedShop.created_by);
+  $('esOpenedByName').disabled=!isManager();
   $('esAgent').value=selectedShop.agent_id||'';
   $('esAgent').disabled=!isManager();
   editCoords=(selectedShop.lat!=null&&selectedShop.lng!=null)?{lat:Number(selectedShop.lat),lng:Number(selectedShop.lng)}:null;
@@ -1280,7 +1280,7 @@ window.saveEditShop=async()=>{
     phone:$('esPhone').value.trim(),
     comment:$('esComment').value.trim(),
     status:$('esStatus').value,
-    created_by:isManager()?($('esCreatedBy').value||selectedShop.created_by):selectedShop.created_by,
+    opened_by_name:isManager()?($('esOpenedByName').value.trim()||employeeName(selectedShop.created_by)):(selectedShop.opened_by_name||employeeName(selectedShop.created_by)),
     agent_id:isManager()?($('esAgent').value||null):selectedShop.agent_id,
     lat:editCoords?.lat??selectedShop.lat??null,
     lng:editCoords?.lng??selectedShop.lng??null,
