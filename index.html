@@ -162,8 +162,15 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
 <div class="modal" id="shopModal"><div class="sheet wide">
   <div class="head"><div><h2 id="shopTitle">Магазин</h2><div id="shopAddr" class="muted"></div></div><button class="close">×</button></div>
   <div id="shopDetail"></div>
+  <h3>Фотографии магазина</h3>
+  <div id="shopPhotos" class="photo-grid"></div>
+  <div style="margin-top:8px">
+    <input id="existingShopPhotos" type="file" accept="image/*" multiple>
+    <button class="light" style="width:100%" onclick="uploadExistingShopPhotos()">📷 Добавить фото к карточке</button>
+    <p id="shopPhotoStatus" class="muted"></p>
+  </div>
   <h3>История визитов</h3><div id="visitHistory"></div>
-  <div class="actions"><button class="primary" onclick="openVisit()">Записать визит</button><button class="light" onclick="openOrderForSelected()">Создать заказ</button><button class="light" id="routeBtn">Маршрут</button></div>
+  <div class="actions"><button class="primary" onclick="openVisit()">Записать визит</button><button class="light" onclick="openOrderForSelected()">Создать заказ</button><button class="light" onclick="openEditShop()">✏️ Редактировать</button><button class="light" id="routeBtn">Маршрут</button></div>
 </div></div>
 
 <div class="modal" id="newShopModal"><div class="sheet">
@@ -172,9 +179,11 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
   <div class="row"><div><label>Город</label><input id="nsCity" value="Marbella"></div><div><label>Телефон</label><input id="nsPhone"></div></div>
   <label>Адрес</label><input id="nsAddress">
   <label>Комментарий</label><textarea id="nsComment"></textarea>
+  <label>Фото магазина</label><input id="nsPhotos" type="file" accept="image/*" multiple>
+  <p class="muted">Можно добавить фото витрины, входа или выкладки. До 8 МБ на файл.</p>
   <label>Статус</label><select id="nsStatus"></select>
-  <div class="row"><button class="light" onclick="useMyLocation()">📍 Моё местоположение</button><button class="light" onclick="pickOnMap()">🗺️ Выбрать на карте</button></div>
-  <p id="nsPos" class="muted">Введите адрес — система попробует автоматически поставить точку на карту.</p>
+  <div class="row"><button class="light" onclick="useMyLocation()">📍 Моё местоположение</button><button id="pickOnMapBtn" class="light" onclick="pickOnMap()">🗺️ Поставить точку на карте вручную</button></div>
+  <p id="nsPos" class="muted">GPS необязателен. По адресу GARANT найдёт точку автоматически. Любой сотрудник может также поставить точку вручную на карте.</p>
   <button class="primary" style="width:100%" onclick="saveNewShop()">Добавить магазин</button>
 </div></div>
 
@@ -184,6 +193,19 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
   <label>Комментарий</label><textarea id="vComment"></textarea>
   <label>Следующий визит</label><input id="vNext" type="date">
   <button class="primary" style="width:100%" onclick="saveVisit()">Сохранить визит</button>
+</div></div>
+
+
+<div class="modal" id="editShopModal"><div class="sheet">
+  <div class="head"><h2>Редактировать магазин</h2><button class="close">×</button></div>
+  <div class="row"><div><label>Название *</label><input id="esName"></div><div><label>Тип</label><select id="esType"><option>Estanco</option><option>Gasolinera</option><option>Minimarket</option><option>Supermercado</option><option>Kiosco</option><option>Vape Shop</option><option>Bar</option><option>Restaurante</option><option>Tienda 24h</option><option>Другое</option></select></div></div>
+  <div class="row"><div><label>Город</label><input id="esCity"></div><div><label>Телефон</label><input id="esPhone"></div></div>
+  <label>Адрес</label><input id="esAddress">
+  <label>Комментарий</label><textarea id="esComment"></textarea>
+  <label>Статус</label><select id="esStatus"></select>
+  <div class="row"><button class="light" onclick="editUseMyLocation()">📍 Взять GPS</button><button class="light" onclick="editPickOnMap()">🗺️ Поставить точку на карте</button></div>
+  <p id="esPos" class="muted"></p>
+  <button class="primary" style="width:100%" onclick="saveEditShop()">Сохранить изменения</button>
 </div></div>
 
 <!-- Заказ -->
@@ -270,6 +292,51 @@ function toast(s){$('toast').textContent=s;$('toast').style.display='block';setT
 function openModal(id){$(id).classList.add('open')} function closeModals(){document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'))}
 document.querySelectorAll('.close').forEach(x=>x.onclick=closeModals);
 function isManager(){return ['manager','admin','regional_manager'].includes(profile?.role)}
+const PHOTO_BUCKET='Shop-photos';
+const PHOTO_MAX_BYTES=8*1024*1024;
+async function uploadShopPhotos(shopId,files){
+  const arr=Array.from(files||[]);
+  let uploaded=0,failed=[];
+  for(const file of arr){
+    if(!file.type.startsWith('image/')){failed.push(file.name+': не фото');continue}
+    if(file.size>PHOTO_MAX_BYTES){failed.push(file.name+': больше 8 МБ');continue}
+    const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8)||'jpg';
+    const path=String(shopId)+'/'+crypto.randomUUID()+'.'+ext;
+    try{
+      const {error}=await db.storage.from(PHOTO_BUCKET).upload(path,file,{contentType:file.type,upsert:false});
+      if(error)failed.push(file.name+': '+error.message); else uploaded++;
+    }catch(e){failed.push(file.name+': '+(e.message||String(e)))}
+  }
+  return {uploaded,failed};
+}
+async function loadShopPhotos(shopId){
+  const holder=$('shopPhotos'); if(!holder)return;
+  holder.innerHTML='<p class="muted">Загружаем фото…</p>';
+  try{
+    const {data,error}=await db.storage.from(PHOTO_BUCKET).list(String(shopId),{limit:100,sortBy:{column:'created_at',order:'desc'}});
+    if(error){holder.innerHTML='<p class="muted">Не удалось загрузить фото: '+esc(error.message)+'</p>';return}
+    const files=(data||[]).filter(f=>f.name&&!f.name.startsWith('.'));
+    if(!files.length){holder.innerHTML='<p class="muted">Фото пока нет.</p>';return}
+    holder.innerHTML='';
+    for(const f of files){
+      const {data:link}=await db.storage.from(PHOTO_BUCKET).createSignedUrl(String(shopId)+'/'+f.name,3600);
+      if(!link?.signedUrl)continue;
+      const a=document.createElement('a');a.href=link.signedUrl;a.target='_blank';a.rel='noopener noreferrer';
+      const img=document.createElement('img');img.src=link.signedUrl;img.alt='Фото магазина';img.loading='lazy';
+      a.appendChild(img);holder.appendChild(a);
+    }
+  }catch(e){holder.innerHTML='<p class="muted">Ошибка фото: '+esc(e.message||String(e))+'</p>'}
+}
+window.uploadExistingShopPhotos=async()=>{
+  if(!selectedShop)return;
+  const files=$('existingShopPhotos').files;
+  if(!files?.length)return toast('Сначала выберите фото');
+  $('shopPhotoStatus').textContent='Загружаем…';
+  const r=await uploadShopPhotos(selectedShop.id,files);
+  $('shopPhotoStatus').textContent='Загружено: '+r.uploaded+(r.failed.length?' · Ошибки: '+r.failed.join('; '):'');
+  $('existingShopPhotos').value='';
+  await loadShopPhotos(selectedShop.id);
+}
 function safeData(result,name){if(result?.error){console.warn(name,result.error);return []}return result?.data||[]}
 
 async function login(){
@@ -323,7 +390,7 @@ window.showPage=showPage;document.querySelectorAll('#tabs button').forEach(b=>b.
 function renderAll(){fillSelects();renderDashboard();renderShops();renderOrders();renderProducts();renderStock();renderEmployees();renderTasks();renderBonuses();renderReports();if(map)drawMap()}
 function fillSelects(){
  const statusOptions=Object.keys(colors).map(x=>`<option>${esc(x)}</option>`).join('');
- $('mapStatus').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('shopStatusFilter').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('nsStatus').innerHTML=statusOptions;$('vStatus').innerHTML=Object.keys(colors).filter(x=>x!=='Не посещён').map(x=>`<option>${esc(x)}</option>`).join('');
+ $('mapStatus').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('shopStatusFilter').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('nsStatus').innerHTML=statusOptions;$('esStatus').innerHTML=statusOptions;$('vStatus').innerHTML=Object.keys(colors).filter(x=>x!=='Не посещён').map(x=>`<option>${esc(x)}</option>`).join('');
  const people=profiles.map(p=>`<option value="${p.id}">${esc(p.full_name||p.id)} · ${esc(p.role)}</option>`).join('');
  $('mapAgent').innerHTML='<option value="">Все агенты</option>'+people;$('tEmployee').innerHTML=people;
  const wh=warehouses.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('');
@@ -353,8 +420,18 @@ async function initMap(){
  map.addListener('click',e=>{
    if(!picking)return;
    picking=false;
-   setNewCoords({lat:e.latLng.lat(),lng:e.latLng.lng()});
-   openModal('newShopModal');
+   const pos={lat:e.latLng.lat(),lng:e.latLng.lng()};
+   if(window.__editingPoint){
+     window.__editingPoint=false;
+     editCoords=pos;
+     if(draftPin){draftPin.setMap(null);draftPin=null}
+     draftPin=new google.maps.Marker({position:pos,map,title:'Новая точка магазина',icon:markerIcon('Повторный визит')});
+     $('esPos').textContent=`Точка: ${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`;
+     openModal('editShopModal');
+   }else{
+     setNewCoords(pos);
+     openModal('newShopModal');
+   }
  });
  $('legend').innerHTML=Object.entries(colors).map(([k,v])=>`<span><i class="dot" style="background:${v}"></i>${k}</span>`).join('');
 }
@@ -390,7 +467,7 @@ function renderShops(){
 }
 $('shopSearch').addEventListener('input',renderShops);$('shopStatusFilter').addEventListener('change',renderShops);
 window.openShopById=id=>{const s=shops.find(x=>x.id===id);if(s)openShop(s)};
-function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');$('shopDetail').innerHTML=`<div class="grid3"><div><b>Статус</b><p>${esc(s.status)}</p></div><div><b>Телефон</b><p>${esc(s.phone||'—')}</p></div><div><b>Комментарий</b><p>${esc(s.comment||'—')}</p></div></div>`;const vv=visits.filter(v=>v.shop_id===s.id);$('visitHistory').innerHTML=vv.length?vv.map(v=>`<div class="card" style="margin:6px 0"><b>${esc(v.status)}</b><div>${esc(v.comment||'')}</div><span class="muted">${new Date(v.created_at).toLocaleString('ru-RU')}</span></div>`).join(''):'<p class="muted">Визитов пока нет</p>';$('routeBtn').onclick=()=>{const dest=(s.address&&s.city)?encodeURIComponent([s.address,s.city,'Spain'].join(', ')):(s.lat+','+s.lng);window.open('https://www.google.com/maps/dir/?api=1&destination='+dest,'_blank')};openModal('shopModal')}
+function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');$('shopDetail').innerHTML=`<div class="grid3"><div><b>Статус</b><p>${esc(s.status)}</p></div><div><b>Телефон</b><p>${esc(s.phone||'—')}</p></div><div><b>Комментарий</b><p>${esc(s.comment||'—')}</p></div></div>`;const vv=visits.filter(v=>v.shop_id===s.id);$('visitHistory').innerHTML=vv.length?vv.map(v=>`<div class="card" style="margin:6px 0"><b>${esc(v.status)}</b><div>${esc(v.comment||'')}</div><span class="muted">${new Date(v.created_at).toLocaleString('ru-RU')}</span></div>`).join(''):'<p class="muted">Визитов пока нет</p>';$('routeBtn').onclick=()=>{if(s.address||s.city){const dest=encodeURIComponent([s.address,s.city,'Spain'].filter(Boolean).join(', '));window.open('https://www.google.com/maps/dir/?api=1&destination='+dest,'_blank');return}if(s.lat!=null&&s.lng!=null){window.open('https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng,'_blank');return}toast('У магазина пока нет адреса или координат для маршрута')};$('shopPhotoStatus').textContent='';$('existingShopPhotos').value='';openModal('shopModal');loadShopPhotos(s.id)}
 window.openNewShop=()=>{setNewCoords(null);openModal('newShopModal')};
 function setNewCoords(p){
  newCoords=p;
@@ -442,11 +519,74 @@ $('nsCity').addEventListener('input',scheduleAddressLookup);
 $('nsAddress').addEventListener('change',geocodeNewShopAddress);
 
 window.useMyLocation=()=>navigator.geolocation?.getCurrentPosition(async p=>{await initMap();const pos={lat:p.coords.latitude,lng:p.coords.longitude};setNewCoords(pos);if(map){map.setCenter(pos);map.setZoom(17)}toast('Местоположение определено')},()=>toast('Не удалось получить GPS'));
-window.pickOnMap=async()=>{closeModals();showPage('map');await initMap();picking=true;toast('Нажмите на место магазина на Google Maps')};
-window.saveNewShop=async()=>{const name=$('nsName').value.trim();if(!name)return toast('Введите название');if(!newCoords&&$('nsAddress').value.trim().length>=5)await geocodeNewShopAddress();if(!newCoords)return toast('Не удалось определить адрес. Выберите место на карте или GPS');const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,lat:newCoords.lat,lng:newCoords.lng,created_by:user.id,agent_id:user.id};const {error}=await db.from('shops').insert(row);if(error)return toast(error.message);closeModals();toast('Магазин добавлен');await refreshAll()};
+window.pickOnMap=async()=>{closeModals();showPage('map');await initMap();picking=true;toast('Нажмите на нужное место на Google Maps')};
+window.saveNewShop=async()=>{
+ const name=$('nsName').value.trim();if(!name)return toast('Введите название');
+ if(!newCoords&&$('nsAddress').value.trim().length>=5)await geocodeNewShopAddress();
+ const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,lat:newCoords?.lat??null,lng:newCoords?.lng??null,created_by:user.id,agent_id:user.id};
+ const {data,error}=await db.from('shops').insert(row).select('id').single();
+ if(error)return toast(error.message);
+ const files=Array.from($('nsPhotos').files||[]);
+ let photoResult={uploaded:0,failed:[]};
+ if(files.length)photoResult=await uploadShopPhotos(data.id,files);
+ $('nsPhotos').value='';
+ closeModals();
+ toast((newCoords?'Магазин добавлен и отмечен на карте':'Магазин добавлен без геопозиции')+(files.length?' · фото: '+photoResult.uploaded:''));
+ await refreshAll();
+};
 window.openVisit=()=>{if(!selectedShop)return;closeModals();$('vStatus').value=selectedShop.status==='Не посещён'?'Заинтересован':selectedShop.status;$('vComment').value='';$('vNext').value='';openModal('visitModal')};
 function getGeo(){return new Promise(r=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>r({lat:p.coords.latitude,lng:p.coords.longitude}),()=>r(null),{timeout:7000}):r(null))}
 window.saveVisit=async()=>{if(!selectedShop)return;const pos=await getGeo();const row={shop_id:selectedShop.id,agent_id:user.id,status:$('vStatus').value,comment:$('vComment').value,next_visit:$('vNext').value||null,...(pos||{})};let x=await db.from('visits').insert(row);if(x.error)return toast(x.error.message);await db.from('shops').update({status:row.status,comment:row.comment,next_visit:row.next_visit}).eq('id',selectedShop.id);closeModals();toast('Визит сохранён');await refreshAll()};
+
+
+let editCoords=null;
+window.openEditShop=()=>{
+  if(!selectedShop)return;
+  closeModals();
+  $('esName').value=selectedShop.name||'';
+  $('esType').value=selectedShop.type||'Другое';
+  $('esCity').value=selectedShop.city||'';
+  $('esPhone').value=selectedShop.phone||'';
+  $('esAddress').value=selectedShop.address||'';
+  $('esComment').value=selectedShop.comment||'';
+  $('esStatus').value=selectedShop.status||'Не посещён';
+  editCoords=(selectedShop.lat!=null&&selectedShop.lng!=null)?{lat:Number(selectedShop.lat),lng:Number(selectedShop.lng)}:null;
+  $('esPos').textContent=editCoords?`Точка: ${editCoords.lat.toFixed(6)}, ${editCoords.lng.toFixed(6)}`:'Точка на карте не задана';
+  openModal('editShopModal');
+};
+window.editUseMyLocation=()=>navigator.geolocation?.getCurrentPosition(p=>{
+  editCoords={lat:p.coords.latitude,lng:p.coords.longitude};
+  $('esPos').textContent=`GPS: ${editCoords.lat.toFixed(6)}, ${editCoords.lng.toFixed(6)}`;
+},()=>toast('Не удалось получить GPS'));
+
+window.editPickOnMap=async()=>{
+  if(!selectedShop)return;
+  closeModals();showPage('map');await initMap();
+  picking=true;
+  window.__editingPoint=true;
+  toast('Нажмите новое место магазина на Google Maps');
+};
+
+window.saveEditShop=async()=>{
+  if(!selectedShop)return;
+  const name=$('esName').value.trim();if(!name)return toast('Введите название');
+  const row={
+    name,
+    type:$('esType').value,
+    city:$('esCity').value.trim(),
+    address:$('esAddress').value.trim(),
+    phone:$('esPhone').value.trim(),
+    comment:$('esComment').value.trim(),
+    status:$('esStatus').value,
+    lat:editCoords?.lat??selectedShop.lat??null,
+    lng:editCoords?.lng??selectedShop.lng??null,
+    updated_at:new Date().toISOString()
+  };
+  const {error}=await db.from('shops').update(row).eq('id',selectedShop.id);
+  if(error)return toast('Не удалось сохранить: '+error.message);
+  closeModals();toast('Карточка магазина обновлена');await refreshAll();
+  const fresh=shops.find(s=>s.id===selectedShop.id);if(fresh)openShop(fresh);
+};
 
 function productPrice(id){return Number(products.find(p=>p.id===id)?.price||0)}
 function availableFor(productId,warehouseId){const b=balances.find(x=>x.product_id===productId&&x.warehouse_id===warehouseId);return Math.max(0,Number(b?.physical_qty||0)-Number(b?.reserved_qty||0))}
