@@ -106,6 +106,12 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
     <section id="page-map" class="page hidden">
       <div class="mapLayout">
         <div class="card">
+          <h3>Поиск по Google Maps</h3>
+          <label>Ссылка Google Maps или адрес</label>
+          <input id="googleMapSearchInput" placeholder="Вставьте ссылку Google Maps или адрес">
+          <button class="primary" style="width:100%;margin-bottom:10px" onclick="goToGoogleMapLink()">Перейти к точке</button>
+          <p id="googleMapSearchStatus" class="muted">Можно вставить обычную или короткую ссылку Google Maps.</p>
+          <hr style="border:0;border-top:1px solid var(--line);margin:12px 0">
           <h3>Фильтры</h3>
           <label>Название</label><input id="mapSearch" placeholder="Поиск магазина">
           <label>Город</label><select id="mapCity"><option value="">Все города</option></select>
@@ -584,6 +590,98 @@ function markerIcon(status){
  };
 }
 
+
+function parseGoogleMapsTarget(urlText){
+  try{
+    const decoded=decodeURIComponent(urlText);
+    let m=decoded.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+    if(m)return {lat:Number(m[1]),lng:Number(m[2]),label:null};
+    m=decoded.match(/[?&](?:q|query|ll)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
+    if(m)return {lat:Number(m[1]),lng:Number(m[2]),label:null};
+    m=decoded.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+    if(m)return {lat:Number(m[1]),lng:Number(m[2]),label:null};
+    const place=decoded.match(/\/maps\/place\/([^/@?]+)/);
+    if(place)return {lat:null,lng:null,label:place[1].replace(/\+/g,' ')};
+    const search=decoded.match(/\/maps\/search\/([^/@?]+)/);
+    if(search)return {lat:null,lng:null,label:search[1].replace(/\+/g,' ')};
+  }catch{}
+  return null;
+}
+async function centerOnSearchTarget(target,label=''){
+  if(!map)await initMap();
+  const pos={lat:Number(target.lat),lng:Number(target.lng)};
+  map.setCenter(pos);map.setZoom(18);
+  if(draftPin){draftPin.setMap(null);draftPin=null}
+  draftPin=new google.maps.Marker({
+    position:pos,map,title:label||'Точка Google Maps',
+    icon:{path:google.maps.SymbolPath.CIRCLE,fillColor:'#7b61ff',fillOpacity:1,strokeColor:'#fff',strokeWeight:3,scale:9}
+  });
+  const wrap=document.createElement('div');
+  const title=document.createElement('div');title.style.fontWeight='800';title.textContent=label||'Точка Google Maps';
+  const btn=document.createElement('button');btn.className='primary';btn.style.marginTop='10px';btn.textContent='Создать магазин здесь';
+  btn.onclick=async()=>{
+    window.__pendingGooglePlaceId=null;window.__pendingGoogleMapsUrl=null;
+    newCoords=pos;
+    $('nsName').value=label||'';
+    $('nsAddress').value='';
+    $('nsCity').value='';
+    try{
+      const geocoder=new google.maps.Geocoder();
+      const res=await geocoder.geocode({location:pos});
+      const result=res.results?.[0];
+      if(result){
+        $('nsAddress').value=result.formatted_address||'';
+        const comps=result.address_components||[];
+        const c=comps.find(x=>x.types.includes('locality')||x.types.includes('postal_town')||x.types.includes('administrative_area_level_3'));
+        if(c)$('nsCity').value=c.long_name;
+      }
+    }catch{}
+    setNewCoords(pos);
+    if(infoWindow)infoWindow.close();
+    openModal('newShopModal');
+  };
+  wrap.append(title,btn);
+  infoWindow.setContent(wrap);
+  infoWindow.open({map,anchor:draftPin});
+}
+window.goToGoogleMapLink=async()=>{
+  const raw=$('googleMapSearchInput').value.trim();
+  if(!raw)return toast('Вставьте ссылку Google Maps или адрес');
+  $('googleMapSearchStatus').textContent='Ищем точку…';
+  try{
+    let finalText=raw;
+    if(/^https:\/\/(?:maps\.app\.goo\.gl|goo\.gl|maps\.google\.com|www\.google\.com|google\.com)/i.test(raw)){
+      const direct=parseGoogleMapsTarget(raw);
+      if(direct?.lat!=null){
+        await centerOnSearchTarget(direct);
+        $('googleMapSearchStatus').textContent='Точка найдена по ссылке.';
+        return;
+      }
+      const {data,error}=await db.functions.invoke('resolve-google-maps-link',{body:{url:raw}});
+      if(error)throw error;
+      if(data?.error)throw new Error(data.error);
+      finalText=data?.finalUrl||raw;
+      const parsed=parseGoogleMapsTarget(finalText);
+      if(parsed?.lat!=null){
+        await centerOnSearchTarget(parsed,parsed.label||'');
+        $('googleMapSearchStatus').textContent='Точка найдена по ссылке Google Maps.';
+        return;
+      }
+      if(parsed?.label)finalText=parsed.label;
+    }
+    await loadGoogleMaps();
+    const geocoder=new google.maps.Geocoder();
+    const res=await geocoder.geocode({address:finalText,region:'ES'});
+    const result=res.results?.[0];
+    if(!result)throw new Error('Точка не найдена');
+    const loc=result.geometry.location;
+    await centerOnSearchTarget({lat:loc.lat(),lng:loc.lng()},result.formatted_address||finalText);
+    $('googleMapSearchStatus').textContent='Найдено: '+(result.formatted_address||finalText);
+  }catch(e){
+    $('googleMapSearchStatus').textContent='Не удалось найти точку: '+(e.message||String(e));
+  }
+};
+
 function clearGoogleStoreMarkers(){
   googleStoreMarkers.forEach(m=>m.setMap(null));
   googleStoreMarkers=[];
@@ -744,6 +842,7 @@ window.showAllShopsOnMap=()=>{
 };
 ['mapSearch','mapCity','mapStatus','mapAgent'].forEach(id=>$(id).addEventListener(id==='mapSearch'?'input':'change',drawMap));
 $('googleStoresToggle').addEventListener('change',()=>{lastNearbySearchKey='';searchGoogleStoresInView()});
+$('googleMapSearchInput').addEventListener('keydown',e=>{if(e.key==='Enter')goToGoogleMapLink()});
 window.resetMapFilters=()=>{['mapSearch','mapCity','mapStatus','mapAgent'].forEach(id=>$(id).value='');drawMap(true)};
 
 function renderShops(){
