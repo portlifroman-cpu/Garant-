@@ -213,6 +213,7 @@ tr:hover td{background:#fbfdff}
       <button data-page="tasks">Задачи</button>
       <button data-page="stock">Склад</button>
       <button data-page="products">Товары</button>
+      <button data-page="catalog">Каталог / QR</button>
       <button data-page="employees">Команда</button>
       <button data-page="bonuses">Бонусы</button>
       <button data-page="reports">Отчёты</button>
@@ -320,6 +321,29 @@ tr:hover td{background:#fbfdff}
       </div>
       <div id="stockTable" class="tablewrap"></div>
       <div class="card" style="margin-top:10px"><h3>Последние движения</h3><div id="movementsTable" class="tablewrap"></div></div>
+    </section>
+
+    <section id="page-catalog" class="page hidden">
+      <div class="card">
+        <h2>Каталог компании GARANT</h2>
+        <p class="muted">Публичный каталог обновляется из раздела «Товары». Этот QR-код можно ставить на визитки, стенды, презентации и упаковку.</p>
+        <div class="grid2" style="align-items:start">
+          <div>
+            <label>Ссылка на каталог</label>
+            <input id="catalogUrl" value="https://garantkartaprodazhcloud.vercel.app/catalogo.html" readonly>
+            <div class="actions">
+              <button class="primary" onclick="openPublicCatalog()">Открыть каталог</button>
+              <button class="light" onclick="copyCatalogLink()">Копировать ссылку</button>
+            </div>
+          </div>
+          <div style="text-align:center">
+            <canvas id="catalogQr" width="360" height="360" style="max-width:100%;background:#fff;border-radius:16px;border:1px solid #dfe8ef;padding:10px"></canvas>
+            <div class="actions" style="justify-content:center">
+              <button class="light" onclick="downloadCatalogQr()">Скачать QR</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section id="page-employees" class="page hidden">
@@ -757,10 +781,19 @@ async function refreshAll(){
  renderAll();
 }
 
+const CATALOG_URL='https://garantkartaprodazhcloud.vercel.app/catalogo.html';
+function renderCatalogQr(){
+  const canvas=$('catalogQr');if(!canvas||!window.QRCode)return;
+  QRCode.toCanvas(canvas,CATALOG_URL,{width:360,margin:2,errorCorrectionLevel:'H'},()=>{});
+}
+window.openPublicCatalog=()=>window.open(CATALOG_URL,'_blank');
+window.copyCatalogLink=async()=>{try{await navigator.clipboard.writeText(CATALOG_URL);toast('Ссылка на каталог скопирована')}catch{toast('Не удалось скопировать ссылку')}};
+window.downloadCatalogQr=()=>{const canvas=$('catalogQr');if(!canvas)return;const a=document.createElement('a');a.download='GARANT_catalog_QR.png';a.href=canvas.toDataURL('image/png');a.click()};
+
 function showPage(name){
  document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$('page-'+name).classList.remove('hidden');
  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
- if(name==='map'){initMap();setTimeout(()=>{if(map&&window.google?.maps){google.maps.event.trigger(map,'resize');drawMap(true)}},160)}
+ if(name==='map'){initMap();setTimeout(()=>{if(map&&window.google?.maps){google.maps.event.trigger(map,'resize');drawMap(true)}},160)}if(name==='catalog')setTimeout(renderCatalogQr,80)
 }
 window.showPage=showPage;document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
 
@@ -1701,4 +1734,5 @@ window.exportReportCSV=()=>{const rows=[['Дата','Магазин','Агент
 
 try{await boot()}catch(e){$('authMsg').textContent='Ошибка запуска: '+e.message}
 </script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 </body></html>
