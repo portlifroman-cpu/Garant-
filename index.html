@@ -480,14 +480,6 @@ tr:hover td{background:#fbfdff}
   <div id="employeeInviteBox" class="card hidden" style="margin:10px 0">
     <h3>Приглашение сотрудника</h3>
     <button class="light" style="width:100%" onclick="generateEmployeeInviteLink()">✉️ Отправить приглашение</button>
-    <div id="inviteLinkWrap" class="hidden" style="margin-top:8px">
-      <label>Ссылка приглашения</label>
-      <input id="employeeInviteLink" readonly>
-      <div class="actions">
-        <button class="light" onclick="copyEmployeeInviteLink()">Копировать</button>
-        <button class="primary" onclick="openEmployeeInviteLink()">Открыть</button>
-      </div>
-    </div>
     <p id="employeeInviteStatus" class="muted"></p>
   </div>
   <h3>Документы сотрудника</h3>
@@ -1520,37 +1512,25 @@ window.deleteEmployee=async()=>{
 };
 
 window.generateEmployeeInviteLink=async()=>{
-  if(!isOwner())return toast('Только владелец может создавать ссылки приглашения');
+  if(!isOwner())return toast('Только владелец может отправлять приглашения');
   if(!selectedEmployee?.email)return toast('У сотрудника не указана рабочая почта');
-  $('employeeInviteStatus').textContent='Создаём новую ссылку…';
+  $('employeeInviteStatus').textContent='Отправляем приглашение…';
   try{
     const {data,error}=await db.functions.invoke('invite-garant-employee',{
-      body:{action:'generate_link',email:selectedEmployee.email}
+      body:{
+        email:selectedEmployee.email,
+        full_name:selectedEmployee.full_name||selectedEmployee.email,
+        phone:selectedEmployee.phone||'',
+        role:selectedEmployee.role||'agent'
+      }
     });
     if(error)throw error;
     if(data?.error)throw new Error(data.error);
-    if(!data?.action_link)throw new Error('Supabase не вернул ссылку');
-    $('employeeInviteLink').value=data.action_link;
-    $('inviteLinkWrap').classList.remove('hidden');
-    $('employeeInviteStatus').textContent='Приглашение отправлено сотруднику. По ссылке он сможет задать новый пароль.';
+    $('employeeInviteStatus').textContent='Приглашение отправлено на '+selectedEmployee.email+'. Сотрудник сможет перейти по ссылке и задать пароль.';
+    toast('Приглашение отправлено');
   }catch(e){
     $('employeeInviteStatus').textContent='Ошибка: '+(e.message||String(e));
   }
-};
-window.copyEmployeeInviteLink=async()=>{
-  const input=$('employeeInviteLink');
-  if(!input.value)return;
-  try{
-    await navigator.clipboard.writeText(input.value);
-    toast('Ссылка скопирована');
-  }catch{
-    input.focus();input.select();
-    toast('Ссылка выделена — скопируйте её');
-  }
-};
-window.openEmployeeInviteLink=()=>{
-  const url=$('employeeInviteLink').value;
-  if(url)window.open(url,'_blank');
 };
 
 window.openEmployeeCard=async(id)=>{
@@ -1566,8 +1546,6 @@ window.openEmployeeCard=async(id)=>{
   </div>`;
   $('employeeInviteBox').classList.toggle('hidden',!isOwner());
   $('employeeEditActions').classList.toggle('hidden',!isOwner());
-  $('inviteLinkWrap').classList.add('hidden');
-  $('employeeInviteLink').value='';
   $('employeeInviteStatus').textContent='';
   $('docType').value='identity_document';$('docNumber').value='';$('docExpiry').value='';$('docFile').value='';$('docComment').value='';$('docStatus').textContent='';
   openModal('employeeCardModal');
