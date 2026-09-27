@@ -282,6 +282,8 @@ tr:hover td{background:#fbfdff}
       <div class="toolbar">
         <div><label>Поиск</label><input id="shopSearch" placeholder="Название, адрес, телефон"></div>
         <div><label>Статус</label><select id="shopStatusFilter"><option value="">Все</option></select></div>
+        <div><label>Кто открыл клиента</label><select id="shopOpenedByFilter"><option value="">Все</option></select></div>
+        <button class="light" onclick="resetShopFilters()">Сбросить</button>
         <button class="primary" onclick="openNewShop()">+ Добавить магазин</button>
       </div>
       <div id="shopsTable" class="tablewrap"></div>
@@ -810,6 +812,12 @@ function fillSelects(){
  $('oShop').innerHTML=sh;$('tShop').innerHTML='<option value="">Без магазина</option>'+sh;$('dShop').innerHTML='<option value="">Без магазина</option>'+sh;
  $('mProduct').innerHTML=products.map(p=>`<option value="${p.id}">${esc(p.name)}${p.sku?' · '+esc(p.sku):''}</option>`).join('');
  $('orderStatusFilter').innerHTML='<option value="">Все</option>'+Object.entries(orderStatusNames).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+ const openerNames=[...new Set(shops.map(s=>(s.opened_by_name||employeeName(s.created_by)||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru'));
+ if($('shopOpenedByFilter')){
+   const current=$('shopOpenedByFilter').value;
+   $('shopOpenedByFilter').innerHTML='<option value="">Все</option>'+openerNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+   if(openerNames.includes(current))$('shopOpenedByFilter').value=current;
+ }
 }
 
 function renderDashboard(){
@@ -1140,12 +1148,27 @@ $('googleStoresToggle').addEventListener('change',()=>{lastNearbySearchKey='';se
 $('googleMapSearchInput').addEventListener('keydown',e=>{if(e.key==='Enter')goToGoogleMapLink()});
 window.resetMapFilters=()=>{['mapSearch','mapCity','mapStatus','mapAgent'].forEach(id=>$(id).value='');drawMap(true)};
 
-function renderShops(){
- const q=$('shopSearch').value.toLowerCase(),st=$('shopStatusFilter').value;
- const rows=shops.filter(s=>(!q||(s.name+' '+s.city+' '+s.address+' '+s.phone).toLowerCase().includes(q))&&(!st||s.status===st));
- $('shopsTable').innerHTML=`<table><thead><tr><th>Магазин</th><th>Тип</th><th>Город</th><th>Статус</th><th>Телефон</th><th>Следующий визит</th></tr></thead><tbody>${rows.map(s=>`<tr onclick="openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.type||'')}</td><td>${esc(s.city||'')}</td><td><span class="badge">${esc(s.status||'')}</span></td><td>${esc(s.phone||'')}</td><td>${esc(s.next_visit||'')}</td></tr>`).join('')}</tbody></table>`;
+function shopOpenedByName(s){
+  return (s.opened_by_name||employeeName(s.created_by)||'').trim();
 }
-$('shopSearch').addEventListener('input',renderShops);$('shopStatusFilter').addEventListener('change',renderShops);
+function renderShops(){
+ const q=$('shopSearch').value.toLowerCase(),st=$('shopStatusFilter').value,opened=$('shopOpenedByFilter')?.value||'';
+ const rows=shops.filter(s=>{
+   const opener=shopOpenedByName(s);
+   const searchText=(s.name+' '+s.city+' '+s.address+' '+s.phone+' '+opener).toLowerCase();
+   return (!q||searchText.includes(q))&&(!st||s.status===st)&&(!opened||opener===opened);
+ });
+ $('shopsTable').innerHTML=`<table><thead><tr><th>Магазин</th><th>Тип</th><th>Город</th><th>Статус</th><th>Кто открыл клиента</th><th>Телефон</th><th>Следующий визит</th></tr></thead><tbody>${rows.map(s=>`<tr onclick="openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.type||'')}</td><td>${esc(s.city||'')}</td><td><span class="badge">${esc(s.status||'')}</span></td><td>${esc(shopOpenedByName(s)||'—')}</td><td>${esc(s.phone||'')}</td><td>${esc(s.next_visit||'')}</td></tr>`).join('')}</tbody></table>`;
+}
+$('shopSearch').addEventListener('input',renderShops);
+$('shopStatusFilter').addEventListener('change',renderShops);
+$('shopOpenedByFilter').addEventListener('change',renderShops);
+window.resetShopFilters=()=>{
+  $('shopSearch').value='';
+  $('shopStatusFilter').value='';
+  $('shopOpenedByFilter').value='';
+  renderShops();
+};
 window.openShopById=id=>{const s=shops.find(x=>x.id===id);if(s)openShop(s)};
 
 function employeeName(id){
