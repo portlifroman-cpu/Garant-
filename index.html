@@ -2038,11 +2038,23 @@ window.openEmployeeCard=async(id)=>{
   selectedEmployee=emp;
   $('ecName').textContent=emp.full_name||'Сотрудник';
   $('ecMeta').textContent=(emp.role||'')+(emp.status?' · '+emp.status:'');
+  const assignedShops=shops.filter(s=>s.agent_id===emp.id);
+  const openedShops=shops.filter(s=>s.created_by===emp.id||((s.opened_by_name||'').trim().toLowerCase()===(emp.full_name||'').trim().toLowerCase()));
   $('ecInfo').innerHTML=`<div class="grid3">
     <div><b>Email</b><p>${esc(emp.email||'—')}</p></div>
     <div><b>Телефон</b><p>${esc(emp.phone||'—')}</p></div>
     <div><b>Дата начала</b><p>${esc(emp.start_date||'—')}</p></div>
     <div><b>Активен</b><p>${emp.active?'Да':'Нет'}</p></div>
+    <div><b>Магазинов обслуживает</b><p><b>${assignedShops.length}</b></p></div>
+    <div><b>Открыл магазинов</b><p><b>${openedShops.length}</b></p></div>
+  </div>
+  <div class="card" style="margin-top:10px">
+    <h3 style="margin-top:0">Магазины агента</h3>
+    ${assignedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Статус</th></tr></thead><tbody>${assignedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b></td><td>${esc(s.city||'')}</td><td>${esc(s.status||'')}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">За агентом пока не закреплены магазины.</p>'}
+  </div>
+  <div class="card" style="margin-top:10px">
+    <h3 style="margin-top:0">Какие магазины он открыл</h3>
+    ${openedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Когда открыт</th><th>Статус</th></tr></thead><tbody>${openedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b></td><td>${esc(s.city||'')}</td><td>${s.created_at?new Date(s.created_at).toLocaleDateString('ru-RU'):'—'}</td><td>${esc(s.status||'')}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">Открытых этим агентом магазинов пока нет.</p>'}
   </div>`;
   $('employeeInviteBox').classList.toggle('hidden',!isOwner());
   $('employeeEditActions').classList.toggle('hidden',!isOwner());
