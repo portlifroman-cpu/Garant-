@@ -1499,10 +1499,41 @@ window.saveOrder=async()=>{const shop_id=$('oShop').value,warehouse_id=$('oWareh
  if(testStage&&linked)await db.from('deals').update({stage_id:testStage.id,status:'open',updated_at:new Date().toISOString()}).eq('id',linked.id);
  closeModals();toast('Заказ сохранён');await refreshAll()};
 
+let productSort={key:'name',dir:1};
+function productSortValue(p,key){
+ const numericKeys=['nicotine_mg_g','nicotine_mg_pouch','pouches_per_can','pouch_weight_g','total_weight_g','price'];
+ if(numericKeys.includes(key))return p[key]==null?-Infinity:Number(p[key]);
+ return String(p[key]??'').toLocaleLowerCase('ru');
+}
+window.sortProductsBy=(key)=>{
+ if(productSort.key===key)productSort.dir*=-1;
+ else productSort={key,dir:1};
+ renderProducts();
+};
+function productSortArrow(key){
+ return productSort.key===key?(productSort.dir===1?' ▲':' ▼'):' ⇅';
+}
 function renderProducts(){
  const q=$('productSearch').value.toLowerCase();
- const rows=products.filter(p=>(p.name+' '+(p.sku||'')+' '+(p.flavor||'')+' '+(p.category||'')).toLowerCase().includes(q));
- $('productsTable').innerHTML=`<table><thead><tr><th>Товар</th><th>Вкус</th><th>Линейка</th><th>мг/г</th><th>мг/пауч</th><th>Паучей</th><th>Вес пауча, г</th><th>Вес банки, г</th><th>Цена</th></tr></thead><tbody>${rows.map(p=>`<tr><td><b>${esc(p.name)}</b><div class="muted">${esc(p.sku||'')}</div></td><td>${esc(p.flavor||'')}</td><td>${esc(p.category||'')}</td><td>${p.nicotine_mg_g??'—'}</td><td>${p.nicotine_mg_pouch??'—'}</td><td>${p.pouches_per_can??'—'}</td><td>${p.pouch_weight_g??'—'}</td><td>${p.total_weight_g??'—'}</td><td>${money(p.price)}</td></tr>`).join('')}</tbody></table>`;
+ const rows=products
+   .filter(p=>(p.name+' '+(p.sku||'')+' '+(p.flavor||'')+' '+(p.category||'')).toLowerCase().includes(q))
+   .sort((a,b)=>{
+     const av=productSortValue(a,productSort.key),bv=productSortValue(b,productSort.key);
+     if(typeof av==='number'&&typeof bv==='number')return (av-bv)*productSort.dir;
+     return String(av).localeCompare(String(bv),'ru',{numeric:true,sensitivity:'base'})*productSort.dir;
+   });
+ const th=(label,key)=>`<th onclick="sortProductsBy('${key}')" style="cursor:pointer;white-space:nowrap" title="Нажмите для сортировки">${label}${productSortArrow(key)}</th>`;
+ $('productsTable').innerHTML=`<table><thead><tr>
+   ${th('Товар','name')}
+   ${th('Вкус','flavor')}
+   ${th('Линейка','category')}
+   ${th('мг/г','nicotine_mg_g')}
+   ${th('мг/пауч','nicotine_mg_pouch')}
+   ${th('Паучей','pouches_per_can')}
+   ${th('Вес пауча, г','pouch_weight_g')}
+   ${th('Вес банки, г','total_weight_g')}
+   ${th('Цена','price')}
+ </tr></thead><tbody>${rows.map(p=>`<tr><td><b>${esc(p.name)}</b><div class="muted">${esc(p.sku||'')}</div></td><td>${esc(p.flavor||'')}</td><td>${esc(p.category||'')}</td><td>${p.nicotine_mg_g??'—'}</td><td>${p.nicotine_mg_pouch??'—'}</td><td>${p.pouches_per_can??'—'}</td><td>${p.pouch_weight_g??'—'}</td><td>${p.total_weight_g??'—'}</td><td>${money(p.price)}</td></tr>`).join('')}</tbody></table>`;
 }
 $('productSearch').addEventListener('input',renderProducts);
 window.openProduct=()=>{['pName','pSku','pFlavor','pCategory','pStrength','pNicotineMgG','pNicotineMgPouch','pPouches','pPouchWeight','pTotalWeight'].forEach(id=>{if($(id))$(id).value=''});$('pPrice').value='';$('pMin').value='';$('pBox').value='1';openModal('productModal')};
