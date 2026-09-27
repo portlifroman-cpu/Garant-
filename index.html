@@ -215,7 +215,6 @@ tr:hover td{background:#fbfdff}
       <button data-page="products">Товары</button>
       <button data-page="catalog">Каталог / QR</button>
       <button data-page="employees">Команда</button>
-      <button data-page="bonuses">Бонусы</button>
       <button data-page="reports">Отчёты</button>
     </div>
 
@@ -361,11 +360,6 @@ tr:hover td{background:#fbfdff}
     <section id="page-tasks" class="page hidden">
       <div class="toolbar"><div><label>Статус</label><select id="taskStatusFilter"><option value="">Все</option><option value="planned">Запланирована</option><option value="done">Выполнена</option><option value="overdue">Просрочена</option><option value="cancelled">Отменена</option></select></div><button class="primary" onclick="openTask()">+ Задача</button></div>
       <div id="tasksTable" class="tablewrap"></div>
-    </section>
-
-    <section id="page-bonuses" class="page hidden">
-      <div class="card"><h3>Правило расчёта</h3><p>Учитываются только <b>оплаченные заказы</b>. Базовый бонус за новый оплаченный магазин: <b id="bonusNewShop">30 €</b>. Процент от оплаченных продаж: <b id="bonusPct">0%</b>.</p></div>
-      <div id="bonusesTable" class="tablewrap" style="margin-top:10px"></div>
     </section>
 
     <section id="page-reports" class="page hidden">
@@ -857,7 +851,7 @@ function showPage(name){
 }
 window.showPage=showPage;document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
 
-function renderAll(){fillSelects();renderDashboard();renderShops();renderDeals();renderOrders();renderProducts();renderStock();renderEmployees();renderTasks();renderBonuses();renderReports();if(map)drawMap()}
+function renderAll(){fillSelects();renderDashboard();renderShops();renderDeals();renderOrders();renderProducts();renderStock();renderEmployees();renderTasks();renderReports();if(map)drawMap()}
 function fillSelects(){
  const statusOptions=Object.keys(colors).map(x=>`<option>${esc(x)}</option>`).join('');
  $('mapStatus').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('shopStatusFilter').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('nsStatus').innerHTML=statusOptions;$('esStatus').innerHTML=statusOptions;$('vStatus').innerHTML=Object.keys(colors).filter(x=>x!=='Не посещён').map(x=>`<option>${esc(x)}</option>`).join('');
