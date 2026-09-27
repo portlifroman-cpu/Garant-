@@ -336,7 +336,9 @@ tr:hover td{background:#fbfdff}
             <div class="actions">
               <button class="primary" onclick="openPublicCatalog()">Открыть каталог</button>
               <button class="light" onclick="copyCatalogLink()">Копировать ссылку</button>
+              <button id="syncCatalogBtn" class="light" onclick="syncOfficialCatalog()">Обновить с garantsnus.com</button>
             </div>
+            <p id="catalogSyncStatus" class="muted"></p>
           </div>
           <div style="text-align:center">
             <canvas id="catalogQr" width="360" height="360" style="max-width:100%;background:#fff;border-radius:16px;border:1px solid #dfe8ef;padding:10px"></canvas>
@@ -791,6 +793,22 @@ function renderCatalogQr(){
 window.openPublicCatalog=()=>window.open(CATALOG_URL,'_blank');
 window.copyCatalogLink=async()=>{try{await navigator.clipboard.writeText(CATALOG_URL);toast('Ссылка на каталог скопирована')}catch{toast('Не удалось скопировать ссылку')}};
 window.downloadCatalogQr=()=>{const canvas=$('catalogQr');if(!canvas)return;const a=document.createElement('a');a.download='GARANT_catalog_QR.png';a.href=canvas.toDataURL('image/png');a.click()};
+window.syncOfficialCatalog=async()=>{
+  if(!isOwner())return toast('Обновлять каталог может только владелец');
+  const btn=$('syncCatalogBtn');btn.disabled=true;btn.textContent='Обновляем…';$('catalogSyncStatus').textContent='Загружаем официальный каталог с garantsnus.com…';
+  try{
+    const {data,error}=await db.functions.invoke('sync-garant-official-catalog');
+    if(error)throw error;
+    if(data?.error)throw new Error(data.error);
+    $('catalogSyncStatus').textContent='Готово. Загружено товаров: '+(data?.count||0);
+    toast('Каталог обновлён');
+    await refreshAll();
+  }catch(e){
+    $('catalogSyncStatus').textContent='Ошибка обновления: '+(e.message||String(e));
+  }finally{
+    btn.disabled=false;btn.textContent='Обновить с garantsnus.com';
+  }
+};
 
 function showPage(name){
  document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$('page-'+name).classList.remove('hidden');
