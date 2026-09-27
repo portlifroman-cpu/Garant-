@@ -131,7 +131,10 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
     </section>
 
     <section id="page-employees" class="page hidden">
-      <div class="toolbar"><div><label>Поиск</label><input id="employeeSearch" placeholder="Имя / роль"></div></div>
+      <div class="toolbar">
+        <div><label>Поиск</label><input id="employeeSearch" placeholder="Имя / роль"></div>
+        <button id="addEmployeeBtn" class="primary hidden" onclick="openEmployeeModal()">+ Добавить сотрудника</button>
+      </div>
       <div id="employeesTable" class="tablewrap"></div>
     </section>
 
@@ -244,6 +247,23 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
   <button class="primary" style="width:100%" onclick="saveMovement()">Сохранить движение</button>
 </div></div>
 
+
+<div class="modal" id="employeeModal"><div class="sheet">
+  <div class="head"><h2>Добавить сотрудника</h2><button class="close">×</button></div>
+  <label>Имя и фамилия *</label><input id="eName" placeholder="Имя Фамилия">
+  <label>Рабочая почта *</label><input id="eEmail" type="email" placeholder="name@company.com">
+  <label>Телефон</label><input id="ePhone" type="tel">
+  <label>Роль</label>
+  <select id="eRole">
+    <option value="agent">Агент</option>
+    <option value="regional_manager">Региональный руководитель</option>
+    <option value="manager">Руководитель</option>
+    <option value="warehouse">Склад</option>
+  </select>
+  <p class="muted">Сотруднику будет отправлено приглашение на рабочую почту. Добавлять сотрудников может только владелец.</p>
+  <button id="saveEmployeeBtn" class="primary" style="width:100%" onclick="saveEmployee()">Отправить приглашение</button>
+</div></div>
+
 <div class="modal" id="taskModal"><div class="sheet">
   <div class="head"><h2>Новая задача</h2><button class="close">×</button></div>
   <label>Магазин</label><select id="tShop"><option value="">Без магазина</option></select>
@@ -286,6 +306,8 @@ const money=n=>(Number(n)||0).toLocaleString('ru-RU',{minimumFractionDigits:2,ma
 const colors={'Клиент Garant':'#17a34a','Заинтересован':'#edc200','Оставили образцы':'#1375f2','Повторный визит':'#fa7b21','Отказ':'#db3434','Не посещён':'#98a4b1'};
 const orderStatusNames={draft:'Черновик',confirmed:'Подтверждён',processing:'В обработке',reserved:'Зарезервирован',ready:'Готов к отгрузке',shipped:'Отгружен',delivered:'Доставлен',paid:'Оплачен',cancelled:'Отменён'};
 let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],orders=[],orderItems=[],tasks=[],bonusRules=[];
+const OWNER_USER_ID='ceae49cb-4385-4052-a022-6aa0cea662ef';
+const isOwner=()=>user?.id===OWNER_USER_ID;
 let selectedShop=null,newCoords=null,picking=false,draftPin=null,infoWindow=null;
 
 function toast(s){$('toast').textContent=s;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3200)}
@@ -358,6 +380,7 @@ async function boot(){
  profile=p.data;$('who').textContent=(profile.full_name||'Сотрудник')+' · '+(isManager()?'Руководитель':'Агент');
  $('auth').classList.add('hidden');$('mainApp').classList.remove('hidden');
  if(!isManager()){['addProductBtn','addWarehouseBtn','adjustStockBtn'].forEach(id=>$(id)?.classList.add('hidden'))}
+ if(isOwner())$('addEmployeeBtn')?.classList.remove('hidden');
  await refreshAll();showPage('dashboard');
 }
 
@@ -621,6 +644,36 @@ window.saveMovement=async()=>{if(!isManager())return toast('Только рук�
  const x=await db.from('inventory_balances').upsert(row,{onConflict:'warehouse_id,product_id'});if(x.error)return toast(x.error.message);
  await db.from('inventory_movements').insert({warehouse_id,product_id,movement_type:type,quantity:q,comment:$('mComment').value,created_by:user.id});
  closeModals();toast('Движение сохранено');await refreshAll()};
+
+
+window.openEmployeeModal=()=>{
+  if(!isOwner())return toast('Добавлять сотрудников может только владелец');
+  $('eName').value='';$('eEmail').value='';$('ePhone').value='';$('eRole').value='agent';
+  openModal('employeeModal');
+};
+window.saveEmployee=async()=>{
+  if(!isOwner())return toast('Добавлять сотрудников может только владелец');
+  const full_name=$('eName').value.trim();
+  const email=$('eEmail').value.trim();
+  const phone=$('ePhone').value.trim();
+  const role=$('eRole').value;
+  if(!full_name||!email)return toast('Введите имя и рабочую почту');
+  const btn=$('saveEmployeeBtn');btn.disabled=true;btn.textContent='Отправляем приглашение…';
+  try{
+    const {data,error}=await db.functions.invoke('invite-garant-employee',{
+      body:{full_name,email,phone,role}
+    });
+    if(error)throw error;
+    if(data?.error)throw new Error(data.error);
+    closeModals();
+    toast('Приглашение отправлено на '+email);
+    await refreshAll();
+  }catch(e){
+    toast('Не удалось добавить сотрудника: '+(e.message||String(e)));
+  }finally{
+    btn.disabled=false;btn.textContent='Отправить приглашение';
+  }
+};
 
 function renderEmployees(){const q=$('employeeSearch').value.toLowerCase(),rows=profiles.filter(p=>((p.full_name||'')+' '+p.role).toLowerCase().includes(q));$('employeesTable').innerHTML=`<table><thead><tr><th>Сотрудник</th><th>Роль</th><th>Телефон</th><th>Статус</th><th>Активен</th></tr></thead><tbody>${rows.map(p=>`<tr><td><b>${esc(p.full_name||'')}</b></td><td>${esc(p.role)}</td><td>${esc(p.phone||'')}</td><td>${esc(p.status||'')}</td><td>${p.active?'Да':'Нет'}</td></tr>`).join('')}</tbody></table>`}
 $('employeeSearch').addEventListener('input',renderEmployees);
