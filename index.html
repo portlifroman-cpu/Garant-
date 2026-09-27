@@ -44,6 +44,9 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
 .pipeline-drop{min-height:70px}
 .deal-mobile-actions{display:flex;gap:6px;margin-top:8px}.deal-mobile-actions button{padding:6px 8px;font-size:11px}
 
+
+.google-poi-badge{display:inline-block;padding:3px 7px;border-radius:999px;background:#fff3d2;color:#7d5a00;font-size:11px;font-weight:700;margin-bottom:5px}
+.google-poi-note{font-size:12px;color:var(--muted);margin-top:6px}
 </style>
 </head>
 <body>
@@ -109,7 +112,12 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
           <label>Статус</label><select id="mapStatus"><option value="">Все статусы</option></select>
           <label id="mapAgentLabel">Агент</label><select id="mapAgent"><option value="">Все агенты</option></select>
           <button class="light" onclick="resetMapFilters()">Сбросить</button>
-          <button class="light" style="width:100%;margin-top:8px" onclick="showAllShopsOnMap()">🌍 Показать все магазины</button>
+          <label style="display:flex;gap:8px;align-items:center;margin:8px 0">
+            <input id="googleStoresToggle" type="checkbox" checked style="width:auto;margin:0">
+            Показывать магазины Google при приближении
+          </label>
+          <p class="muted">При масштабе 15+ GARANT покажет ближайшие магазины из Google. Жёлтая точка → «Добавить в GARANT».</p>
+          <button class="light" style="width:100%;margin-top:8px" onclick="showAllShopsOnMap()">🌍 Показать все магазины GARANT</button>
           <button class="primary" style="width:100%;margin-top:8px" onclick="openNewShop()">+ Новый магазин</button>
         </div>
         <div class="card"><div id="map"></div><div id="legend" class="legend"></div></div>
@@ -389,7 +397,7 @@ const orderStatusNames={draft:'Черновик',confirmed:'Подтверждё
 let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],orders=[],orderItems=[],tasks=[],bonusRules=[],employeeDocuments=[],dealStages=[],deals=[];let editingDealId=null;
 const OWNER_USER_ID='ceae49cb-4385-4052-a022-6aa0cea662ef';
 const isOwner=()=>user?.id===OWNER_USER_ID;
-let selectedShop=null,selectedEmployee=null,newCoords=null,picking=false,draftPin=null,infoWindow=null;
+let selectedShop=null,selectedEmployee=null,newCoords=null,picking=false,draftPin=null,infoWindow=null,googleStoreMarkers=[],nearbySearchTimer=null,lastNearbySearchKey='';
 
 function toast(s){$('toast').textContent=s;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3200)}
 function openModal(id){$(id).classList.add('open')} function closeModals(){document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'))}
@@ -559,6 +567,10 @@ async function initMap(){
      openModal('newShopModal');
    }
  });
+ map.addListener('idle',()=>{
+   clearTimeout(nearbySearchTimer);
+   nearbySearchTimer=setTimeout(()=>searchGoogleStoresInView(),650);
+ });
  $('legend').innerHTML=Object.entries(colors).map(([k,v])=>`<span><i class="dot" style="background:${v}"></i>${k}</span>`).join('');
 }
 function markerIcon(status){
@@ -571,6 +583,123 @@ function markerIcon(status){
    scale:9
  };
 }
+
+function clearGoogleStoreMarkers(){
+  googleStoreMarkers.forEach(m=>m.setMap(null));
+  googleStoreMarkers=[];
+}
+function isAlreadyInGarantPlace(place){
+  if(place.id && shops.some(s=>s.google_place_id===place.id))return true;
+  if(!place.location)return false;
+  const lat=place.location.lat(),lng=place.location.lng();
+  return shops.some(s=>{
+    if(s.lat==null||s.lng==null)return false;
+    return Math.abs(Number(s.lat)-lat)<0.00008&&Math.abs(Number(s.lng)-lng)<0.00008;
+  });
+}
+function googleTypeToGarant(primaryType){
+  const m={
+    convenience_store:'Minimarket',
+    supermarket:'Supermercado',
+    grocery_store:'Supermercado',
+    discount_supermarket:'Supermercado',
+    hypermarket:'Supermercado',
+    gas_station:'Gasolinera',
+    market:'Minimarket',
+    general_store:'Minimarket',
+    food_store:'Minimarket',
+    store:'Другое'
+  };
+  return m[primaryType]||'Другое';
+}
+async function searchGoogleStoresInView(){
+  if(!map||!$('googleStoresToggle')?.checked){clearGoogleStoreMarkers();return}
+  const zoom=map.getZoom()||0;
+  if(zoom<15){clearGoogleStoreMarkers();lastNearbySearchKey='';return}
+  const bounds=map.getBounds(),center=map.getCenter();
+  if(!bounds||!center)return;
+  const ne=bounds.getNorthEast(),sw=bounds.getSouthWest();
+  const key=[zoom.toFixed(0),center.lat().toFixed(3),center.lng().toFixed(3)].join('|');
+  if(key===lastNearbySearchKey)return;
+  lastNearbySearchKey=key;
+  clearGoogleStoreMarkers();
+  try{
+    const [{Place,SearchNearbyRankPreference},{spherical}]=await Promise.all([
+      google.maps.importLibrary('places'),
+      google.maps.importLibrary('geometry')
+    ]);
+    const diameter=spherical.computeDistanceBetween(ne,sw);
+    const radius=Math.max(120,Math.min(diameter/2,1800));
+    const request={
+      fields:['id','displayName','formattedAddress','location','googleMapsURI','primaryType'],
+      locationRestriction:{center:{lat:center.lat(),lng:center.lng()},radius},
+      includedPrimaryTypes:[
+        'convenience_store','supermarket','grocery_store','discount_supermarket',
+        'hypermarket','general_store','market','food_store','store','gas_station'
+      ],
+      maxResultCount:20,
+      rankPreference:SearchNearbyRankPreference.POPULARITY
+    };
+    const {places}=await Place.searchNearby(request);
+    for(const place of (places||[])){
+      if(!place.location||isAlreadyInGarantPlace(place))continue;
+      const marker=new google.maps.Marker({
+        position:place.location,
+        map,
+        title:place.displayName||'Магазин Google',
+        icon:{
+          path:google.maps.SymbolPath.CIRCLE,
+          fillColor:'#f5b400',
+          fillOpacity:.95,
+          strokeColor:'#ffffff',
+          strokeWeight:2,
+          scale:7
+        },
+        zIndex:500
+      });
+      marker.addListener('click',()=>{
+        const wrap=document.createElement('div');
+        const badge=document.createElement('div');badge.className='google-poi-badge';badge.textContent='Google Maps';
+        const title=document.createElement('div');title.style.fontWeight='800';title.style.marginBottom='4px';title.textContent=place.displayName||'Магазин';
+        const address=document.createElement('div');address.textContent=place.formattedAddress||'';
+        const btn=document.createElement('button');btn.className='primary';btn.style.marginTop='10px';btn.textContent='Добавить в GARANT';
+        btn.onclick=()=>importGooglePlaceToNewShop(place);
+        wrap.append(badge,title,address,btn);
+        infoWindow.setContent(wrap);
+        infoWindow.open({map,anchor:marker});
+      });
+      googleStoreMarkers.push(marker);
+    }
+  }catch(e){
+    console.warn('Google Nearby Search:',e);
+  }
+}
+async function importGooglePlaceToNewShop(place){
+  if(!place?.location)return;
+  const pos={lat:place.location.lat(),lng:place.location.lng()};
+  newCoords=pos;
+  $('nsName').value=place.displayName||'';
+  $('nsAddress').value=place.formattedAddress||'';
+  $('nsType').value=googleTypeToGarant(place.primaryType);
+  $('nsComment').value='Добавлено из Google Maps';
+  $('nsStatus').value='Не посещён';
+  let city='';
+  try{
+    const geocoder=new google.maps.Geocoder();
+    const res=await geocoder.geocode({location:pos});
+    const comps=res.results?.[0]?.address_components||[];
+    const c=comps.find(x=>x.types.includes('locality')||x.types.includes('postal_town')||x.types.includes('administrative_area_level_3'));
+    if(c)city=c.long_name;
+  }catch{}
+  if(city)$('nsCity').value=city;
+  setNewCoords(pos);
+  window.__pendingGooglePlaceId=place.id||null;
+  window.__pendingGoogleMapsUrl=place.googleMapsURI||null;
+  if(infoWindow)infoWindow.close();
+  openModal('newShopModal');
+  $('nsPos').textContent='Выбрано из Google Maps: '+(place.formattedAddress||'')+` · ${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`;
+}
+
 function drawMap(fitAll=false){
  if(!map)return;
  markers.forEach(m=>m.setMap(null));markers=[];
@@ -614,6 +743,7 @@ window.showAllShopsOnMap=()=>{
  toast('Показаны все магазины, у которых есть точка на карте');
 };
 ['mapSearch','mapCity','mapStatus','mapAgent'].forEach(id=>$(id).addEventListener(id==='mapSearch'?'input':'change',drawMap));
+$('googleStoresToggle').addEventListener('change',()=>{lastNearbySearchKey='';searchGoogleStoresInView()});
 window.resetMapFilters=()=>{['mapSearch','mapCity','mapStatus','mapAgent'].forEach(id=>$(id).value='');drawMap(true)};
 
 function renderShops(){
@@ -623,8 +753,8 @@ function renderShops(){
 }
 $('shopSearch').addEventListener('input',renderShops);$('shopStatusFilter').addEventListener('change',renderShops);
 window.openShopById=id=>{const s=shops.find(x=>x.id===id);if(s)openShop(s)};
-function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');$('shopDetail').innerHTML=`<div class="grid3"><div><b>Статус</b><p>${esc(s.status)}</p></div><div><b>Телефон</b><p>${esc(s.phone||'—')}</p></div><div><b>Комментарий</b><p>${esc(s.comment||'—')}</p></div></div>`;const vv=visits.filter(v=>v.shop_id===s.id);$('visitHistory').innerHTML=vv.length?vv.map(v=>`<div class="card" style="margin:6px 0"><b>${esc(v.status)}</b><div>${esc(v.comment||'')}</div><span class="muted">${new Date(v.created_at).toLocaleString('ru-RU')}</span></div>`).join(''):'<p class="muted">Визитов пока нет</p>';$('routeBtn').onclick=()=>{if(s.address||s.city){const dest=encodeURIComponent([s.address,s.city,'Spain'].filter(Boolean).join(', '));window.open('https://www.google.com/maps/dir/?api=1&destination='+dest,'_blank');return}if(s.lat!=null&&s.lng!=null){window.open('https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng,'_blank');return}toast('У магазина пока нет адреса или координат для маршрута')};$('shopPhotoStatus').textContent='';$('existingShopPhotos').value='';openModal('shopModal');loadShopPhotos(s.id)}
-window.openNewShop=()=>{setNewCoords(null);openModal('newShopModal')};
+function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');$('shopDetail').innerHTML=`<div class="grid3"><div><b>Статус</b><p>${esc(s.status)}</p></div><div><b>Телефон</b><p>${esc(s.phone||'—')}</p></div><div><b>Комментарий</b><p>${esc(s.comment||'—')}</p></div></div>${s.google_maps_url?`<p><a href="${esc(s.google_maps_url)}" target="_blank" rel="noopener noreferrer">Открыть исходную точку в Google Maps</a></p>`:''}`;const vv=visits.filter(v=>v.shop_id===s.id);$('visitHistory').innerHTML=vv.length?vv.map(v=>`<div class="card" style="margin:6px 0"><b>${esc(v.status)}</b><div>${esc(v.comment||'')}</div><span class="muted">${new Date(v.created_at).toLocaleString('ru-RU')}</span></div>`).join(''):'<p class="muted">Визитов пока нет</p>';$('routeBtn').onclick=()=>{if(s.address||s.city){const dest=encodeURIComponent([s.address,s.city,'Spain'].filter(Boolean).join(', '));window.open('https://www.google.com/maps/dir/?api=1&destination='+dest,'_blank');return}if(s.lat!=null&&s.lng!=null){window.open('https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng,'_blank');return}toast('У магазина пока нет адреса или координат для маршрута')};$('shopPhotoStatus').textContent='';$('existingShopPhotos').value='';openModal('shopModal');loadShopPhotos(s.id)}
+window.openNewShop=()=>{window.__pendingGooglePlaceId=null;window.__pendingGoogleMapsUrl=null;setNewCoords(null);$('nsName').value='';$('nsAddress').value='';$('nsPhone').value='';$('nsComment').value='';openModal('newShopModal')};
 function setNewCoords(p){
  newCoords=p;
  if(draftPin){draftPin.setMap(null);draftPin=null}
@@ -679,7 +809,7 @@ window.pickOnMap=async()=>{closeModals();showPage('map');await initMap();picking
 window.saveNewShop=async()=>{
  const name=$('nsName').value.trim();if(!name)return toast('Введите название');
  if(!newCoords&&$('nsAddress').value.trim().length>=5)await geocodeNewShopAddress();
- const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,lat:newCoords?.lat??null,lng:newCoords?.lng??null,created_by:user.id,agent_id:user.id};
+ const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,lat:newCoords?.lat??null,lng:newCoords?.lng??null,created_by:user.id,agent_id:user.id,google_place_id:window.__pendingGooglePlaceId||null,google_maps_url:window.__pendingGoogleMapsUrl||null};
  const {data,error}=await db.from('shops').insert(row).select('id').single();
  if(error)return toast(error.message);
  const files=Array.from($('nsPhotos').files||[]);
@@ -700,7 +830,7 @@ window.saveNewShop=async()=>{
      });
    }
  }
- $('nsPhotos').value='';
+ $('nsPhotos').value='';window.__pendingGooglePlaceId=null;window.__pendingGoogleMapsUrl=null;
  closeModals();
  toast((newCoords?'Магазин добавлен и отмечен на карте':'Магазин добавлен без геопозиции')+(files.length?' · фото: '+photoResult.uploaded:''));
  await refreshAll();
