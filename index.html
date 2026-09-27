@@ -479,7 +479,7 @@ tr:hover td{background:#fbfdff}
   </div>
   <div id="employeeInviteBox" class="card hidden" style="margin:10px 0">
     <h3>Приглашение сотрудника</h3>
-    <button class="light" style="width:100%" onclick="generateEmployeeInviteLink()">🔗 Получить новую ссылку приглашения</button>
+    <button class="light" style="width:100%" onclick="generateEmployeeInviteLink()">✉️ Отправить приглашение</button>
     <div id="inviteLinkWrap" class="hidden" style="margin-top:8px">
       <label>Ссылка приглашения</label>
       <input id="employeeInviteLink" readonly>
@@ -1532,7 +1532,7 @@ window.generateEmployeeInviteLink=async()=>{
     if(!data?.action_link)throw new Error('Supabase не вернул ссылку');
     $('employeeInviteLink').value=data.action_link;
     $('inviteLinkWrap').classList.remove('hidden');
-    $('employeeInviteStatus').textContent='Новая ссылка создана. По ней сотрудник сможет задать новый пароль.';
+    $('employeeInviteStatus').textContent='Приглашение отправлено сотруднику. По ссылке он сможет задать новый пароль.';
   }catch(e){
     $('employeeInviteStatus').textContent='Ошибка: '+(e.message||String(e));
   }
