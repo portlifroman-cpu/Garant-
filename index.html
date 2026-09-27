@@ -834,7 +834,7 @@ function fillSelects(){
  $('mapAgent').innerHTML='<option value="">Все агенты</option>'+people;$('tEmployee').innerHTML=people;$('dOwner').innerHTML=people;$('dealOwnerFilter').innerHTML='<option value="">Все</option>'+people;$('esAgent').innerHTML='<option value="">Не назначен</option>'+people;$('nsAgent').innerHTML=people;
  $('dStage').innerHTML=dealStages.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
  const wh=warehouses.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('');
- ['stockWarehouse','oWarehouse','mWarehouse'].forEach(id=>{if($(id))$(id).innerHTML=(id==='stockWarehouse'?'<option value="">Все склады</option>':'')+wh});
+ ['stockWarehouse','oWarehouse','mWarehouse','pWarehouse'].forEach(id=>{if($(id))$(id).innerHTML=(id==='stockWarehouse'?'<option value="">Все склады</option>':'')+wh});
  const sh=shops.map(s=>`<option value="${s.id}">${esc(s.name)} — ${esc(s.city||'')}</option>`).join('');
  $('oShop').innerHTML=sh;$('tShop').innerHTML='<option value="">Без магазина</option>'+sh;$('dShop').innerHTML='<option value="">Без магазина</option>'+sh;
  $('mProduct').innerHTML=products.map(p=>`<option value="${p.id}">${esc(p.name)}${p.sku?' · '+esc(p.sku):''}</option>`).join('');
@@ -1580,7 +1580,7 @@ window.editProduct=(id)=>{
  openModal('productModal');
 };
 
-window.saveProduct=async()=>{
+function updateProductStockField(){\n if(!$('pWarehouse')||!$('pStockQty'))return;\n const wid=$('pWarehouse').value;\n if(!editingProductId||!wid){$('pStockQty').value='';return}\n const b=balances.find(x=>x.product_id===editingProductId&&x.warehouse_id===wid);\n $('pStockQty').value=b?Number(b.physical_qty||0):0;\n}\n$('pWarehouse')?.addEventListener('change',updateProductStockField);\n\nwindow.saveProduct=async()=>{
  if(!isManager())return toast('Только руководитель');
  const val=id=>$(id).value===''?null:Number($(id).value);
  const row={
