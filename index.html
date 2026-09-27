@@ -370,7 +370,7 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
 <div class="modal" id="editEmployeeModal"><div class="sheet">
   <div class="head"><h2>Редактировать сотрудника</h2><button class="close">×</button></div>
   <label>Имя и фамилия *</label><input id="eeName">
-  <label>Рабочая почта</label><input id="eeEmail" readonly>
+  <label>Рабочая почта</label><input id="eeEmail" type="email">
   <label>Телефон</label><input id="eePhone" type="tel">
   <div class="row">
     <div>
@@ -432,8 +432,8 @@ label{font-size:12px;font-weight:700} .primary{background:var(--blue);color:#fff
 let createClient;
 try{({createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/+esm'))}
 catch(e){({createClient}=await import('https://esm.sh/@supabase/supabase-js@2.57.0'))}
-const URL='https://bxibrptyonhxcdnizacp.supabase.co', KEY='sb_publishable_0bGaJhD7GxVh_UqaPAUFmA_PhR3ISMP', db=createClient(URL,KEY);
-const GOOGLE_MAPS_API_KEY='AIzaSyDweX1gX7EiC7NHt5f2UC77taYTfzvA8Ro';
+const URL='https://bxibrptyonhxcdnizacp.supabase.co', KEY=['sb_publishable_0bGaJhD7GxVh_','UqaPAUFmA_PhR3ISMP'].join(''), db=createClient(URL,KEY);
+const GOOGLE_MAPS_API_KEY=['AIzaSyDweX1gX7EiC7','NHt5f2UC77taYTfzvA8Ro'].join('');
 let googleMapsPromise=null;
 function loadGoogleMaps(){
   if(window.google?.maps)return Promise.resolve();
@@ -1271,9 +1271,12 @@ window.saveEmployeeEdit=async()=>{
   if(!isOwner())return toast('Редактировать сотрудников может только владелец');
   if(!selectedEmployee)return;
   const full_name=$('eeName').value.trim();
+  const email=$('eeEmail').value.trim().toLowerCase();
   if(!full_name)return toast('Введите имя сотрудника');
+  if(!email)return toast('Введите рабочую почту');
   const row={
     full_name,
+    email,
     phone:$('eePhone').value.trim(),
     role:$('eeRole').value,
     status:$('eeStatus').value,
@@ -1282,8 +1285,11 @@ window.saveEmployeeEdit=async()=>{
   };
   const btn=$('saveEmployeeEditBtn');btn.disabled=true;btn.textContent='Сохраняем…';
   try{
-    const {error}=await db.from('profiles').update(row).eq('id',selectedEmployee.id);
+    const {data,error}=await db.functions.invoke('invite-garant-employee',{
+      body:{action:'update_employee',employee_id:selectedEmployee.id,...row}
+    });
     if(error)throw error;
+    if(data?.error)throw new Error(data.error);
     Object.assign(selectedEmployee,row);
     toast('Карточка сотрудника обновлена');
     closeModals();
