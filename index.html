@@ -414,6 +414,7 @@ tr:hover td{background:#fbfdff}
   <label>Адрес</label><input id="esAddress">
   <label>Комментарий</label><textarea id="esComment"></textarea>
   <label>Статус</label><select id="esStatus"></select>
+  <label>Кто открыл клиента</label><input id="esCreatedByName" readonly>
   <label>Обслуживающий агент</label><select id="esAgent"></select>
   <div class="row"><button class="light" onclick="editUseMyLocation()">📍 Взять GPS</button><button class="light" onclick="editPickOnMap()">🗺️ Поставить точку на карте</button></div>
   <p id="esPos" class="muted"></p>
@@ -1225,6 +1226,7 @@ window.openEditShop=()=>{
   $('esAddress').value=selectedShop.address||'';
   $('esComment').value=selectedShop.comment||'';
   $('esStatus').value=selectedShop.status||'Не посещён';
+  $('esCreatedByName').value=employeeName(selectedShop.created_by);
   $('esAgent').value=selectedShop.agent_id||'';
   $('esAgent').disabled=!isManager();
   editCoords=(selectedShop.lat!=null&&selectedShop.lng!=null)?{lat:Number(selectedShop.lat),lng:Number(selectedShop.lng)}:null;
