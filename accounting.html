@@ -11,8 +11,8 @@ h1{font-size:22px;margin:0}.muted{font-size:13px;color:#6b7280}.field{display:gr
 .btn{border:0;border-radius:12px;padding:12px 14px;font-weight:700;background:#e9edf4;cursor:pointer}.primary{background:#111827;color:#fff}.full{width:100%;margin-top:8px}
 .notice{margin:12px 0;padding:11px 12px;border-radius:12px;background:#fff7ed;color:#9a3412;font-size:13px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:12px}.nav{display:flex;gap:8px;overflow:auto;margin:16px 0}.nav button{white-space:nowrap}.active{background:#111827!important;color:#fff!important}
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.kpi b{font-size:26px;display:block;margin-top:6px}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px 7px;border-bottom:1px solid #eef0f3;text-align:left;font-size:14px}.table th{font-size:12px;color:#6b7280}
-@media(max-width:760px){.grid{grid-template-columns:1fr 1fr}.wrap{padding:12px}}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.catalog-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.product-card{position:relative;min-height:225px;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:16px 112px 16px 16px;overflow:hidden}.product-card img{position:absolute;right:12px;top:54%;transform:translateY(-42%);width:88px;height:88px;object-fit:contain;filter:drop-shadow(0 7px 12px rgba(0,0,0,.15))}.product-card h3{margin:0 0 8px;font-size:16px}.product-meta{font-size:13px;color:#6b7280;line-height:1.45}.kpi b{font-size:26px;display:block;margin-top:6px}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px 7px;border-bottom:1px solid #eef0f3;text-align:left;font-size:14px}.table th{font-size:12px;color:#6b7280}
+@media(max-width:760px){.grid{grid-template-columns:1fr 1fr}.catalog-grid{grid-template-columns:1fr}.wrap{padding:12px}.product-card{min-height:210px}}
 </style></head><body><div id="app"><div class="wrap"><div class="card login"><div class="brand"><div class="logo">G</div><div><h1>GARANT Бухгалтерия</h1><div class="muted">Загрузка…</div></div></div></div></div></div>
 <script>
 (function(){
@@ -52,7 +52,7 @@ async function boot(){
 }
 function setup(){app.innerHTML='<div class="wrap"><div class="card login"><h1>Первичная настройка</h1><div class="field"><label>Компания</label><input id="cn" value="PG Nord Garant S.L."></div><div class="field"><label>NIF</label><input id="tx" value="B26984146"></div><button id="create" class="btn primary full">Создать компанию</button></div></div>';document.getElementById('create').onclick=createCompany}
 async function createCompany(){try{const rows=await req('/rest/v1/companies',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({name:'GARANT',legal_name:document.getElementById('cn').value,tax_id:document.getElementById('tx').value,created_by:user.id})});company=rows[0];await req('/rest/v1/memberships',{method:'POST',body:JSON.stringify({company_id:company.id,user_id:user.id,role:'owner'})});await req('/rest/v1/warehouses',{method:'POST',body:JSON.stringify({company_id:company.id,name:'Главный склад',type:'main'})});render()}catch(e){alert(e.message)}}
-function nav(){return [['overview','Обзор'],['sales','Продажи'],['expenses','Расходы'],['payments','Оплаты'],['clients','Клиенты'],['products','Товары'],['warehouse','Склад']].map(x=>'<button class="btn '+(tab===x[0]?'active':'')+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join('')}
+function nav(){return [['overview','Обзор'],['sales','Продажи'],['expenses','Расходы'],['payments','Оплаты'],['clients','Клиенты'],['products','Товары'],['warehouse','Склад'],['catalog','Каталог']].map(x=>'<button class="btn '+(tab===x[0]?'active':'')+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join('')}
 function render(){app.innerHTML='<div class="wrap"><div class="top"><div class="brand"><div class="logo">G</div><div><h1>GARANT Бухгалтерия</h1><div class="muted">'+esc(company.legal_name||company.name)+'</div></div></div><button id="logout" class="btn">Выйти</button></div><div class="nav">'+nav()+'</div><div id="content"></div></div>';document.getElementById('logout').onclick=()=>{localStorage.removeItem('garant_accounting_token');token='';login()};document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});loadTab()}
 function table(h,rows){return '<div style="overflow:auto"><table class="table"><thead><tr>'+h.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(r=>'<tr>'+r.map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+h.length+'" class="muted">Пока нет записей</td></tr>')+'</tbody></table></div>'}
 async function loadTab(){const c=document.getElementById('content');try{
@@ -61,6 +61,22 @@ async function loadTab(){const c=document.getElementById('content');try{
  if(tab==='expenses'){const d=await req('/rest/v1/expenses?select=expense_date,description,total_amount,vat_amount,document_number&company_id=eq.'+company.id+'&order=expense_date.desc');c.innerHTML='<div class="card"><b>Расходы</b>'+table(['Дата','Описание','Документ','IVA','Всего'],d.map(x=>[x.expense_date||'—',x.description,x.document_number||'—',money(x.vat_amount),money(x.total_amount)]))+'</div>';return}
  if(tab==='payments'){const d=await req('/rest/v1/payments?select=payment_date,direction,method,amount,reference&company_id=eq.'+company.id+'&order=payment_date.desc');c.innerHTML='<div class="card"><b>Оплаты</b>'+table(['Дата','Тип','Способ','Сумма','Комментарий'],d.map(x=>[x.payment_date||'—',x.direction==='in'?'Входящая':'Исходящая',x.method,money(x.amount),x.reference||'—']))+'</div>';return}
  if(tab==='clients'){const d=await req('/rest/v1/counterparties?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><b>Клиенты и поставщики</b>'+table(['Название','Тип','NIF/CIF','Телефон','Город'],d.map(x=>[x.name,x.type,x.tax_id||'—',x.phone||'—',x.city||'—']))+'</div>';return}
+ if(tab==='catalog'){
+   c.innerHTML='<div class="card"><b>Каталог GARANT</b><div class="muted">Загружаю актуальные товары и изображения с сайта…</div></div>';
+   try{
+     const endpoint='https://bxibrptyonhxcdnizacp.supabase.co/functions/v1/public-catalog-products';
+     const proxy='https://bxibrptyonhxcdnizacp.supabase.co/functions/v1/official-garant-product-image';
+     const rr=await fetch(endpoint);
+     if(!rr.ok)throw new Error('Каталог временно недоступен');
+     const jj=await rr.json();
+     const items=Array.isArray(jj.products)?jj.products:[];
+     const groups={};
+     items.forEach(x=>{const g=x.category||'Другое';(groups[g]||(groups[g]=[])).push(x)});
+     c.innerHTML=Object.entries(groups).map(([group,arr])=>'<div class="card" style="margin-bottom:12px"><h2 style="font-size:18px;margin:0 0 12px">'+esc(group)+'</h2><div class="catalog-grid">'+arr.map(x=>{const img=x.image_url||(x.source_url?(proxy+'?url='+encodeURIComponent(x.source_url)):'');return '<div class="product-card"><h3>'+esc(x.name)+'</h3>'+(img?'<img src="'+esc(img)+'" alt="'+esc(x.name)+'" loading="lazy" onerror="this.style.display=\'none\'">':'')+'<div class="product-meta">'+(x.flavor?'<div>Вкус: '+esc(x.flavor)+'</div>':'')+(x.strength?'<div>Крепость: '+esc(x.strength)+'</div>':'')+(x.total_weight_g?'<div>Вес: '+esc(x.total_weight_g)+' г</div>':'')+(x.pouches_per_can?'<div>Порций: '+esc(x.pouches_per_can)+'</div>':'')+(x.product_type?'<div>Тип: '+esc(x.product_type)+'</div>':'')+'</div></div>'}).join('')+'</div></div>').join('');
+     if(!items.length)c.innerHTML='<div class="notice">Каталог пока пуст.</div>';
+   }catch(e){c.innerHTML='<div class="notice">Не удалось загрузить каталог: '+esc(e.message)+'</div>'}
+   return
+ }
  if(tab==='warehouse'){
    const [products,warehouses,moves]=await Promise.all([
      req('/rest/v1/products?select=id,sku,name,flavor,unit_weight_g&company_id=eq.'+company.id+'&order=name'),
