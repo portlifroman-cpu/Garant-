@@ -1,0 +1,1 @@
+Restore working GARANT accounting deployment after warehouse UI issue.
