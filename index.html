@@ -963,6 +963,33 @@ function updateMyLocationOnMap(pos,center=false){
     if(map.getZoom()<17)map.setZoom(17);
   }
 }
+async function refreshLocationPermissionState(){
+  const status=$('myLocationStatus'),badge=$('mapLocationBadge');
+  if(!navigator.geolocation){
+    const msg='Геолокация недоступна в этом браузере.';
+    if(status)status.textContent=msg;if(badge)badge.textContent=msg;
+    return 'unsupported';
+  }
+  try{
+    if(navigator.permissions?.query){
+      const p=await navigator.permissions.query({name:'geolocation'});
+      const setState=()=>{
+        const state=p.state;
+        const msg=state==='granted'
+          ?'Геолокация разрешена — определяем координаты…'
+          :state==='denied'
+            ?'Геолокация запрещена для этого сайта. Разрешите её в настройках iPhone/Safari.'
+            :'Нужно разрешить доступ к геолокации.';
+        if(status)status.textContent=msg;if(badge)badge.textContent=msg;
+      };
+      setState();
+      p.onchange=()=>{setState(); if(p.state==='granted')startLiveLocation(true)};
+      return p.state;
+    }
+  }catch{}
+  return 'unknown';
+}
+
 async function startLiveLocation(center=true){
   if(!navigator.geolocation){
     if($('myLocationStatus'))$('myLocationStatus').textContent='Геолокация не поддерживается на этом устройстве.';
@@ -995,14 +1022,17 @@ async function startLiveLocation(center=true){
     },
     err=>{
       myLocationEnabled=false;
+      if(myLocationWatchId!=null){try{navigator.geolocation.clearWatch(myLocationWatchId)}catch{}}
       myLocationWatchId=null;
       const saved=getSavedLocation();
       if(saved&&map){
         updateMyLocationOnMap(saved,center);
       }
       const msg=err?.code===1
-        ?'Геолокация запрещена. Показываю последнее известное положение. Разрешите геолокацию для GARANT в настройках iPhone.'
-        :(saved?'Свежий GPS-сигнал недоступен. Показываю последнее известное положение.':'Не удалось определить местоположение. Нажмите «Центрировать на мне», чтобы попробовать ещё раз.');
+        ?'Геолокация запрещена. iPhone: Настройки → Конфиденциальность и безопасность → Службы геолокации → Safari Websites → При использовании приложения, и включите «Точная геопозиция».'
+        :err?.code===2
+          ?(saved?'GPS временно недоступен — показываю последнюю позицию.':'iPhone пока не может определить координаты. Выйдите на улицу и нажмите 📍 ещё раз.')
+          :(saved?'GPS отвечает слишком долго — показываю последнюю позицию.':'GPS отвечает слишком долго. Нажмите 📍 ещё раз.');
       if($('myLocationStatus'))$('myLocationStatus').textContent=msg;
       if($('mapLocationBadge'))$('mapLocationBadge').textContent=msg;
     },
