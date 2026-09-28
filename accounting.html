@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GARANT Бухгалтерия</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#111827;background:#f5f7fb}
+*{box-sizing:border-box}body{margin:0}.wrap{max-width:1050px;margin:auto;padding:16px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.05)}
+.login{max-width:430px;margin:9vh auto}.brand{display:flex;gap:12px;align-items:center;margin-bottom:18px}.logo{width:48px;height:48px;border-radius:14px;background:#111827;color:#fff;display:grid;place-items:center;font-weight:800}
+h1{font-size:22px;margin:0}.muted{font-size:13px;color:#6b7280}.field{display:grid;gap:6px;margin:12px 0}.field input{width:100%;padding:13px;border:1px solid #d1d5db;border-radius:12px;font-size:16px}
+.btn{border:0;border-radius:12px;padding:12px 14px;font-weight:700;background:#e9edf4;cursor:pointer}.primary{background:#111827;color:#fff}.full{width:100%;margin-top:8px}
+.notice{margin:12px 0;padding:11px 12px;border-radius:12px;background:#fff7ed;color:#9a3412;font-size:13px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}.nav{display:flex;gap:8px;overflow:auto;margin:16px 0}.nav button{white-space:nowrap}.active{background:#111827!important;color:#fff!important}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.kpi b{font-size:26px;display:block;margin-top:6px}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px 7px;border-bottom:1px solid #eef0f3;text-align:left;font-size:14px}.table th{font-size:12px;color:#6b7280}
+@media(max-width:760px){.grid{grid-template-columns:1fr 1fr}.wrap{padding:12px}}
+</style></head><body><div id="app"><div class="wrap"><div class="card login"><div class="brand"><div class="logo">G</div><div><h1>GARANT Бухгалтерия</h1><div class="muted">Загрузка…</div></div></div></div></div></div>
+<script>
+(function(){
+const URL='https://ohifwlyioempwulgtaqq.supabase.co';
+const KEY='sb_publishable_w7udKh87hKvHxbIbQl3LxA_oCd5TKvd';
+const app=document.getElementById('app');
+let token=localStorage.getItem('garant_accounting_token')||'';
+let user=null, company=null, tab='overview';
+const money=n=>new Intl.NumberFormat('ru-RU',{style:'currency',currency:'EUR'}).format(Number(n||0));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+async function req(path,opt={}){
+ const headers=Object.assign({'apikey':KEY,'Content-Type':'application/json'},opt.headers||{});
+ if(token) headers.Authorization='Bearer '+token;
+ const r=await fetch(URL+path,Object.assign({},opt,{headers}));
+ const text=await r.text(); let data=null; try{data=text?JSON.parse(text):null}catch{data=text}
+ if(!r.ok) throw new Error((data&&data.msg)||(data&&data.message)||(data&&data.error_description)||('HTTP '+r.status));
+ return data;
+}
+function login(msg=''){app.innerHTML='<div class="wrap"><div class="card login"><div class="brand"><div class="logo">G</div><div><h1>GARANT Бухгалтерия</h1><div class="muted">PG Nord Garant S.L.</div></div></div>'+(msg?'<div class="notice">'+esc(msg)+'</div>':'')+'<div class="field"><label>Email</label><input id="email" type="email" autocomplete="email"></div><div class="field"><label>Пароль</label><input id="pass" type="password" autocomplete="current-password"></div><button id="signin" class="btn primary full">Войти</button><button id="reg" class="btn full">Создать аккаунт</button></div></div>';document.getElementById('signin').onclick=signin;document.getElementById('reg').onclick=register}
+async function signin(){
+ const email=document.getElementById('email').value.trim(), password=document.getElementById('pass').value;
+ if(!email||!password)return login('Введите email и пароль.');
+ try{const d=await req('/auth/v1/token?grant_type=password',{method:'POST',body:JSON.stringify({email,password})});token=d.access_token;localStorage.setItem('garant_accounting_token',token);await boot()}catch(e){login('Ошибка входа: '+e.message)}
+}
+function register(){app.innerHTML='<div class="wrap"><div class="card login"><h1>Регистрация</h1><div class="field"><label>Email</label><input id="re" type="email"></div><div class="field"><label>Пароль</label><input id="rp" type="password"></div><div class="field"><label>Повторите пароль</label><input id="rp2" type="password"></div><button id="do" class="btn primary full">Зарегистрироваться</button><button id="back" class="btn full">Назад</button></div></div>';document.getElementById('back').onclick=()=>login();document.getElementById('do').onclick=signup}
+async function signup(){const email=document.getElementById('re').value.trim(),p=document.getElementById('rp').value,p2=document.getElementById('rp2').value;if(!email.includes('@'))return alert('Введите корректный email');if(p.length<6)return alert('Пароль минимум 6 символов');if(p!==p2)return alert('Пароли не совпадают');try{await req('/auth/v1/signup',{method:'POST',body:JSON.stringify({email,password:p,data:{},gotrue_meta_security:{captcha_token:''}})});login('Аккаунт создан. Если email уже подтверждён — просто войдите. Если придёт письмо, подтвердите адрес.')}catch(e){login('Ошибка регистрации: '+e.message)}}
+async function boot(){
+ if(!token)return login();
+ try{user=await req('/auth/v1/user');}
+ catch(e){localStorage.removeItem('garant_accounting_token');token='';return login('Сессия истекла. Войдите снова.')}
+ try{
+   const cs=await req('/rest/v1/companies?select=*&limit=1');
+   company=cs&&cs[0];
+   if(!company)return setup();
+   render();
+ }catch(e){login('Ошибка загрузки данных: '+e.message)}
+}
+function setup(){app.innerHTML='<div class="wrap"><div class="card login"><h1>Первичная настройка</h1><div class="field"><label>Компания</label><input id="cn" value="PG Nord Garant S.L."></div><div class="field"><label>NIF</label><input id="tx" value="B26984146"></div><button id="create" class="btn primary full">Создать компанию</button></div></div>';document.getElementById('create').onclick=createCompany}
+async function createCompany(){try{const rows=await req('/rest/v1/companies',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({name:'GARANT',legal_name:document.getElementById('cn').value,tax_id:document.getElementById('tx').value,created_by:user.id})});company=rows[0];await req('/rest/v1/memberships',{method:'POST',body:JSON.stringify({company_id:company.id,user_id:user.id,role:'owner'})});await req('/rest/v1/warehouses',{method:'POST',body:JSON.stringify({company_id:company.id,name:'Главный склад',type:'main'})});render()}catch(e){alert(e.message)}}
+function nav(){return [['overview','Обзор'],['sales','Продажи'],['expenses','Расходы'],['payments','Оплаты'],['clients','Клиенты'],['products','Товары']].map(x=>'<button class="btn '+(tab===x[0]?'active':'')+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join('')}
+function render(){app.innerHTML='<div class="wrap"><div class="top"><div class="brand"><div class="logo">G</div><div><h1>GARANT Бухгалтерия</h1><div class="muted">'+esc(company.legal_name||company.name)+'</div></div></div><button id="logout" class="btn">Выйти</button></div><div class="nav">'+nav()+'</div><div id="content"></div></div>';document.getElementById('logout').onclick=()=>{localStorage.removeItem('garant_accounting_token');token='';login()};document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});loadTab()}
+function table(h,rows){return '<div style="overflow:auto"><table class="table"><thead><tr>'+h.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(r=>'<tr>'+r.map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+h.length+'" class="muted">Пока нет записей</td></tr>')+'</tbody></table></div>'}
+async function loadTab(){const c=document.getElementById('content');try{
+ if(tab==='overview'){const [s,e,p]=await Promise.all([req('/rest/v1/invoices?select=total,paid_total&company_id=eq.'+company.id+'&direction=eq.sale'),req('/rest/v1/expenses?select=total_amount&company_id=eq.'+company.id),req('/rest/v1/payments?select=amount,direction&company_id=eq.'+company.id)]);const sales=s.reduce((a,x)=>a+Number(x.total||0),0),paid=s.reduce((a,x)=>a+Number(x.paid_total||0),0),cost=e.reduce((a,x)=>a+Number(x.total_amount||0),0),cash=p.reduce((a,x)=>a+(x.direction==='in'?1:-1)*Number(x.amount||0),0);c.innerHTML='<div class="grid"><div class="card kpi"><span class="muted">Продажи</span><b>'+money(sales)+'</b></div><div class="card kpi"><span class="muted">Оплачено</span><b>'+money(paid)+'</b></div><div class="card kpi"><span class="muted">Расходы</span><b>'+money(cost)+'</b></div><div class="card kpi"><span class="muted">Денежный поток</span><b>'+money(cash)+'</b></div></div>';return}
+ if(tab==='sales'){const d=await req('/rest/v1/invoices?select=invoice_date,number,status,total,paid_total&company_id=eq.'+company.id+'&direction=eq.sale&order=invoice_date.desc');c.innerHTML='<div class="card"><b>Продажи / счета</b>'+table(['Дата','№','Статус','Сумма','Оплачено'],d.map(x=>[x.invoice_date||'—',x.number||'—',x.status||'—',money(x.total),money(x.paid_total)]))+'</div>';return}
+ if(tab==='expenses'){const d=await req('/rest/v1/expenses?select=expense_date,description,total_amount,vat_amount,document_number&company_id=eq.'+company.id+'&order=expense_date.desc');c.innerHTML='<div class="card"><b>Расходы</b>'+table(['Дата','Описание','Документ','IVA','Всего'],d.map(x=>[x.expense_date||'—',x.description,x.document_number||'—',money(x.vat_amount),money(x.total_amount)]))+'</div>';return}
+ if(tab==='payments'){const d=await req('/rest/v1/payments?select=payment_date,direction,method,amount,reference&company_id=eq.'+company.id+'&order=payment_date.desc');c.innerHTML='<div class="card"><b>Оплаты</b>'+table(['Дата','Тип','Способ','Сумма','Комментарий'],d.map(x=>[x.payment_date||'—',x.direction==='in'?'Входящая':'Исходящая',x.method,money(x.amount),x.reference||'—']))+'</div>';return}
+ if(tab==='clients'){const d=await req('/rest/v1/counterparties?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><b>Клиенты и поставщики</b>'+table(['Название','Тип','NIF/CIF','Телефон','Город'],d.map(x=>[x.name,x.type,x.tax_id||'—',x.phone||'—',x.city||'—']))+'</div>';return}
+ if(tab==='products'){const d=await req('/rest/v1/products?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><b>Товары / вкусы</b>'+table(['SKU','Название','Вкус','Закупка','Продажа','IVA'],d.map(x=>[x.sku||'—',x.name,x.flavor||'—',money(x.purchase_price),money(x.sale_price),(x.vat_rate||0)+'%']))+'</div>';return}
+}catch(e){c.innerHTML='<div class="notice">Ошибка загрузки: '+esc(e.message)+'</div>'}}
+boot();
+})();
+</script></body></html>
