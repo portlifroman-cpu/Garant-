@@ -52,7 +52,7 @@ async function boot(){
 }
 function setup(){app.innerHTML='<div class="wrap"><div class="card login"><h1>Первичная настройка</h1><div class="field"><label>Компания</label><input id="cn" value="PG Nord Garant S.L."></div><div class="field"><label>NIF</label><input id="tx" value="B26984146"></div><button id="create" class="btn primary full">Создать компанию</button></div></div>';document.getElementById('create').onclick=createCompany}
 async function createCompany(){try{const rows=await req('/rest/v1/companies',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({name:'GARANT',legal_name:document.getElementById('cn').value,tax_id:document.getElementById('tx').value,created_by:user.id})});company=rows[0];await req('/rest/v1/memberships',{method:'POST',body:JSON.stringify({company_id:company.id,user_id:user.id,role:'owner'})});await req('/rest/v1/warehouses',{method:'POST',body:JSON.stringify({company_id:company.id,name:'Главный склад',type:'main'})});render()}catch(e){alert(e.message)}}
-function nav(){return [['overview','Обзор'],['sales','Продажи'],['expenses','Расходы'],['payments','Оплаты'],['clients','Клиенты'],['products','Товары']].map(x=>'<button class="btn '+(tab===x[0]?'active':'')+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join('')}
+function nav(){return [['overview','Обзор'],['sales','Продажи'],['expenses','Расходы'],['payments','Оплаты'],['clients','Клиенты'],['products','Товары'],['warehouse','Склад']].map(x=>'<button class="btn '+(tab===x[0]?'active':'')+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join('')}
 function render(){app.innerHTML='<div class="wrap"><div class="top"><div class="brand"><div class="logo">G</div><div><h1>GARANT Бухгалтерия</h1><div class="muted">'+esc(company.legal_name||company.name)+'</div></div></div><button id="logout" class="btn">Выйти</button></div><div class="nav">'+nav()+'</div><div id="content"></div></div>';document.getElementById('logout').onclick=()=>{localStorage.removeItem('garant_accounting_token');token='';login()};document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});loadTab()}
 function table(h,rows){return '<div style="overflow:auto"><table class="table"><thead><tr>'+h.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(r=>'<tr>'+r.map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+h.length+'" class="muted">Пока нет записей</td></tr>')+'</tbody></table></div>'}
 async function loadTab(){const c=document.getElementById('content');try{
@@ -61,8 +61,69 @@ async function loadTab(){const c=document.getElementById('content');try{
  if(tab==='expenses'){const d=await req('/rest/v1/expenses?select=expense_date,description,total_amount,vat_amount,document_number&company_id=eq.'+company.id+'&order=expense_date.desc');c.innerHTML='<div class="card"><b>Расходы</b>'+table(['Дата','Описание','Документ','IVA','Всего'],d.map(x=>[x.expense_date||'—',x.description,x.document_number||'—',money(x.vat_amount),money(x.total_amount)]))+'</div>';return}
  if(tab==='payments'){const d=await req('/rest/v1/payments?select=payment_date,direction,method,amount,reference&company_id=eq.'+company.id+'&order=payment_date.desc');c.innerHTML='<div class="card"><b>Оплаты</b>'+table(['Дата','Тип','Способ','Сумма','Комментарий'],d.map(x=>[x.payment_date||'—',x.direction==='in'?'Входящая':'Исходящая',x.method,money(x.amount),x.reference||'—']))+'</div>';return}
  if(tab==='clients'){const d=await req('/rest/v1/counterparties?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><b>Клиенты и поставщики</b>'+table(['Название','Тип','NIF/CIF','Телефон','Город'],d.map(x=>[x.name,x.type,x.tax_id||'—',x.phone||'—',x.city||'—']))+'</div>';return}
+ if(tab==='warehouse'){
+   const [products,warehouses,moves]=await Promise.all([
+     req('/rest/v1/products?select=id,sku,name,flavor&company_id=eq.'+company.id+'&order=name'),
+     req('/rest/v1/warehouses?select=id,name,type&company_id=eq.'+company.id+'&order=name'),
+     req('/rest/v1/stock_movements?select=product_id,warehouse_id,movement_type,quantity,movement_at,note&company_id=eq.'+company.id+'&order=movement_at.desc')
+   ]);
+   const balances={};
+   for(const m of moves){
+     const k=m.product_id+'|'+m.warehouse_id;
+     const s=(m.movement_type==='out'||m.movement_type==='transfer_out')?-1:1;
+     balances[k]=(balances[k]||0)+s*Number(m.quantity||0);
+   }
+   const rows=[];
+   for(const w of warehouses){for(const p of products){const q=balances[p.id+'|'+w.id]||0;if(q!==0)rows.push([w.name,p.name,p.flavor||'—',p.sku||'—',q]);}}
+   c.innerHTML='<div class="card"><div class="top"><div><b>Склад</b><div class="muted">Остатки по складам</div></div><div><button id="addwh" class="btn">+ Склад</button> <button id="addmove" class="btn primary">+ Движение</button></div></div>'+table(['Склад','Товар','Вкус','SKU','Остаток'],rows)+'</div><div class="card" style="margin-top:12px"><b>Последние движения</b>'+table(['Дата','Тип','Количество','Комментарий'],moves.slice(0,20).map(x=>[x.movement_at||'—',x.movement_type,x.quantity,x.note||'—']))+'</div>';
+   document.getElementById('addwh').onclick=()=>createWarehouse();
+   document.getElementById('addmove').onclick=()=>createMovement(products,warehouses);
+   return
+ }
  if(tab==='products'){const d=await req('/rest/v1/products?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><b>Товары / вкусы</b>'+table(['SKU','Название','Вкус','Закупка','Продажа','IVA'],d.map(x=>[x.sku||'—',x.name,x.flavor||'—',money(x.purchase_price),money(x.sale_price),(x.vat_rate||0)+'%']))+'</div>';return}
 }catch(e){c.innerHTML='<div class="notice">Ошибка загрузки: '+esc(e.message)+'</div>'}}
+
+function dialogBox(title,body,onSave){
+ const d=document.createElement('div');
+ d.style.position='fixed';d.style.inset='0';d.style.background='rgba(0,0,0,.35)';d.style.display='grid';d.style.placeItems='center';d.style.padding='16px';d.style.zIndex='9999';
+ d.innerHTML='<div class="card" style="width:min(480px,100%);max-height:90vh;overflow:auto"><h3 style="margin-top:0">'+title+'</h3>'+body+'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button id="cancelDlg" class="btn">Отмена</button><button id="saveDlg" class="btn primary">Сохранить</button></div></div>';
+ document.body.appendChild(d);
+ d.querySelector('#cancelDlg').onclick=()=>d.remove();
+ d.querySelector('#saveDlg').onclick=()=>onSave(d);
+}
+function createWarehouse(){
+ dialogBox('Новый склад','<div class="field"><label>Название</label><input id="whname" placeholder="Например, Главный склад"></div>',async d=>{
+   const name=d.querySelector('#whname').value.trim(); if(!name)return alert('Введите название склада');
+   try{await req('/rest/v1/warehouses',{method:'POST',body:JSON.stringify({company_id:company.id,name,type:'main'})});d.remove();loadTab()}catch(e){alert(e.message)}
+ });
+}
+function createMovement(products,warehouses){
+ if(!products.length)return alert('Сначала добавьте товар в разделе «Товары».');
+ if(!warehouses.length)return alert('Сначала добавьте склад.');
+ const po=products.map(p=>'<option value="'+p.id+'">'+esc(p.name+' '+(p.flavor||''))+'</option>').join('');
+ const wo=warehouses.map(w=>'<option value="'+w.id+'">'+esc(w.name)+'</option>').join('');
+ dialogBox('Движение товара',
+ '<div class="field"><label>Товар</label><select id="mvprod" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px">'+po+'</select></div>'+
+ '<div class="field"><label>Склад</label><select id="mvwh" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px">'+wo+'</select></div>'+
+ '<div class="field"><label>Тип</label><select id="mvtype" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px"><option value="in">Приход</option><option value="out">Расход</option><option value="adjustment">Корректировка +</option></select></div>'+
+ '<div class="field"><label>Количество</label><input id="mvqty" type="number" min="1" step="1"></div>'+
+ '<div class="field"><label>Комментарий</label><input id="mvnote" placeholder="Например, поступление партии"></div>',
+ async d=>{
+   const qty=Number(d.querySelector('#mvqty').value||0); if(qty<=0)return alert('Введите количество');
+   try{
+     await req('/rest/v1/stock_movements',{method:'POST',body:JSON.stringify({
+       company_id:company.id,
+       product_id:d.querySelector('#mvprod').value,
+       warehouse_id:d.querySelector('#mvwh').value,
+       movement_type:d.querySelector('#mvtype').value,
+       quantity:qty,
+       note:d.querySelector('#mvnote').value,
+       created_by:user.id
+     })});
+     d.remove();loadTab();
+   }catch(e){alert(e.message)}
+ });
+}
 boot();
 })();
 </script></body></html>
