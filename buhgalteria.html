@@ -21,26 +21,25 @@ const supabase=createClient('https://ohifwlyioempwulgtaqq.supabase.co','sb_publi
 const app=document.getElementById('app');let user=null,company=null,tab='overview';
 const money=n=>new Intl.NumberFormat('ru-RU',{style:'currency',currency:'EUR'}).format(Number(n||0));
 const date=d=>d?new Date(d).toLocaleDateString('ru-RU'):'—';
-function login(msg=''){app.innerHTML='<div class="wrap"><div class="card login"><div class="brand"><div class="logo">G</div><div><h1>GARANT Бухгалтерия</h1><div class="muted">PG Nord Garant S.L.</div></div></div>'+ (msg?'<div class="notice">'+msg+'</div>':'') +'<div class="field"><label>Email</label><input id="email" type="email"></div><div class="field"><label>Пароль</label><input id="pass" type="password"></div><button class="btn primary full" id="signin">Войти</button><button class="btn full" id="signup">Создать аккаунт</button></div></div>';document.getElementById('signin').onclick=signin;document.getElementById('signup').onclick=signup}
+function login(msg=''){app.innerHTML='<div class="wrap"><div class="card login"><div class="brand"><div class="logo">G</div><div><h1>GARANT Бухгалтерия</h1><div class="muted">PG Nord Garant S.L.</div></div></div>'+ (msg?'<div class="notice">'+msg+'</div>':'') +'<div class="field"><label>Email</label><input id="email" type="email" autocomplete="email"></div><div class="field"><label>Пароль</label><input id="pass" type="password" autocomplete="current-password"></div><button class="btn primary full" id="signin">Войти</button><button class="btn full" id="openreg">Регистрация нового аккаунта</button></div></div>';document.getElementById('signin').onclick=signin;document.getElementById('openreg').onclick=()=>registerView()}
+
+function registerView(msg=''){app.innerHTML='<div class="wrap"><div class="card login"><div class="brand"><div class="logo">G</div><div><h1>Создание аккаунта</h1><div class="muted">GARANT Бухгалтерия</div></div></div>'+ (msg?'<div class="notice">'+msg+'</div>':'') +'<div class="field"><label>Email</label><input id="regemail" type="email" autocomplete="email" placeholder="name@example.com"></div><div class="field"><label>Пароль</label><input id="regpass" type="password" autocomplete="new-password" placeholder="Минимум 6 символов"></div><div class="field"><label>Повторите пароль</label><input id="regpass2" type="password" autocomplete="new-password"></div><button class="btn primary full" id="dosignup">ЗАРЕГИСТРИРОВАТЬСЯ</button><button class="btn full" id="backlogin">Назад ко входу</button></div></div>';document.getElementById('dosignup').onclick=signup;document.getElementById('backlogin').onclick=()=>login()}
 async function signin(){const email=document.getElementById('email').value, password=document.getElementById('pass').value;const {error}=await supabase.auth.signInWithPassword({email,password});if(error)return login(error.message);boot()}
 async function signup(){
- const email=(document.getElementById('email').value||'').trim();
- const password=document.getElementById('pass').value||'';
- if(!email || !email.includes('@')) return login('Введите корректный email.');
- if(password.length<6) return login('Пароль должен содержать минимум 6 символов.');
- const {data,error}=await supabase.auth.signUp({
-   email,
-   password,
-   options:{emailRedirectTo:'https://garantkartaprodazhcloud.vercel.app/buhgalteria.html'}
- });
+ const email=(document.getElementById('regemail')?.value||'').trim();
+ const password=document.getElementById('regpass')?.value||'';
+ const password2=document.getElementById('regpass2')?.value||'';
+ if(!email || !email.includes('@')) return registerView('Введите корректный email.');
+ if(password.length<6) return registerView('Пароль должен содержать минимум 6 символов.');
+ if(password!==password2) return registerView('Пароли не совпадают.');
+ const btn=document.getElementById('dosignup'); if(btn){btn.disabled=true;btn.textContent='Создаю аккаунт...';}
+ const {data,error}=await supabase.auth.signUp({email,password,options:{emailRedirectTo:'https://garantkartaprodazhcloud.vercel.app/buhgalteria.html'}});
  if(error){
    const m=error.message||'Ошибка регистрации';
-   if(m.toLowerCase().includes('anonymous')) return login('Email не был передан. Введите email и пароль заново.');
-   if(m.toLowerCase().includes('password')) return login('Пароль слишком короткий или не соответствует требованиям.');
-   return login(m);
+   return registerView('Ошибка регистрации: '+m);
  }
  if(data?.session){return boot();}
- login('Аккаунт создан. Проверьте почту и подтвердите email, затем войдите.');
+ login('Аккаунт создан. Проверьте почту: нужно подтвердить email, затем войти.');
 }
 async function boot(){const {data}=await supabase.auth.getUser();user=data.user;if(!user)return login();const {data:cs}=await supabase.from('companies').select('*').limit(1);company=cs?.[0];if(!company)return setup();render()}
 function setup(){app.innerHTML='<div class="wrap"><div class="card login"><h1>Первичная настройка</h1><div class="muted">Создадим компанию в бухгалтерии</div><div class="field"><label>Компания</label><input id="company" value="PG Nord Garant S.L."></div><div class="field"><label>NIF</label><input id="tax" value="B26984146"></div><button class="btn primary full" id="create">Создать</button></div></div>';document.getElementById('create').onclick=async()=>{const {data:c,error}=await supabase.from('companies').insert({name:'GARANT',legal_name:document.getElementById('company').value,tax_id:document.getElementById('tax').value,created_by:user.id}).select().single();if(error)return alert(error.message);await supabase.from('memberships').insert({company_id:c.id,user_id:user.id,role:'owner'});await supabase.from('warehouses').insert({company_id:c.id,name:'Главный склад',type:'main'});company=c;render()}}
