@@ -891,6 +891,11 @@ function updateMyLocationOnMap(pos,center=false){
   if(!map||!window.google?.maps)return;
   const lat=pos.coords.latitude,lng=pos.coords.longitude,acc=Number(pos.coords.accuracy||0);
   const point={lat,lng};
+  try{
+    localStorage.setItem('garant_last_location',JSON.stringify({
+      lat,lng,accuracy:acc,timestamp:Date.now()
+    }));
+  }catch{}
 
   if(!myLocationMarker){
     myLocationMarker=new google.maps.Marker({
@@ -930,7 +935,9 @@ function updateMyLocationOnMap(pos,center=false){
   }
 
   const status=$('myLocationStatus');
-  if(status)status.textContent='Вы на карте · точность около '+Math.round(acc)+' м';
+  if(status){
+    status.textContent=(pos.__saved?'Последнее известное положение':'Вы на карте')+' · точность около '+Math.round(acc)+' м';
+  }
   if(center){
     map.setCenter(point);
     if(map.getZoom()<17)map.setZoom(17);
@@ -969,9 +976,13 @@ async function startLiveLocation(center=true){
     err=>{
       myLocationEnabled=false;
       myLocationWatchId=null;
+      const saved=getSavedLocation();
+      if(saved&&map){
+        updateMyLocationOnMap(saved,center);
+      }
       const msg=err?.code===1
-        ?'Геолокация запрещена. На iPhone откройте Настройки → Конфиденциальность и безопасность → Службы геолокации → Safari Websites / GARANT → При использовании.'
-        :'Не удалось определить местоположение. Нажмите «Центрировать на мне», чтобы попробовать ещё раз.';
+        ?'Геолокация запрещена. Показываю последнее известное положение. Разрешите геолокацию для GARANT в настройках iPhone.'
+        :(saved?'Свежий GPS-сигнал недоступен. Показываю последнее известное положение.':'Не удалось определить местоположение. Нажмите «Центрировать на мне», чтобы попробовать ещё раз.');
       if($('myLocationStatus'))$('myLocationStatus').textContent=msg;
     },
     {enableHighAccuracy:true,maximumAge:0,timeout:15000}
@@ -988,16 +999,41 @@ window.toggleLiveLocation=async()=>{
   await startLiveLocation(true);
 };
 
+function getSavedLocation(){
+  try{
+    const raw=localStorage.getItem('garant_last_location');
+    if(!raw)return null;
+    const p=JSON.parse(raw);
+    if(!Number.isFinite(Number(p.lat))||!Number.isFinite(Number(p.lng)))return null;
+    return {
+      coords:{
+        latitude:Number(p.lat),
+        longitude:Number(p.lng),
+        accuracy:Number(p.accuracy||150)
+      },
+      timestamp:Number(p.timestamp||0),
+      __saved:true
+    };
+  }catch{return null}
+}
+
 async function getInitialMapPosition(){
-  if(!navigator.geolocation)return null;
+  const saved=getSavedLocation();
+  if(!navigator.geolocation)return saved;
   return await new Promise(resolve=>{
     let settled=false;
-    const finish=v=>{if(settled)return;settled=true;resolve(v)};
-    const timer=setTimeout(()=>finish(null),8000);
+    const finish=v=>{if(settled)return;settled=true;resolve(v||saved)};
+    const timer=setTimeout(()=>finish(saved),9000);
     navigator.geolocation.getCurrentPosition(
       pos=>{clearTimeout(timer);finish(pos)},
-      ()=>{clearTimeout(timer);finish(null)},
-      {enableHighAccuracy:true,maximumAge:5000,timeout:7500}
+      ()=>{
+        navigator.geolocation.getCurrentPosition(
+          pos=>{clearTimeout(timer);finish(pos)},
+          ()=>{clearTimeout(timer);finish(saved)},
+          {enableHighAccuracy:false,maximumAge:600000,timeout:5000}
+        );
+      },
+      {enableHighAccuracy:true,maximumAge:10000,timeout:6500}
     );
   });
 }
