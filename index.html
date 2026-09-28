@@ -851,7 +851,7 @@ window.syncOfficialCatalog=async()=>{
 function showPage(name){
  document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$('page-'+name).classList.remove('hidden');
  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
- if(name==='map'){initMap();setTimeout(()=>{if(map&&window.google?.maps){google.maps.event.trigger(map,'resize');drawMap(true)}},160)}if(name==='catalog')setTimeout(renderCatalogQr,80)
+ if(name==='map'){initMap();setTimeout(()=>{if(map&&window.google?.maps){google.maps.event.trigger(map,'resize');drawMap(true);if(myLocationMarker?.getPosition()){map.setCenter(myLocationMarker.getPosition());if(map.getZoom()<16)map.setZoom(16)}}},350)}if(name==='catalog')setTimeout(renderCatalogQr,80)
 }
 window.showPage=showPage;document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
 
@@ -896,14 +896,15 @@ function updateMyLocationOnMap(pos,center=false){
       position:point,
       map,
       title:'Вы здесь',
-      zIndex:9999,
+      zIndex:99999,
+      label:{text:'Я',color:'#ffffff',fontSize:'11px',fontWeight:'700'},
       icon:{
         path:google.maps.SymbolPath.CIRCLE,
         fillColor:'#1375f2',
         fillOpacity:1,
         strokeColor:'#ffffff',
         strokeWeight:4,
-        scale:9
+        scale:13
       }
     });
   }else myLocationMarker.setPosition(point);
@@ -1281,11 +1282,15 @@ function drawMap(fitAll=false){
      geoCount++;
    }
  });
+ const myPos=myLocationMarker?.getPosition?.();
+ if(fitAll&&myPos)bounds.extend(myPos);
  if((fitAll||geoCount>1)&&geoCount){
    map.fitBounds(bounds,55);
    google.maps.event.addListenerOnce(map,'idle',()=>{if(map.getZoom()>17)map.setZoom(17)});
  }else if(geoCount===1&&fitAll){
    map.setCenter(bounds.getCenter());map.setZoom(16);
+ }else if(fitAll&&myPos){
+   map.setCenter(myPos);map.setZoom(17);
  }
 }
 window.showAllShopsOnMap=()=>{
