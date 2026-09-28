@@ -63,7 +63,7 @@ async function loadTab(){const c=document.getElementById('content');try{
  if(tab==='clients'){const d=await req('/rest/v1/counterparties?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><b>Клиенты и поставщики</b>'+table(['Название','Тип','NIF/CIF','Телефон','Город'],d.map(x=>[x.name,x.type,x.tax_id||'—',x.phone||'—',x.city||'—']))+'</div>';return}
  if(tab==='warehouse'){
    const [products,warehouses,moves]=await Promise.all([
-     req('/rest/v1/products?select=id,sku,name,flavor&company_id=eq.'+company.id+'&order=name'),
+     req('/rest/v1/products?select=id,sku,name,flavor,unit_weight_g&company_id=eq.'+company.id+'&order=name'),
      req('/rest/v1/warehouses?select=id,name,type&company_id=eq.'+company.id+'&order=name'),
      req('/rest/v1/stock_movements?select=product_id,warehouse_id,movement_type,quantity,movement_at,note&company_id=eq.'+company.id+'&order=movement_at.desc')
    ]);
@@ -74,13 +74,13 @@ async function loadTab(){const c=document.getElementById('content');try{
      balances[k]=(balances[k]||0)+s*Number(m.quantity||0);
    }
    const rows=[];
-   for(const w of warehouses){for(const p of products){const q=balances[p.id+'|'+w.id]||0;if(q!==0)rows.push([w.name,p.name,p.flavor||'—',p.sku||'—',q]);}}
-   c.innerHTML='<div class="card"><div class="top"><div><b>Склад</b><div class="muted">Остатки по складам</div></div><div><button id="addwh" class="btn">+ Склад</button> <button id="addmove" class="btn primary">+ Движение</button></div></div>'+table(['Склад','Товар','Вкус','SKU','Остаток'],rows)+'</div><div class="card" style="margin-top:12px"><b>Последние движения</b>'+table(['Дата','Тип','Количество','Комментарий'],moves.slice(0,20).map(x=>[x.movement_at||'—',x.movement_type,x.quantity,x.note||'—']))+'</div>';
+   for(const w of warehouses){for(const p of products){const q=balances[p.id+'|'+w.id]||0;if(q!==0){const grams=q*Number(p.unit_weight_g||0);rows.push([w.name,p.name,p.flavor||'—',p.sku||'—',q,grams?grams.toLocaleString('ru-RU')+' г':'—',grams?(grams/1000).toLocaleString('ru-RU',{maximumFractionDigits:3})+' кг':'—']);}}}
+   c.innerHTML='<div class="card"><div class="top"><div><b>Склад</b><div class="muted">Остатки по складам</div></div><div><button id="addwh" class="btn">+ Склад</button> <button id="addmove" class="btn primary">+ Движение</button></div></div>'+table(['Склад','Товар','Вкус','SKU','Банки','Вес, г','Вес, кг'],rows)+'</div><div class="card" style="margin-top:12px"><b>Последние движения</b>'+table(['Дата','Тип','Количество','Комментарий'],moves.slice(0,20).map(x=>[x.movement_at||'—',x.movement_type,x.quantity,x.note||'—']))+'</div>';
    document.getElementById('addwh').onclick=()=>createWarehouse();
    document.getElementById('addmove').onclick=()=>createMovement(products,warehouses);
    return
  }
- if(tab==='products'){const d=await req('/rest/v1/products?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><b>Товары / вкусы</b>'+table(['SKU','Название','Вкус','Закупка','Продажа','IVA'],d.map(x=>[x.sku||'—',x.name,x.flavor||'—',money(x.purchase_price),money(x.sale_price),(x.vat_rate||0)+'%']))+'</div>';return}
+ if(tab==='products'){const d=await req('/rest/v1/products?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><b>Товары / вкусы</b>'+table(['SKU','Название','Вкус','Вес 1 банки','Закупка','Продажа','IVA'],d.map(x=>[x.sku||'—',x.name,x.flavor||'—',(x.unit_weight_g?Number(x.unit_weight_g).toLocaleString('ru-RU')+' г':'—'),money(x.purchase_price),money(x.sale_price),(x.vat_rate||0)+'%']))+'</div>';return}
 }catch(e){c.innerHTML='<div class="notice">Ошибка загрузки: '+esc(e.message)+'</div>'}}
 
 function dialogBox(title,body,onSave){
@@ -106,10 +106,11 @@ function createMovement(products,warehouses){
  '<div class="field"><label>Товар</label><select id="mvprod" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px">'+po+'</select></div>'+
  '<div class="field"><label>Склад</label><select id="mvwh" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px">'+wo+'</select></div>'+
  '<div class="field"><label>Тип</label><select id="mvtype" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px"><option value="in">Приход</option><option value="out">Расход</option><option value="adjustment">Корректировка +</option></select></div>'+
- '<div class="field"><label>Количество</label><input id="mvqty" type="number" min="1" step="1"></div>'+
+ '<div class="field"><label>Количество банок</label><input id="mvqty" type="number" min="1" step="1"></div><div id="mvweight" class="muted" style="margin-top:-6px;margin-bottom:8px"></div>'+
  '<div class="field"><label>Комментарий</label><input id="mvnote" placeholder="Например, поступление партии"></div>',
  async d=>{
    const qty=Number(d.querySelector('#mvqty').value||0); if(qty<=0)return alert('Введите количество');
+   const prod=products.find(p=>p.id===d.querySelector('#mvprod').value);
    try{
      await req('/rest/v1/stock_movements',{method:'POST',body:JSON.stringify({
        company_id:company.id,
@@ -123,6 +124,11 @@ function createMovement(products,warehouses){
      d.remove();loadTab();
    }catch(e){alert(e.message)}
  });
+ setTimeout(()=>{
+   const psel=document.getElementById('mvprod'), qinp=document.getElementById('mvqty'), out=document.getElementById('mvweight');
+   const refresh=()=>{if(!psel||!qinp||!out)return;const p=products.find(x=>x.id===psel.value);const q=Number(qinp.value||0);const g=q*Number(p?.unit_weight_g||0);out.textContent=g?('Вес: '+g.toLocaleString('ru-RU')+' г ('+(g/1000).toLocaleString('ru-RU',{maximumFractionDigits:3})+' кг)'):'У товара не указан вес одной банки';};
+   if(psel)psel.onchange=refresh;if(qinp)qinp.oninput=refresh;refresh();
+ },0);
 }
 boot();
 })();
