@@ -267,8 +267,8 @@ tr:hover td{background:#fbfdff}
           <button class="light" onclick="resetMapFilters()">Сбросить</button>
           <hr style="border:0;border-top:1px solid var(--line);margin:12px 0">
           <h3>Моё местоположение</h3>
-          <button id="myLocationBtn" class="primary" style="width:100%" onclick="toggleLiveLocation()">📍 Показать меня на карте</button>
-          <p id="myLocationStatus" class="muted">Можно включить живое местоположение и видеть себя при движении.</p>
+          <button id="myLocationBtn" class="primary" style="width:100%" onclick="toggleLiveLocation()">📍 Центрировать на мне</button>
+          <p id="myLocationStatus" class="muted">Ваше местоположение показывается на карте автоматически.</p>
           <label style="display:flex;gap:8px;align-items:center;margin:8px 0">
             <input id="googleStoresToggle" type="checkbox" checked style="width:auto;margin:0">
             Показывать магазины Google при приближении
@@ -931,30 +931,30 @@ function updateMyLocationOnMap(pos,center=false){
     if(map.getZoom()<17)map.setZoom(17);
   }
 }
-window.toggleLiveLocation=async()=>{
-  if(!navigator.geolocation)return toast('Геолокация не поддерживается на этом устройстве');
-
-  if(myLocationEnabled){
-    myLocationEnabled=false;
-    if(myLocationWatchId!=null){navigator.geolocation.clearWatch(myLocationWatchId);myLocationWatchId=null}
-    if(myLocationMarker){myLocationMarker.setMap(null);myLocationMarker=null}
-    if(myAccuracyCircle){myAccuracyCircle.setMap(null);myAccuracyCircle=null}
-    if($('myLocationBtn'))$('myLocationBtn').textContent='📍 Показать меня на карте';
-    if($('myLocationStatus'))$('myLocationStatus').textContent='Живое местоположение выключено.';
+async function startLiveLocation(center=true){
+  if(!navigator.geolocation){
+    if($('myLocationStatus'))$('myLocationStatus').textContent='Геолокация не поддерживается на этом устройстве.';
+    return;
+  }
+  if(myLocationWatchId!=null){
+    if(center&&myLocationMarker?.getPosition()){
+      map.setCenter(myLocationMarker.getPosition());
+      if(map.getZoom()<17)map.setZoom(17);
+    }
     return;
   }
 
-  await initMap();
-  if($('myLocationStatus'))$('myLocationStatus').textContent='Запрашиваем доступ к геолокации…';
+  if($('myLocationStatus'))$('myLocationStatus').textContent='Определяем ваше местоположение…';
 
   navigator.geolocation.getCurrentPosition(
     pos=>{
       myLocationEnabled=true;
-      updateMyLocationOnMap(pos,true);
-      if($('myLocationBtn'))$('myLocationBtn').textContent='⏹ Выключить моё местоположение';
-
+      updateMyLocationOnMap(pos,center);
       myLocationWatchId=navigator.geolocation.watchPosition(
-        p=>updateMyLocationOnMap(p,false),
+        p=>{
+          myLocationEnabled=true;
+          updateMyLocationOnMap(p,false);
+        },
         err=>{
           if($('myLocationStatus'))$('myLocationStatus').textContent='Не удалось обновить геолокацию: '+err.message;
         },
@@ -963,11 +963,20 @@ window.toggleLiveLocation=async()=>{
     },
     err=>{
       myLocationEnabled=false;
-      if($('myLocationStatus'))$('myLocationStatus').textContent='Нет доступа к геолокации. Разрешите доступ в Safari / настройках iPhone.';
-      toast('Не удалось получить местоположение');
+      if($('myLocationStatus'))$('myLocationStatus').textContent='Чтобы видеть себя на карте, разрешите геолокацию для GARANT в Safari / настройках iPhone.';
     },
     {enableHighAccuracy:true,maximumAge:0,timeout:15000}
   );
+}
+
+window.toggleLiveLocation=async()=>{
+  await initMap();
+  if(myLocationMarker?.getPosition()){
+    map.setCenter(myLocationMarker.getPosition());
+    if(map.getZoom()<17)map.setZoom(17);
+    return;
+  }
+  await startLiveLocation(true);
 };
 
 async function initMap(){
@@ -1015,6 +1024,7 @@ async function initMap(){
    nearbySearchTimer=setTimeout(()=>searchGoogleStoresInView(),650);
  });
  $('legend').innerHTML=Object.entries(colors).map(([k,v])=>`<span><i class="dot" style="background:${v}"></i>${k}</span>`).join('');
+ startLiveLocation(true);
 }
 function markerIcon(status){
  return {
