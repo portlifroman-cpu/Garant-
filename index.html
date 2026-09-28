@@ -1427,14 +1427,41 @@ window.resetMapFilters=()=>{['mapSearch','mapCity','mapStatus','mapAgent'].forEa
 function shopOpenedByName(s){
   return (s.opened_by_name||employeeName(s.created_by)||'').trim();
 }
+let shopSort={key:'name',dir:1};
+function shopSortValue(s,key){
+ if(key==='opened_by_name')return shopOpenedByName(s)||'';
+ if(key==='next_visit')return s.next_visit||'9999-12-31';
+ return String(s[key]??'');
+}
+window.sortShopsBy=(key)=>{
+ if(shopSort.key===key)shopSort.dir*=-1;
+ else shopSort={key,dir:1};
+ renderShops();
+};
+function shopSortArrow(key){
+ return shopSort.key===key?(shopSort.dir===1?' ▲':' ▼'):' ⇅';
+}
 function renderShops(){
  const q=$('shopSearch').value.toLowerCase(),st=$('shopStatusFilter').value,opened=$('shopOpenedByFilter')?.value||'';
  const rows=shops.filter(s=>{
    const opener=shopOpenedByName(s);
    const searchText=(s.name+' '+s.city+' '+s.address+' '+s.phone+' '+opener).toLowerCase();
    return (!q||searchText.includes(q))&&(!st||s.status===st)&&(!opened||opener===opened);
+ }).sort((a,b)=>{
+   const av=shopSortValue(a,shopSort.key),bv=shopSortValue(b,shopSort.key);
+   return String(av).localeCompare(String(bv),'ru',{numeric:true,sensitivity:'base'})*shopSort.dir;
  });
- $('shopsTable').innerHTML=`<table><thead><tr><th>Магазин</th><th>Тип</th><th>Город</th><th>Статус</th><th>Кто открыл клиента</th><th>Телефон</th><th>Следующий визит</th>${isManager()?'<th>Удалить</th>':''}</tr></thead><tbody>${rows.map(s=>`<tr onclick="openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.type||'')}</td><td>${esc(s.city||'')}</td><td><span class="badge">${esc(s.status||'')}</span></td><td>${esc(shopOpenedByName(s)||'—')}</td><td>${esc(s.phone||'')}</td><td>${esc(s.next_visit||'')}</td>${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}</tr>`).join('')}</tbody></table>`;
+ const th=(label,key)=>`<th onclick="sortShopsBy('${key}')" style="cursor:pointer;white-space:nowrap" title="Нажмите для сортировки">${label}${shopSortArrow(key)}</th>`;
+ $('shopsTable').innerHTML=`<table><thead><tr>
+   ${th('Магазин','name')}
+   ${th('Тип','type')}
+   ${th('Город','city')}
+   ${th('Статус','status')}
+   ${th('Кто открыл клиента','opened_by_name')}
+   ${th('Телефон','phone')}
+   ${th('Следующий визит','next_visit')}
+   ${isManager()?'<th>Удалить</th>':''}
+ </tr></thead><tbody>${rows.map(s=>`<tr onclick="openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.type||'')}</td><td>${esc(s.city||'')}</td><td><span class="badge">${esc(s.status||'')}</span></td><td>${esc(shopOpenedByName(s)||'—')}</td><td>${esc(s.phone||'')}</td><td>${esc(s.next_visit||'')}</td>${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}</tr>`).join('')}</tbody></table>`;
 }
 $('shopSearch').addEventListener('input',renderShops);
 $('shopStatusFilter').addEventListener('change',renderShops);
