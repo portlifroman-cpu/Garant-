@@ -797,7 +797,7 @@ async function boot(){
 
 async function refreshAll(){
  const qs=[
-  db.from('shops').select('*').order('created_at',{ascending:false}),
+  db.from('shops').select('*').is('deleted_at',null).order('created_at',{ascending:false}),
   db.from('visits').select('*').order('created_at',{ascending:false}).limit(2000),
   db.from('profiles').select('id,email,full_name,role,active,phone,status,start_date').order('full_name'),
   db.from('products').select('*').order('name'),
@@ -1210,7 +1210,7 @@ function renderShops(){
    const searchText=(s.name+' '+s.city+' '+s.address+' '+s.phone+' '+opener).toLowerCase();
    return (!q||searchText.includes(q))&&(!st||s.status===st)&&(!opened||opener===opened);
  });
- $('shopsTable').innerHTML=`<table><thead><tr><th>Магазин</th><th>Тип</th><th>Город</th><th>Статус</th><th>Кто открыл клиента</th><th>Телефон</th><th>Следующий визит</th></tr></thead><tbody>${rows.map(s=>`<tr onclick="openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.type||'')}</td><td>${esc(s.city||'')}</td><td><span class="badge">${esc(s.status||'')}</span></td><td>${esc(shopOpenedByName(s)||'—')}</td><td>${esc(s.phone||'')}</td><td>${esc(s.next_visit||'')}</td></tr>`).join('')}</tbody></table>`;
+ $('shopsTable').innerHTML=`<table><thead><tr><th>Магазин</th><th>Тип</th><th>Город</th><th>Статус</th><th>Кто открыл клиента</th><th>Телефон</th><th>Следующий визит</th>${isManager()?'<th>Удалить</th>':''}</tr></thead><tbody>${rows.map(s=>`<tr onclick="openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.type||'')}</td><td>${esc(s.city||'')}</td><td><span class="badge">${esc(s.status||'')}</span></td><td>${esc(shopOpenedByName(s)||'—')}</td><td>${esc(s.phone||'')}</td><td>${esc(s.next_visit||'')}</td>${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}</tr>`).join('')}</tbody></table>`;
 }
 $('shopSearch').addEventListener('input',renderShops);
 $('shopStatusFilter').addEventListener('change',renderShops);
@@ -1221,6 +1221,17 @@ window.resetShopFilters=()=>{
   $('shopOpenedByFilter').value='';
   renderShops();
 };
+window.deleteShopFromList=async(id)=>{
+  if(!isManager())return toast('Удалять магазины могут только руководители');
+  const s=shops.find(x=>x.id===id);if(!s)return;
+  if(!confirm('Удалить магазин «'+s.name+'» из списка?\n\nОн исчезнет из списка и карты. История заказов сохранится.'))return;
+  const {error}=await db.rpc('soft_delete_shop',{p_shop_id:id});
+  if(error)return toast('Не удалось удалить магазин: '+error.message);
+  toast('Магазин удалён из списка');
+  if(selectedShop?.id===id){selectedShop=null;closeModals()}
+  await refreshAll();
+};
+
 window.openShopById=id=>{const s=shops.find(x=>x.id===id);if(s)openShop(s)};
 
 function employeeName(id){
