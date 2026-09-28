@@ -201,7 +201,7 @@ tr:hover td{background:#fbfdff}
     <div class="brand brand-pro">
       <div class="brand-logo-wrap"><img class="brand-logo-img" src="/assets/garant-logo-exact.svg?v=5" alt="GARANT"></div><div class="brand-copy"><small>Система управления продажами</small></div>
     </div>
-    <div class="who"><span id="who"></span><button id="changePasswordBtn" type="button">Пароль</button><button id="signout">Выйти</button></div>
+    <div class="who"><span id="who"></span><button id="signout">Выйти</button></div>
   </div>
   <div class="app">
     <div class="tabs" id="tabs">
@@ -216,6 +216,7 @@ tr:hover td{background:#fbfdff}
       <button data-page="catalog">Каталог / QR</button>
       <button data-page="employees">Команда</button>
       <button data-page="reports">Отчёты</button>
+      <button id="changePasswordBtn" type="button">Пароль</button>
     </div>
 
     <section id="page-dashboard" class="page">
@@ -783,7 +784,7 @@ window.saveNewPassword=async()=>{
 };
 $('changePasswordBtn').onclick=()=>openPasswordModal(false);
 db.auth.onAuthStateChange((event,session)=>{
-  if((event==='PASSWORD_RECOVERY'||event==='SIGNED_IN'||event==='INITIAL_SESSION')&&session&&shouldSetPassword()){
+  if(event==='PASSWORD_RECOVERY'&&session){
     setTimeout(()=>openPasswordModal(true),150);
   }
 });
@@ -796,7 +797,7 @@ async function boot(){
  $('auth').classList.add('hidden');$('mainApp').classList.remove('hidden');
  if(!isManager()){['addProductBtn','addWarehouseBtn','adjustStockBtn'].forEach(id=>$(id)?.classList.add('hidden'))}
  if(isOwner())$('addEmployeeBtn')?.classList.remove('hidden');
- await refreshAll();showPage('dashboard');if(shouldSetPassword())setTimeout(()=>openPasswordModal(true),200);
+ await refreshAll();showPage('dashboard');
 }
 
 async function refreshAll(){
@@ -850,10 +851,10 @@ window.syncOfficialCatalog=async()=>{
 
 function showPage(name){
  document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$('page-'+name).classList.remove('hidden');
- document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
+ document.querySelectorAll('#tabs button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
  if(name==='map'){initMap();setTimeout(()=>{if(map&&window.google?.maps){google.maps.event.trigger(map,'resize');drawMap(true);if(myLocationMarker?.getPosition()){map.setCenter(myLocationMarker.getPosition());if(map.getZoom()<16)map.setZoom(16)}}},350)}if(name==='catalog')setTimeout(renderCatalogQr,80)
 }
-window.showPage=showPage;document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
+window.showPage=showPage;document.querySelectorAll('#tabs button[data-page]').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
 
 function renderAll(){fillSelects();renderDashboard();renderShops();renderDeals();renderOrders();renderProducts();renderStock();renderEmployees();renderTasks();renderReports();if(map)drawMap()}
 function fillSelects(){
