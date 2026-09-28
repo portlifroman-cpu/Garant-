@@ -852,7 +852,7 @@ window.syncOfficialCatalog=async()=>{
 function showPage(name){
  document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$('page-'+name).classList.remove('hidden');
  document.querySelectorAll('#tabs button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
- if(name==='map'){initMap();setTimeout(()=>{if(map&&window.google?.maps){google.maps.event.trigger(map,'resize');drawMap(true);if(myLocationMarker?.getPosition()){map.setCenter(myLocationMarker.getPosition());if(map.getZoom()<16)map.setZoom(16)}}},350)}if(name==='catalog')setTimeout(renderCatalogQr,80)
+ if(name==='map'){initMap().then(()=>startLiveLocation(true));setTimeout(()=>{if(map&&window.google?.maps){google.maps.event.trigger(map,'resize');drawMap(true);if(myLocationMarker?.getPosition()){myLocationMarker.setMap(map);map.setCenter(myLocationMarker.getPosition());if(map.getZoom()<16)map.setZoom(16)}}},350)}if(name==='catalog')setTimeout(renderCatalogQr,80)
 }
 window.showPage=showPage;document.querySelectorAll('#tabs button[data-page]').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
 
@@ -908,7 +908,10 @@ function updateMyLocationOnMap(pos,center=false){
         scale:13
       }
     });
-  }else myLocationMarker.setPosition(point);
+  }else{
+    myLocationMarker.setPosition(point);
+    myLocationMarker.setMap(map);
+  }
 
   if(!myAccuracyCircle){
     myAccuracyCircle=new google.maps.Circle({
@@ -965,7 +968,11 @@ async function startLiveLocation(center=true){
     },
     err=>{
       myLocationEnabled=false;
-      if($('myLocationStatus'))$('myLocationStatus').textContent='Чтобы видеть себя на карте, разрешите геолокацию для GARANT в Safari / настройках iPhone.';
+      myLocationWatchId=null;
+      const msg=err?.code===1
+        ?'Геолокация запрещена. На iPhone откройте Настройки → Конфиденциальность и безопасность → Службы геолокации → Safari Websites / GARANT → При использовании.'
+        :'Не удалось определить местоположение. Нажмите «Центрировать на мне», чтобы попробовать ещё раз.';
+      if($('myLocationStatus'))$('myLocationStatus').textContent=msg;
     },
     {enableHighAccuracy:true,maximumAge:0,timeout:15000}
   );
@@ -1026,7 +1033,6 @@ async function initMap(){
    nearbySearchTimer=setTimeout(()=>searchGoogleStoresInView(),650);
  });
  $('legend').innerHTML=Object.entries(colors).map(([k,v])=>`<span><i class="dot" style="background:${v}"></i>${k}</span>`).join('');
- startLiveLocation(true);
 }
 function markerIcon(status){
  return {
