@@ -23,7 +23,25 @@ const money=n=>new Intl.NumberFormat('ru-RU',{style:'currency',currency:'EUR'}).
 const date=d=>d?new Date(d).toLocaleDateString('ru-RU'):'—';
 function login(msg=''){app.innerHTML='<div class="wrap"><div class="card login"><div class="brand"><div class="logo">G</div><div><h1>GARANT Бухгалтерия</h1><div class="muted">PG Nord Garant S.L.</div></div></div>'+ (msg?'<div class="notice">'+msg+'</div>':'') +'<div class="field"><label>Email</label><input id="email" type="email"></div><div class="field"><label>Пароль</label><input id="pass" type="password"></div><button class="btn primary full" id="signin">Войти</button><button class="btn full" id="signup">Создать аккаунт</button></div></div>';document.getElementById('signin').onclick=signin;document.getElementById('signup').onclick=signup}
 async function signin(){const email=document.getElementById('email').value, password=document.getElementById('pass').value;const {error}=await supabase.auth.signInWithPassword({email,password});if(error)return login(error.message);boot()}
-async function signup(){const email=document.getElementById('email').value, password=document.getElementById('pass').value;const {error}=await supabase.auth.signUp({email,password});if(error)return login(error.message);login('Аккаунт создан. Если придёт письмо подтверждения, откройте его и затем войдите.')}
+async function signup(){
+ const email=(document.getElementById('email').value||'').trim();
+ const password=document.getElementById('pass').value||'';
+ if(!email || !email.includes('@')) return login('Введите корректный email.');
+ if(password.length<6) return login('Пароль должен содержать минимум 6 символов.');
+ const {data,error}=await supabase.auth.signUp({
+   email,
+   password,
+   options:{emailRedirectTo:'https://garantkartaprodazhcloud.vercel.app/buhgalteria.html'}
+ });
+ if(error){
+   const m=error.message||'Ошибка регистрации';
+   if(m.toLowerCase().includes('anonymous')) return login('Email не был передан. Введите email и пароль заново.');
+   if(m.toLowerCase().includes('password')) return login('Пароль слишком короткий или не соответствует требованиям.');
+   return login(m);
+ }
+ if(data?.session){return boot();}
+ login('Аккаунт создан. Проверьте почту и подтвердите email, затем войдите.');
+}
 async function boot(){const {data}=await supabase.auth.getUser();user=data.user;if(!user)return login();const {data:cs}=await supabase.from('companies').select('*').limit(1);company=cs?.[0];if(!company)return setup();render()}
 function setup(){app.innerHTML='<div class="wrap"><div class="card login"><h1>Первичная настройка</h1><div class="muted">Создадим компанию в бухгалтерии</div><div class="field"><label>Компания</label><input id="company" value="PG Nord Garant S.L."></div><div class="field"><label>NIF</label><input id="tax" value="B26984146"></div><button class="btn primary full" id="create">Создать</button></div></div>';document.getElementById('create').onclick=async()=>{const {data:c,error}=await supabase.from('companies').insert({name:'GARANT',legal_name:document.getElementById('company').value,tax_id:document.getElementById('tax').value,created_by:user.id}).select().single();if(error)return alert(error.message);await supabase.from('memberships').insert({company_id:c.id,user_id:user.id,role:'owner'});await supabase.from('warehouses').insert({company_id:c.id,name:'Главный склад',type:'main'});company=c;render()}}
 async function render(){app.innerHTML='<div class="wrap"><div class="top"><div class="brand"><div class="logo">G</div><div><h1>GARANT Бухгалтерия</h1><div class="muted">'+(company.legal_name||company.name)+'</div></div></div><button class="btn" id="logout">Выйти</button></div><div class="nav">'+[['overview','Обзор'],['sales','Продажи'],['expenses','Расходы'],['payments','Оплаты'],['clients','Клиенты'],['products','Товары']].map(([a,b])=>'<button class="btn '+(tab===a?'active':'')+'" data-tab="'+a+'">'+b+'</button>').join('')+'</div><div id="content"></div></div>';document.getElementById('logout').onclick=()=>supabase.auth.signOut().then(()=>login());document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});load()}
