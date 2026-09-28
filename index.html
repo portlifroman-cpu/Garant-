@@ -111,6 +111,20 @@ tr:hover td{background:#fbfdff}
 .badge.warn{background:#fff3d2;color:#8d6500}
 .badge.bad{background:#fee6e6;color:#a32626}
 #map{height:calc(100vh - 190px);min-height:520px;border-radius:12px}
+.mapCard{position:relative}
+.mapLocateFab{
+  position:absolute;right:18px;bottom:22px;z-index:1001;
+  width:54px;height:54px;border-radius:50%;padding:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;background:#0876ed;color:#fff;border:3px solid #fff;
+  box-shadow:0 6px 18px rgba(0,0,0,.22)
+}
+.mapLocateBadge{
+  position:absolute;left:18px;bottom:22px;z-index:1001;
+  max-width:72%;padding:7px 10px;border-radius:10px;
+  background:rgba(255,255,255,.95);font-size:12px;font-weight:700;
+  box-shadow:0 4px 14px rgba(0,0,0,.14)
+}
 .mapLayout{display:grid;grid-template-columns:290px 1fr;gap:10px}
 .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;margin-top:8px}
 .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:4px}
@@ -278,7 +292,12 @@ tr:hover td{background:#fbfdff}
           <button class="light" style="width:100%;margin-top:8px" onclick="showAllShopsOnMap()">🌍 Показать все магазины GARANT</button>
           <button class="primary" style="width:100%;margin-top:8px" onclick="openNewShop()">+ Новый магазин</button>
         </div>
-        <div class="card"><div id="map"></div><div id="legend" class="legend"></div></div>
+        <div class="card mapCard">
+          <div id="map"></div>
+          <button id="mapLocateFab" class="mapLocateFab" type="button" onclick="forceLocateMe()" aria-label="Показать моё местоположение">📍</button>
+          <div id="mapLocationBadge" class="mapLocateBadge">Ищу ваше местоположение…</div>
+          <div id="legend" class="legend"></div>
+        </div>
       </div>
     </section>
 
@@ -934,10 +953,11 @@ function updateMyLocationOnMap(pos,center=false){
     myAccuracyCircle.setRadius(acc);
   }
 
+  const locationText=(pos.__saved?'Последнее известное положение':'Вы на карте')+' · точность около '+Math.round(acc)+' м';
   const status=$('myLocationStatus');
-  if(status){
-    status.textContent=(pos.__saved?'Последнее известное положение':'Вы на карте')+' · точность около '+Math.round(acc)+' м';
-  }
+  if(status)status.textContent=locationText;
+  const badge=$('mapLocationBadge');
+  if(badge)badge.textContent=locationText;
   if(center){
     map.setCenter(point);
     if(map.getZoom()<17)map.setZoom(17);
@@ -984,20 +1004,47 @@ async function startLiveLocation(center=true){
         ?'Геолокация запрещена. Показываю последнее известное положение. Разрешите геолокацию для GARANT в настройках iPhone.'
         :(saved?'Свежий GPS-сигнал недоступен. Показываю последнее известное положение.':'Не удалось определить местоположение. Нажмите «Центрировать на мне», чтобы попробовать ещё раз.');
       if($('myLocationStatus'))$('myLocationStatus').textContent=msg;
+      if($('mapLocationBadge'))$('mapLocationBadge').textContent=msg;
     },
     {enableHighAccuracy:true,maximumAge:0,timeout:15000}
   );
 }
 
-window.toggleLiveLocation=async()=>{
+window.forceLocateMe=async()=>{
   await initMap();
-  if(myLocationMarker?.getPosition()){
-    map.setCenter(myLocationMarker.getPosition());
-    if(map.getZoom()<17)map.setZoom(17);
+  const badge=$('mapLocationBadge');
+  if(badge)badge.textContent='Запрашиваю геолокацию iPhone…';
+  if(!navigator.geolocation){
+    if(badge)badge.textContent='Геолокация недоступна на этом устройстве';
     return;
   }
-  await startLiveLocation(true);
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      myLocationEnabled=true;
+      updateMyLocationOnMap(pos,true);
+      if(badge)badge.textContent='Вы на карте · точность около '+Math.round(Number(pos.coords.accuracy||0))+' м';
+      if(myLocationWatchId==null){
+        myLocationWatchId=navigator.geolocation.watchPosition(
+          p=>{myLocationEnabled=true;updateMyLocationOnMap(p,false)},
+          err=>{if($('mapLocationBadge'))$('mapLocationBadge').textContent='Не удалось обновить позицию: '+err.message},
+          {enableHighAccuracy:true,maximumAge:5000,timeout:15000}
+        );
+      }
+    },
+    err=>{
+      const saved=getSavedLocation();
+      if(saved)updateMyLocationOnMap(saved,true);
+      const msg=err?.code===1
+        ?'Нет доступа к геолокации. Разрешите доступ для GARANT/Safari в настройках iPhone.'
+        :(saved?'GPS сейчас недоступен — показываю последнюю позицию.':'Не удалось получить координаты. Нажмите 📍 ещё раз.');
+      if(badge)badge.textContent=msg;
+      if($('myLocationStatus'))$('myLocationStatus').textContent=msg;
+    },
+    {enableHighAccuracy:true,maximumAge:0,timeout:15000}
+  );
 };
+
+window.toggleLiveLocation=window.forceLocateMe;
 
 function getSavedLocation(){
   try{
