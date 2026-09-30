@@ -435,6 +435,24 @@ tr:hover td{background:#fbfdff}
   <label>Фото магазина</label><input id="nsPhotos" type="file" accept="image/*" multiple>
   <p class="muted">Можно добавить фото витрины, входа или выкладки. До 8 МБ на файл.</p>
   <label>Статус</label><select id="nsStatus"></select>
+  <div class="card" style="margin:8px 0">
+    <h3 style="margin-top:0">Условия передачи товара</h3>
+    <div class="row">
+      <div>
+        <label>Как передан товар</label>
+        <select id="nsSupplyTerms" onchange="toggleNewShopPaymentDate()">
+          <option value="">Не указано</option>
+          <option value="supplied">Товар поставлен / оплачен</option>
+          <option value="consignment">Отдан под реализацию</option>
+          <option value="deferred">С отсрочкой платежа</option>
+        </select>
+      </div>
+      <div id="nsPaymentDueWrap" class="hidden">
+        <label>Оплатить до</label>
+        <input id="nsPaymentDueDate" type="date">
+      </div>
+    </div>
+  </div>
   <label style="display:flex;gap:8px;align-items:center;margin:4px 0 12px">
     <input id="nsCreateDeal" type="checkbox" checked style="width:auto;margin:0">
     Сразу создать сделку по этому магазину
@@ -470,6 +488,24 @@ tr:hover td{background:#fbfdff}
   </div>
   <label>Комментарий</label><textarea id="esComment"></textarea>
   <label>Статус</label><select id="esStatus"></select>
+  <div class="card" style="margin:8px 0">
+    <h3 style="margin-top:0">Условия передачи товара</h3>
+    <div class="row">
+      <div>
+        <label>Как передан товар</label>
+        <select id="esSupplyTerms" onchange="toggleEditShopPaymentDate()">
+          <option value="">Не указано</option>
+          <option value="supplied">Товар поставлен / оплачен</option>
+          <option value="consignment">Отдан под реализацию</option>
+          <option value="deferred">С отсрочкой платежа</option>
+        </select>
+      </div>
+      <div id="esPaymentDueWrap" class="hidden">
+        <label>Оплатить до</label>
+        <input id="esPaymentDueDate" type="date">
+      </div>
+    </div>
+  </div>
   <label>Кто открыл клиента</label><input id="esOpenedByName" placeholder="Имя сотрудника или внешнего человека">
   <label>Обслуживающий агент</label><select id="esAgent"></select>
   <div class="row"><button class="light" onclick="editUseMyLocation()">📍 Взять GPS</button><button class="light" onclick="editPickOnMap()">🗺️ Поставить точку на карте</button></div>
@@ -1562,6 +1598,13 @@ function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAdd
     <div><b>Комментарий</b><p>${esc(s.comment||'—')}</p></div>
   </div>
   <div class="card" style="margin:8px 0">
+    <b>Условия передачи товара:</b>
+    <p style="margin:6px 0 0">
+      ${s.supply_terms==='supplied'?'Товар поставлен / оплачен':s.supply_terms==='consignment'?'Отдан под реализацию':s.supply_terms==='deferred'?'С отсрочкой платежа':'Не указано'}
+      ${s.supply_terms==='deferred'&&s.payment_due_date?' · оплатить до '+esc(s.payment_due_date):''}
+    </p>
+  </div>
+  <div class="card" style="margin:8px 0">
     <h3 style="margin-top:0">Товар, поставленный в магазин</h3>
     <div id="shopPlacementEntry" style="margin-bottom:10px">
       <div class="row3">
@@ -1647,6 +1690,17 @@ async function fillNewShopAddressFromPoint(pos){
   }
 }
 
+window.toggleNewShopPaymentDate=()=>{
+  const deferred=$('nsSupplyTerms')?.value==='deferred';
+  $('nsPaymentDueWrap')?.classList.toggle('hidden',!deferred);
+  if(!deferred&&$('nsPaymentDueDate'))$('nsPaymentDueDate').value='';
+};
+window.toggleEditShopPaymentDate=()=>{
+  const deferred=$('esSupplyTerms')?.value==='deferred';
+  $('esPaymentDueWrap')?.classList.toggle('hidden',!deferred);
+  if(!deferred&&$('esPaymentDueDate'))$('esPaymentDueDate').value='';
+};
+
 function resetNewShopForm(){
   window.__pendingGooglePlaceId=null;
   window.__pendingGoogleMapsUrl=null;
@@ -1661,6 +1715,9 @@ function resetNewShopForm(){
   $('nsAgent').value=user.id;
   $('nsAgent').disabled=!isManager();
   $('nsStatus').value='Не посещён';
+  if($('nsSupplyTerms'))$('nsSupplyTerms').value='';
+  if($('nsPaymentDueDate'))$('nsPaymentDueDate').value='';
+  toggleNewShopPaymentDate();
   if($('nsCreateDeal'))$('nsCreateDeal').checked=true;
   if($('nsPhotos'))$('nsPhotos').value='';
 }
@@ -1766,7 +1823,7 @@ window.saveNewShop=async()=>{
    if(duplicate&&!confirm('Рядом уже есть магазин «'+duplicate.name+'». Всё равно добавить новую точку?'))return;
  }
 
- const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,opened_by_name:$('nsCreatedByName').value.trim()||profile?.full_name||'Сотрудник',lat:newCoords?.lat??null,lng:newCoords?.lng??null,created_by:user.id,agent_id:isManager()?($('nsAgent').value||user.id):user.id,google_place_id:window.__pendingGooglePlaceId||null,google_maps_url:window.__pendingGoogleMapsUrl||null};
+ const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,supply_terms:$('nsSupplyTerms')?.value||null,payment_due_date:$('nsSupplyTerms')?.value==='deferred'?($('nsPaymentDueDate')?.value||null):null,opened_by_name:$('nsCreatedByName').value.trim()||profile?.full_name||'Сотрудник',lat:newCoords?.lat??null,lng:newCoords?.lng??null,created_by:user.id,agent_id:isManager()?($('nsAgent').value||user.id):user.id,google_place_id:window.__pendingGooglePlaceId||null,google_maps_url:window.__pendingGoogleMapsUrl||null};
  const {data,error}=await db.from('shops').insert(row).select('id').single();
  if(error)return toast(error.message);
  const files=Array.from($('nsPhotos').files||[]);
@@ -1870,6 +1927,9 @@ window.openEditShop=()=>{
   $('esAddress').value=selectedShop.address||'';
   $('esComment').value=selectedShop.comment||'';
   $('esStatus').value=selectedShop.status||'Не посещён';
+  $('esSupplyTerms').value=selectedShop.supply_terms||'';
+  $('esPaymentDueDate').value=selectedShop.payment_due_date||'';
+  toggleEditShopPaymentDate();
   $('esOpenedByName').value=selectedShop.opened_by_name||employeeName(selectedShop.created_by);
   $('esOpenedByName').disabled=!isManager();
   $('esAgent').value=selectedShop.agent_id||'';
@@ -1920,6 +1980,8 @@ window.saveEditShop=async()=>{
     phone:$('esPhone').value.trim(),
     comment:$('esComment').value.trim(),
     status:$('esStatus').value,
+    supply_terms:$('esSupplyTerms')?.value||null,
+    payment_due_date:$('esSupplyTerms')?.value==='deferred'?($('esPaymentDueDate')?.value||null):null,
     opened_by_name:isManager()?($('esOpenedByName').value.trim()||employeeName(selectedShop.created_by)):(selectedShop.opened_by_name||employeeName(selectedShop.created_by)),
     agent_id:isManager()?($('esAgent').value||null):selectedShop.agent_id,
     lat:editCoords?.lat??selectedShop.lat??null,
