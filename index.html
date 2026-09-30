@@ -1515,10 +1515,31 @@ window.resetMapFilters=()=>{['mapSearch','mapCity','mapStatus','mapAgent'].forEa
 function shopOpenedByName(s){
   return (s.opened_by_name||employeeName(s.created_by)||'').trim();
 }
+function formatShopDate(v){
+  if(!v)return '—';
+  const d=new Date(v.length===10?v+'T00:00:00':v);
+  return Number.isNaN(d.getTime())?'—':d.toLocaleDateString('ru-RU');
+}
+function shopSupplyTermsLabel(s){
+  if(s.supply_terms==='supplied')return 'Поставлен / оплачен';
+  if(s.supply_terms==='consignment')return 'Под реализацию';
+  if(s.supply_terms==='deferred')return 'Отсрочка платежа';
+  return 'Не указано';
+}
+function shopPaymentDueCell(s){
+  if(s.supply_terms!=='deferred')return '—';
+  if(!s.payment_due_date)return '<span class="negative">Дата не указана</span>';
+  const due=new Date(s.payment_due_date+'T23:59:59');
+  const overdue=due<new Date();
+  return `<span class="${overdue?'negative':''}"><b>${formatShopDate(s.payment_due_date)}</b>${overdue?' · просрочено':''}</span>`;
+}
 let shopSort={key:'name',dir:1};
 function shopSortValue(s,key){
  if(key==='opened_by_name')return shopOpenedByName(s)||'';
  if(key==='next_visit')return s.next_visit||'9999-12-31';
+ if(key==='created_at')return s.created_at||'';
+ if(key==='payment_due_date')return s.payment_due_date||'9999-12-31';
+ if(key==='supply_terms')return shopSupplyTermsLabel(s);
  return String(s[key]??'');
 }
 window.sortShopsBy=(key)=>{
@@ -1542,14 +1563,29 @@ function renderShops(){
  const th=(label,key)=>`<th onclick="sortShopsBy('${key}')" style="cursor:pointer;white-space:nowrap" title="Нажмите для сортировки">${label}${shopSortArrow(key)}</th>`;
  $('shopsTable').innerHTML=`<table><thead><tr>
    ${th('Магазин','name')}
+   ${th('Дата открытия','created_at')}
    ${th('Тип','type')}
    ${th('Город','city')}
    ${th('Статус','status')}
    ${th('Кто открыл клиента','opened_by_name')}
-   ${th('Телефон','phone')}
+   ${th('Условия товара','supply_terms')}
+   ${th('Оплатить до','payment_due_date')}
    ${th('Следующий визит','next_visit')}
+   ${th('Телефон','phone')}
    ${isManager()?'<th>Удалить</th>':''}
- </tr></thead><tbody>${rows.map(s=>`<tr onclick="openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.type||'')}</td><td>${esc(s.city||'')}</td><td><span class="badge">${esc(s.status||'')}</span></td><td>${esc(shopOpenedByName(s)||'—')}</td><td>${esc(s.phone||'')}</td><td>${esc(s.next_visit||'')}</td>${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}</tr>`).join('')}</tbody></table>`;
+ </tr></thead><tbody>${rows.map(s=>`<tr onclick="openShopById('${s.id}')" style="cursor:pointer">
+   <td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td>
+   <td>${formatShopDate(s.created_at)}</td>
+   <td>${esc(s.type||'')}</td>
+   <td>${esc(s.city||'')}</td>
+   <td><span class="badge">${esc(s.status||'')}</span></td>
+   <td>${esc(shopOpenedByName(s)||'—')}</td>
+   <td>${esc(shopSupplyTermsLabel(s))}</td>
+   <td>${shopPaymentDueCell(s)}</td>
+   <td>${formatShopDate(s.next_visit)}</td>
+   <td>${esc(s.phone||'')}</td>
+   ${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}
+ </tr>`).join('')}</tbody></table>`;
 }
 $('shopSearch').addEventListener('input',renderShops);
 $('shopStatusFilter').addEventListener('change',renderShops);
@@ -1594,6 +1630,8 @@ function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAdd
   </div>
   <div class="grid3">
     <div><b>Статус</b><p>${esc(s.status)}</p></div>
+    <div><b>Дата открытия</b><p>${formatShopDate(s.created_at)}</p></div>
+    <div><b>Следующий визит</b><p>${formatShopDate(s.next_visit)}</p></div>
     <div><b>Телефон</b><p>${esc(s.phone||'—')}</p></div>
     <div><b>Комментарий</b><p>${esc(s.comment||'—')}</p></div>
   </div>
@@ -1601,7 +1639,7 @@ function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAdd
     <b>Условия передачи товара:</b>
     <p style="margin:6px 0 0">
       ${s.supply_terms==='supplied'?'Товар поставлен / оплачен':s.supply_terms==='consignment'?'Отдан под реализацию':s.supply_terms==='deferred'?'С отсрочкой платежа':'Не указано'}
-      ${s.supply_terms==='deferred'&&s.payment_due_date?' · оплатить до '+esc(s.payment_due_date):''}
+      ${s.supply_terms==='deferred'&&s.payment_due_date?' · оплатить до '+formatShopDate(s.payment_due_date):''}
     </p>
   </div>
   <div class="card" style="margin:8px 0">
