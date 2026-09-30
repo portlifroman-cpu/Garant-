@@ -1192,7 +1192,10 @@ async function initMap(){
      openModal('editShopModal');
    }else{
      setNewCoords(pos);
-     openModal('newShopModal');
+     fillNewShopAddressFromPoint(pos).finally(()=>{
+       $('nsPos').textContent='Точка выбрана вручную на карте.';
+       openModal('newShopModal');
+     });
    }
  });
  map.addListener('idle',()=>{
@@ -1255,27 +1258,12 @@ async function centerOnSearchTarget(target,label=''){
   const title=document.createElement('div');title.style.fontWeight='800';title.textContent=label||'Точка Google Maps';
   const btn=document.createElement('button');btn.className='primary';btn.style.marginTop='10px';btn.textContent='Создать магазин здесь';
   btn.onclick=async()=>{
-    window.__pendingGooglePlaceId=null;window.__pendingGoogleMapsUrl=null;
-    newCoords=pos;
+    resetNewShopForm();
     $('nsName').value=label||'';
-    $('nsCreatedByName').value=profile?.full_name||'Сотрудник';
-    $('nsAgent').value=user.id;
-    $('nsAgent').disabled=!isManager();
-    $('nsAddress').value='';
-    $('nsCity').value='';
-    try{
-      const geocoder=new google.maps.Geocoder();
-      const res=await geocoder.geocode({location:pos});
-      const result=res.results?.[0];
-      if(result){
-        $('nsAddress').value=result.formatted_address||'';
-        const comps=result.address_components||[];
-        const c=comps.find(x=>x.types.includes('locality')||x.types.includes('postal_town')||x.types.includes('administrative_area_level_3'));
-        if(c)$('nsCity').value=c.long_name;
-      }
-    }catch{}
     setNewCoords(pos);
+    await fillNewShopAddressFromPoint(pos);
     if(infoWindow)infoWindow.close();
+    $('nsPos').textContent='Точка выбрана по поиску Google Maps.';
     openModal('newShopModal');
   };
   wrap.append(title,btn);
@@ -1412,31 +1400,29 @@ async function searchGoogleStoresInView(){
 }
 async function importGooglePlaceToNewShop(place){
   if(!place?.location)return;
+  resetNewShopForm();
   const pos={lat:place.location.lat(),lng:place.location.lng()};
-  newCoords=pos;
   $('nsName').value=place.displayName||'';
   $('nsAddress').value=place.formattedAddress||'';
   $('nsType').value=googleTypeToGarant(place.primaryType);
   $('nsComment').value='Добавлено из Google Maps';
-  $('nsStatus').value='Не посещён';
+  setNewCoords(pos);
+
   let city='';
   try{
     const geocoder=new google.maps.Geocoder();
     const res=await geocoder.geocode({location:pos});
     const comps=res.results?.[0]?.address_components||[];
-    const c=comps.find(x=>x.types.includes('locality')||x.types.includes('postal_town')||x.types.includes('administrative_area_level_3'));
-    if(c)city=c.long_name;
+    const cityComp=comps.find(x=>x.types.includes('locality')||x.types.includes('postal_town')||x.types.includes('administrative_area_level_3'));
+    if(cityComp)city=cityComp.long_name;
   }catch{}
   if(city)$('nsCity').value=city;
-  $('nsCreatedByName').value=profile?.full_name||'Сотрудник';
-  $('nsAgent').value=user.id;
-  $('nsAgent').disabled=!isManager();
-  setNewCoords(pos);
+
   window.__pendingGooglePlaceId=place.id||null;
   window.__pendingGoogleMapsUrl=place.googleMapsURI||null;
   if(infoWindow)infoWindow.close();
-  openModal('newShopModal');
   $('nsPos').textContent='Выбрано из Google Maps: '+(place.formattedAddress||'')+` · ${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`;
+  openModal('newShopModal');
 }
 
 function drawMap(fitAll=false){
@@ -1642,6 +1628,25 @@ window.placeStockFromShopCard=async()=>{
   if(fresh)openShop(fresh);
 };
 
+async function fillNewShopAddressFromPoint(pos){
+  if(!pos)return;
+  try{
+    await loadGoogleMaps();
+    const geocoder=new google.maps.Geocoder();
+    const res=await geocoder.geocode({location:{lat:Number(pos.lat),lng:Number(pos.lng)}});
+    const place=res.results?.[0];
+    if(place?.formatted_address)$('nsAddress').value=place.formatted_address;
+    const cityComp=place?.address_components?.find(x=>
+      x.types.includes('locality')||
+      x.types.includes('postal_town')||
+      x.types.includes('administrative_area_level_3')
+    );
+    if(cityComp)$('nsCity').value=cityComp.long_name;
+  }catch(e){
+    console.warn('Reverse geocode failed',e);
+  }
+}
+
 function resetNewShopForm(){
   window.__pendingGooglePlaceId=null;
   window.__pendingGoogleMapsUrl=null;
@@ -1662,11 +1667,15 @@ function resetNewShopForm(){
 window.openNewShop=()=>{resetNewShopForm();openModal('newShopModal')};
 window.openNewShopFromMap=async()=>{
   resetNewShopForm();
-  openModal('newShopModal');
+  await initMap();
 
-  // On the Map page, prefill with the user's current/live point when available.
+  // Button on the Map page creates the draft at the visible map center.
+  // This avoids accidentally saving every new shop at the agent's own GPS point.
   let pos=null;
-  if(myLocationMarker?.getPosition()){
+  if(map?.getCenter){
+    const center=map.getCenter();
+    pos={lat:center.lat(),lng:center.lng()};
+  }else if(myLocationMarker?.getPosition()){
     const p=myLocationMarker.getPosition();
     pos={lat:p.lat(),lng:p.lng()};
   }else if(pendingGeoPosition){
@@ -1675,20 +1684,13 @@ window.openNewShopFromMap=async()=>{
 
   if(pos){
     setNewCoords(pos);
-    $('nsPos').textContent='Текущая точка выбрана. Уточните адрес или передвиньте точку на карте при необходимости.';
-    try{
-      await loadGoogleMaps();
-      const geocoder=new google.maps.Geocoder();
-      const res=await geocoder.geocode({location:pos});
-      const place=res.results?.[0];
-      if(place?.formatted_address)$('nsAddress').value=place.formatted_address;
-      const cityComp=place?.address_components?.find(c=>c.types.includes('locality')||c.types.includes('postal_town')||c.types.includes('administrative_area_level_3'));
-      if(cityComp)$('nsCity').value=cityComp.long_name;
-    }catch{}
+    await fillNewShopAddressFromPoint(pos);
+    $('nsPos').textContent='Точка взята из центра карты. При необходимости измените адрес, используйте «Моё местоположение» или выберите точку вручную.';
   }else{
-    $('nsPos').textContent='GPS не получен. Введите адрес, нажмите «Моё местоположение» или выберите точку вручную на карте.';
+    $('nsPos').textContent='Точка не определена. Введите адрес, нажмите «Моё местоположение» или выберите точку вручную.';
   }
-};
+  openModal('newShopModal');
+}
 function setNewCoords(p){
  newCoords=p;
  if(draftPin){draftPin.setMap(null);draftPin=null}
@@ -1738,11 +1740,32 @@ $('nsAddress').addEventListener('input',scheduleAddressLookup);
 $('nsCity').addEventListener('input',scheduleAddressLookup);
 $('nsAddress').addEventListener('change',geocodeNewShopAddress);
 
-window.useMyLocation=()=>navigator.geolocation?.getCurrentPosition(async p=>{await initMap();const pos={lat:p.coords.latitude,lng:p.coords.longitude};setNewCoords(pos);if(map){map.setCenter(pos);map.setZoom(17)}toast('Местоположение определено')},()=>toast('Не удалось получить GPS'));
+window.useMyLocation=()=>{
+  if(!navigator.geolocation)return toast('Геолокация недоступна');
+  navigator.geolocation.getCurrentPosition(async p=>{
+    await initMap();
+    const pos={lat:p.coords.latitude,lng:p.coords.longitude};
+    setNewCoords(pos);
+    await fillNewShopAddressFromPoint(pos);
+    if(map){map.setCenter(pos);map.setZoom(17)}
+    $('nsPos').textContent='Используется ваше текущее местоположение.';
+    toast('Местоположение определено');
+  },()=>toast('Не удалось получить GPS'),{enableHighAccuracy:true,maximumAge:0,timeout:15000});
+};
 window.pickOnMap=async()=>{closeModals();showPage('map');await initMap();picking=true;toast('Нажмите на нужное место на Google Maps')};
 window.saveNewShop=async()=>{
  const name=$('nsName').value.trim();if(!name)return toast('Введите название');
  if(!newCoords&&$('nsAddress').value.trim().length>=5)await geocodeNewShopAddress();
+
+ const pendingPlaceId=window.__pendingGooglePlaceId||null;
+ if(pendingPlaceId&&shops.some(s=>s.google_place_id===pendingPlaceId)){
+   return toast('Этот магазин уже есть в GARANT');
+ }
+ if(newCoords){
+   const duplicate=shops.find(s=>s.lat!=null&&s.lng!=null&&Math.abs(Number(s.lat)-Number(newCoords.lat))<0.00003&&Math.abs(Number(s.lng)-Number(newCoords.lng))<0.00003);
+   if(duplicate&&!confirm('Рядом уже есть магазин «'+duplicate.name+'». Всё равно добавить новую точку?'))return;
+ }
+
  const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,opened_by_name:$('nsCreatedByName').value.trim()||profile?.full_name||'Сотрудник',lat:newCoords?.lat??null,lng:newCoords?.lng??null,created_by:user.id,agent_id:isManager()?($('nsAgent').value||user.id):user.id,google_place_id:window.__pendingGooglePlaceId||null,google_maps_url:window.__pendingGoogleMapsUrl||null};
  const {data,error}=await db.from('shops').insert(row).select('id').single();
  if(error)return toast(error.message);
