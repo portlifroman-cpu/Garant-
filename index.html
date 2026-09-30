@@ -290,7 +290,7 @@ tr:hover td{background:#fbfdff}
           </label>
           <p class="muted">При масштабе 15+ GARANT покажет ближайшие магазины из Google. Жёлтая точка → «Добавить в GARANT».</p>
           <button class="light" style="width:100%;margin-top:8px" onclick="showAllShopsOnMap()">🌍 Показать все магазины GARANT</button>
-          <button class="primary" style="width:100%;margin-top:8px" onclick="openNewShop()">+ Новый магазин</button>
+          <button class="primary" style="width:100%;margin-top:8px" onclick="openNewShopFromMap()">+ Новый магазин</button>
         </div>
         <div class="card mapCard">
           <div id="map"></div>
@@ -1642,7 +1642,53 @@ window.placeStockFromShopCard=async()=>{
   if(fresh)openShop(fresh);
 };
 
-window.openNewShop=()=>{window.__pendingGooglePlaceId=null;window.__pendingGoogleMapsUrl=null;setNewCoords(null);$('nsName').value='';$('nsAddress').value='';$('nsPhone').value='';$('nsComment').value='';$('nsCreatedByName').value=profile?.full_name||'Сотрудник';$('nsAgent').value=user.id;$('nsAgent').disabled=!isManager();openModal('newShopModal')};
+function resetNewShopForm(){
+  window.__pendingGooglePlaceId=null;
+  window.__pendingGoogleMapsUrl=null;
+  setNewCoords(null);
+  $('nsName').value='';
+  $('nsType').value='Estanco';
+  $('nsCity').value='Marbella';
+  $('nsAddress').value='';
+  $('nsPhone').value='';
+  $('nsComment').value='';
+  $('nsCreatedByName').value=profile?.full_name||'Сотрудник';
+  $('nsAgent').value=user.id;
+  $('nsAgent').disabled=!isManager();
+  $('nsStatus').value='Не посещён';
+  if($('nsCreateDeal'))$('nsCreateDeal').checked=true;
+  if($('nsPhotos'))$('nsPhotos').value='';
+}
+window.openNewShop=()=>{resetNewShopForm();openModal('newShopModal')};
+window.openNewShopFromMap=async()=>{
+  resetNewShopForm();
+  openModal('newShopModal');
+
+  // On the Map page, prefill with the user's current/live point when available.
+  let pos=null;
+  if(myLocationMarker?.getPosition()){
+    const p=myLocationMarker.getPosition();
+    pos={lat:p.lat(),lng:p.lng()};
+  }else if(pendingGeoPosition){
+    pos={lat:pendingGeoPosition.coords.latitude,lng:pendingGeoPosition.coords.longitude};
+  }
+
+  if(pos){
+    setNewCoords(pos);
+    $('nsPos').textContent='Текущая точка выбрана. Уточните адрес или передвиньте точку на карте при необходимости.';
+    try{
+      await loadGoogleMaps();
+      const geocoder=new google.maps.Geocoder();
+      const res=await geocoder.geocode({location:pos});
+      const place=res.results?.[0];
+      if(place?.formatted_address)$('nsAddress').value=place.formatted_address;
+      const cityComp=place?.address_components?.find(c=>c.types.includes('locality')||c.types.includes('postal_town')||c.types.includes('administrative_area_level_3'));
+      if(cityComp)$('nsCity').value=cityComp.long_name;
+    }catch{}
+  }else{
+    $('nsPos').textContent='GPS не получен. Введите адрес, нажмите «Моё местоположение» или выберите точку вручную на карте.';
+  }
+};
 function setNewCoords(p){
  newCoords=p;
  if(draftPin){draftPin.setMap(null);draftPin=null}
