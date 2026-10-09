@@ -296,6 +296,7 @@ tr:hover td{background:#fbfdff}
           <div id="map"></div>
           <button id="mapLocateFab" class="mapLocateFab" type="button" onclick="forceLocateMe()" aria-label="Показать моё местоположение">📍</button>
           <div id="mapLocationBadge" class="mapLocateBadge">Ищу ваше местоположение…</div>
+          <div id="mapShopCount" class="mapLocateBadge" style="top:auto;bottom:54px">Магазины GARANT: 0</div>
           <div id="legend" class="legend"></div>
         </div>
       </div>
@@ -907,7 +908,27 @@ window.syncOfficialCatalog=async()=>{
 function showPage(name){
  document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$('page-'+name).classList.remove('hidden');
  document.querySelectorAll('#tabs button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
- if(name==='map'){initMap().then(()=>{if(myLocationMarker?.getPosition()){myLocationMarker.setMap(map);map.setCenter(myLocationMarker.getPosition());if(map.getZoom()<17)map.setZoom(17)}else startLiveLocation(true)});setTimeout(()=>{if(map&&window.google?.maps){google.maps.event.trigger(map,'resize');drawMap(false);if(myLocationMarker?.getPosition()){myLocationMarker.setMap(map);map.setCenter(myLocationMarker.getPosition());if(map.getZoom()<17)map.setZoom(17)}}},500)}if(name==='catalog')setTimeout(renderCatalogQr,80)
+ if(name==='map'){
+   initMap().then(()=>{
+     drawMap(false);
+     if(myLocationMarker?.getPosition()){
+       myLocationMarker.setMap(map);
+       map.setCenter(myLocationMarker.getPosition());
+       map.setZoom(15);
+     }else startLiveLocation(true);
+   });
+   setTimeout(()=>{
+     if(map&&window.google?.maps){
+       google.maps.event.trigger(map,'resize');
+       drawMap(false);
+       if(myLocationMarker?.getPosition()){
+         myLocationMarker.setMap(map);
+         map.setCenter(myLocationMarker.getPosition());
+         map.setZoom(15);
+       }
+     }
+   },500)
+ }if(name==='catalog')setTimeout(renderCatalogQr,80)
 }
 window.showPage=showPage;
 document.querySelectorAll('#tabs button[data-page]').forEach(b=>b.onclick=()=>{
@@ -1026,7 +1047,7 @@ function updateMyLocationOnMap(pos,center=false){
   if(badge)badge.textContent=locationText;
   if(center){
     map.setCenter(point);
-    if(map.getZoom()<17)map.setZoom(17);
+    if(map.getZoom()<15)map.setZoom(15);
   }
 }
 async function refreshLocationPermissionState(){
@@ -1064,7 +1085,7 @@ async function startLiveLocation(center=true){
   if(myLocationWatchId!=null){
     if(center&&myLocationMarker?.getPosition()){
       map.setCenter(myLocationMarker.getPosition());
-      if(map.getZoom()<17)map.setZoom(17);
+      if(map.getZoom()<15)map.setZoom(15);
     }
     return;
   }
@@ -1254,13 +1275,16 @@ async function initMap(){
  }
 }
 function markerIcon(status){
+ const color=colors[status]||'#98a4b1';
+ const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="38" height="46" viewBox="0 0 38 46">
+   <path d="M19 1C9.1 1 1 9.1 1 19c0 13.2 18 26 18 26s18-12.8 18-26C37 9.1 28.9 1 19 1z" fill="${color}" stroke="white" stroke-width="3"/>
+   <circle cx="19" cy="18" r="8" fill="white"/>
+   <text x="19" y="22" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="700" fill="${color}">G</text>
+ </svg>`;
  return {
-   path:google.maps.SymbolPath.CIRCLE,
-   fillColor:colors[status]||'#98a4b1',
-   fillOpacity:1,
-   strokeColor:'#ffffff',
-   strokeWeight:3,
-   scale:9
+   url:'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg),
+   scaledSize:new google.maps.Size(38,46),
+   anchor:new google.maps.Point(19,44)
  };
 }
 
@@ -1483,7 +1507,8 @@ function drawMap(fitAll=false){
        map,
        title:s.name,
        icon:markerIcon(s.status),
-       optimized:true
+       optimized:false,
+       zIndex:2000
      });
      marker.addListener('click',()=>openShop(s));
      markers.push(marker);
@@ -1491,6 +1516,7 @@ function drawMap(fitAll=false){
      geoCount++;
    }
  });
+ if($('mapShopCount'))$('mapShopCount').textContent='Магазины GARANT на карте: '+geoCount+(visible.length>geoCount?' · без координат: '+(visible.length-geoCount):'');
  const myPos=myLocationMarker?.getPosition?.();
  if(fitAll&&myPos)bounds.extend(myPos);
  if((fitAll||geoCount>1)&&geoCount){
@@ -1499,7 +1525,7 @@ function drawMap(fitAll=false){
  }else if(geoCount===1&&fitAll){
    map.setCenter(bounds.getCenter());map.setZoom(16);
  }else if(fitAll&&myPos){
-   map.setCenter(myPos);map.setZoom(17);
+   map.setCenter(myPos);map.setZoom(15);
  }
 }
 window.showAllShopsOnMap=()=>{
