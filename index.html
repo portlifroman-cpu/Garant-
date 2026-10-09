@@ -728,6 +728,9 @@ tr:hover td{background:#fbfdff}
     </div>
   </div>
   <label>Комментарий</label><textarea id="jeComment"></textarea>
+  <label>Фото чека</label>
+  <input id="jeReceipt" type="file" accept="image/*,application/pdf">
+  <p id="jeReceiptStatus" class="muted">Можно прикрепить фото или PDF чека. До 8 МБ.</p>
   <button class="primary" style="width:100%" onclick="saveJointExpense()">Сохранить</button>
 </div></div>
 
@@ -1712,13 +1715,14 @@ window.renderJointExpenses=()=>{
   $('jePartner').textContent=money(partner);
   const balance=(roman-partner)/2;
   $('jeBalance').textContent=balance>0?'Компаньон должен Роману '+money(balance):balance<0?'Роман должен компаньону '+money(Math.abs(balance)):'0 €';
-  $('jointExpensesTable').innerHTML=`<table><thead><tr><th>Дата</th><th>Описание</th><th>Категория</th><th>Сумма</th><th>Кто оплатил</th><th>Комментарий</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr>
+  $('jointExpensesTable').innerHTML=`<table><thead><tr><th>Дата</th><th>Описание</th><th>Категория</th><th>Сумма</th><th>Кто оплатил</th><th>Комментарий</th><th>Чек</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr>
     <td>${formatShopDate(x.expense_date)}</td>
     <td><b>${esc(x.description||'')}</b></td>
     <td>${esc(x.category||'—')}</td>
     <td><b>${money(x.amount_eur)}</b></td>
     <td>${esc(jointExpensePaidLabel(x.paid_by))}</td>
     <td>${esc(x.comment||'')}</td>
+    <td>${x.receipt_path?`<button class="light" onclick="openJointExpenseReceipt('${x.id}')">📷 Фото чека</button>`:'—'}</td>
     <td style="white-space:nowrap">
       <button class="light" onclick="editJointExpense('${x.id}')">✏️</button>
       <button class="danger" onclick="deleteJointExpense('${x.id}')">🗑</button>
@@ -1735,6 +1739,8 @@ window.openJointExpense=()=>{
   $('jeCategory').value='';
   $('jePaidBy').value='roman';
   $('jeComment').value='';
+  $('jeReceipt').value='';
+  $('jeReceiptStatus').textContent='Можно прикрепить фото или PDF чека. До 8 МБ.';
   openModal('jointExpenseModal');
 };
 window.editJointExpense=id=>{
@@ -1748,10 +1754,32 @@ window.editJointExpense=id=>{
   $('jeCategory').value=x.category||'';
   $('jePaidBy').value=x.paid_by||'roman';
   $('jeComment').value=x.comment||'';
+  $('jeReceipt').value='';
+  $('jeReceiptStatus').textContent=x.receipt_path?'Чек уже прикреплён. Выберите новый файл, чтобы заменить.':'Чек не прикреплён.';
   openModal('jointExpenseModal');
 };
+async function uploadJointExpenseReceipt(expenseId,file){
+  if(!file)return null;
+  if(file.size>8*1024*1024)throw new Error('Файл чека больше 8 МБ');
+  const ok=file.type.startsWith('image/')||file.type==='application/pdf';
+  if(!ok)throw new Error('Можно загрузить только фото или PDF');
+  const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8)||'jpg';
+  const path=String(expenseId)+'/'+crypto.randomUUID()+'.'+ext;
+  const {error}=await db.storage.from('joint-expense-receipts').upload(path,file,{contentType:file.type,upsert:false});
+  if(error)throw error;
+  return path;
+}
+window.openJointExpenseReceipt=async id=>{
+  if(!canViewJointExpenses())return;
+  const x=jointExpenses.find(e=>e.id===id);
+  if(!x?.receipt_path)return toast('Фото чека не прикреплено');
+  const {data,error}=await db.storage.from('joint-expense-receipts').createSignedUrl(x.receipt_path,600);
+  if(error||!data?.signedUrl)return toast('Не удалось открыть чек');
+  window.open(data.signedUrl,'_blank','noopener,noreferrer');
+};
+
 window.saveJointExpense=async()=>{
-  if(!isManager())return toast('Только для руководителей');
+  if(!canViewJointExpenses())return toast('Раздел доступен только Роману и Роману С');
   const row={
     expense_date:$('jeDate').value,
     description:$('jeDescription').value.trim(),
@@ -1762,11 +1790,35 @@ window.saveJointExpense=async()=>{
     updated_at:new Date().toISOString()
   };
   if(!row.expense_date||!row.description||row.amount_eur<=0)return toast('Заполните дату, описание и сумму');
+
+  const file=$('jeReceipt')?.files?.[0]||null;
+  let expenseId=editingJointExpenseId;
   let r;
-  if(editingJointExpenseId)r=await db.from('joint_expenses').update(row).eq('id',editingJointExpenseId);
-  else r=await db.from('joint_expenses').insert({...row,created_by:user.id});
+  if(expenseId){
+    r=await db.from('joint_expenses').update(row).eq('id',expenseId);
+  }else{
+    r=await db.from('joint_expenses').insert({...row,created_by:user.id}).select('id').single();
+    expenseId=r.data?.id||null;
+  }
   if(r.error)return toast('Не удалось сохранить: '+r.error.message);
-  closeModals();toast('Совместный расход сохранён');await refreshAll();
+
+  if(file&&expenseId){
+    try{
+      $('jeReceiptStatus').textContent='Загружаем чек…';
+      const path=await uploadJointExpenseReceipt(expenseId,file);
+      const prev=jointExpenses.find(e=>e.id===expenseId)?.receipt_path||null;
+      const upd=await db.from('joint_expenses').update({receipt_path:path,updated_at:new Date().toISOString()}).eq('id',expenseId);
+      if(upd.error)throw upd.error;
+      if(prev&&prev!==path)await db.storage.from('joint-expense-receipts').remove([prev]);
+    }catch(e){
+      $('jeReceiptStatus').textContent='Расход сохранён, но чек не загрузился: '+(e.message||String(e));
+      toast('Расход сохранён, чек не загрузился');
+      await refreshAll();
+      return;
+    }
+  }
+
+  closeModals();toast(file?'Расход и фото чека сохранены':'Совместный расход сохранён');await refreshAll();
 };
 window.deleteJointExpense=async id=>{
   if(!canViewJointExpenses())return;
