@@ -249,7 +249,7 @@ tr:hover td{background:#fbfdff}
         <div class="card stat"><strong id="dSales">0 €</strong><span>Оплаченные продажи</span></div>
       </div>
       <div class="grid3" style="margin-top:10px">
-        <div class="card"><h3>Сегодня</h3><p>Визитов: <b id="dVisits">0</b></p><p>Новых точек: <b id="dNewShops">0</b></p><p>Просроченных задач: <b id="dOverdue">0</b></p></div>
+        <div class="card"><h3>Сегодня</h3><p>Визитов: <b id="dVisits">0</b></p><p>Новых точек: <b id="dNewShops">0</b></p><p>Нужен повторный визит: <b id="dFollowups">0</b></p><p>Просроченных задач: <b id="dOverdue">0</b></p></div>
         <div class="card"><h3>Продажи</h3><p>Открытых сделок: <b id="dOpenDeals">0</b></p><p>Сумма в работе: <b id="dPipelineValue">0 €</b></p><p>Заказов: <b id="dOrders2">0</b></p></div>
         <div class="card"><h3>Склад</h3><p>SKU: <b id="dSku">0</b></p><p>Доступно единиц: <b id="dAvailable">0</b></p><p>Низкий остаток: <b id="dLow">0</b></p></div>
       </div>
@@ -961,6 +961,7 @@ function renderDashboard(){
  $('dShops').textContent=shops.length;$('dClients').textContent=shops.filter(s=>s.status==='Клиент Garant').length;$('dOrders').textContent=orders.length;
  $('dSales').textContent=money(orders.filter(o=>o.payment_status==='paid'||o.status==='paid').reduce((a,o)=>a+Number(o.total||0),0));
  const today=new Date().toDateString();$('dVisits').textContent=visits.filter(v=>new Date(v.created_at).toDateString()===today).length;$('dNewShops').textContent=shops.filter(s=>new Date(s.created_at).toDateString()===today).length;
+ if($('dFollowups'))$('dFollowups').textContent=shops.filter(isShopFollowupDue).length;
  $('dOverdue').textContent=tasks.filter(t=>t.status==='planned'&&t.due_at&&new Date(t.due_at)<new Date()).length;
  const openDeals=deals.filter(d=>d.status==='open');$('dOpenDeals').textContent=openDeals.length;$('dPipelineValue').textContent=money(openDeals.reduce((a,d)=>a+Number(d.value||0),0));$('dOrders2').textContent=orders.length;
  $('dSku').textContent=products.length;const av=balances.reduce((a,b)=>a+Math.max(0,(b.physical_qty||0)-(b.reserved_qty||0)),0);$('dAvailable').textContent=av;
@@ -1274,17 +1275,18 @@ async function initMap(){
    startLiveLocation(true);
  }
 }
-function markerIcon(status){
- const color=colors[status]||'#98a4b1';
- const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="38" height="46" viewBox="0 0 38 46">
-   <path d="M19 1C9.1 1 1 9.1 1 19c0 13.2 18 26 18 26s18-12.8 18-26C37 9.1 28.9 1 19 1z" fill="${color}" stroke="white" stroke-width="3"/>
-   <circle cx="19" cy="18" r="8" fill="white"/>
-   <text x="19" y="22" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="700" fill="${color}">G</text>
+function markerIcon(status,due=false){
+ const color=due?'#d32f2f':(colors[status]||'#98a4b1');
+ const glyph=due?'!':'G';
+ const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="42" height="50" viewBox="0 0 42 50">
+   <path d="M21 1C10 1 1 10 1 21c0 14 20 28 20 28s20-14 20-28C41 10 32 1 21 1z" fill="${color}" stroke="white" stroke-width="3"/>
+   <circle cx="21" cy="20" r="9" fill="white"/>
+   <text x="21" y="24" text-anchor="middle" font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="${color}">${glyph}</text>
  </svg>`;
  return {
    url:'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg),
-   scaledSize:new google.maps.Size(38,46),
-   anchor:new google.maps.Point(19,44)
+   scaledSize:new google.maps.Size(42,50),
+   anchor:new google.maps.Point(21,48)
  };
 }
 
@@ -1505,8 +1507,8 @@ function drawMap(fitAll=false){
      const marker=new google.maps.Marker({
        position:pos,
        map,
-       title:s.name,
-       icon:markerIcon(s.status),
+       title:s.name+(isShopFollowupDue(s)?' · НУЖЕН ПОВТОРНЫЙ ВИЗИТ':''),
+       icon:markerIcon(s.status,isShopFollowupDue(s)),
        optimized:false,
        zIndex:2000
      });
@@ -1545,6 +1547,27 @@ function formatShopDate(v){
   if(!v)return '—';
   const d=new Date(v.length===10?v+'T00:00:00':v);
   return Number.isNaN(d.getTime())?'—':d.toLocaleDateString('ru-RU');
+}
+function isoDatePlusDays(days){
+  const d=new Date();
+  d.setHours(12,0,0,0);
+  d.setDate(d.getDate()+days);
+  return d.toISOString().slice(0,10);
+}
+function isShopFollowupDue(s){
+  if(!s?.next_visit)return false;
+  const due=new Date(s.next_visit+'T23:59:59');
+  return due<=new Date();
+}
+function shopFollowupLabel(s){
+  if(!s?.next_visit)return '—';
+  const due=new Date(s.next_visit+'T23:59:59');
+  const today=new Date(); today.setHours(0,0,0,0);
+  const diff=Math.ceil((due-today)/86400000);
+  if(diff<0)return '<span class="negative"><b>Нужен визит</b> · просрочено '+Math.abs(diff)+' дн.</span>';
+  if(diff===0)return '<span class="negative"><b>Нужен визит сегодня</b></span>';
+  if(diff<=3)return '<span><b>Скоро визит</b> · через '+diff+' дн.</span>';
+  return formatShopDate(s.next_visit);
 }
 function shopSupplyTermsLabel(s){
   if(s.supply_terms==='supplied')return 'Поставлен / оплачен';
@@ -1608,7 +1631,7 @@ function renderShops(){
    <td>${esc(shopOpenedByName(s)||'—')}</td>
    <td>${esc(shopSupplyTermsLabel(s))}</td>
    <td>${shopPaymentDueCell(s)}</td>
-   <td>${formatShopDate(s.next_visit)}</td>
+   <td>${shopFollowupLabel(s)}</td>
    <td>${esc(s.phone||'')}</td>
    ${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}
  </tr>`).join('')}</tbody></table>`;
@@ -1657,7 +1680,7 @@ function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAdd
   <div class="grid3">
     <div><b>Статус</b><p>${esc(s.status)}</p></div>
     <div><b>Дата открытия</b><p>${formatShopDate(s.created_at)}</p></div>
-    <div><b>Следующий визит</b><p>${formatShopDate(s.next_visit)}</p></div>
+    <div><b>Следующий визит</b><p>${shopFollowupLabel(s)}</p></div>
     <div><b>Телефон</b><p>${esc(s.phone||'—')}</p></div>
     <div><b>Комментарий</b><p>${esc(s.comment||'—')}</p></div>
   </div>
@@ -1961,7 +1984,8 @@ window.saveVisit=async()=>{
  }
 
  const pos=await getGeo();
- const row={shop_id:selectedShop.id,agent_id:user.id,status:$('vStatus').value,comment:$('vComment').value,next_visit:$('vNext').value||null,...(pos||{})};
+ const autoFollowup=items.length&&!$('vNext').value ? isoDatePlusDays(14) : null;
+ const row={shop_id:selectedShop.id,agent_id:user.id,status:$('vStatus').value,comment:$('vComment').value,next_visit:$('vNext').value||autoFollowup||null,...(pos||{})};
  const x=await db.from('visits').insert(row).select('id').single();
  if(x.error)return toast(x.error.message);
 
@@ -1976,7 +2000,7 @@ window.saveVisit=async()=>{
  await db.from('shops').update({status:row.status,comment:row.comment,next_visit:row.next_visit}).eq('id',selectedShop.id);
  await syncShopDealStage(selectedShop.id,row.status);
  closeModals();
- toast(items.length?'Визит сохранён, товар списан с остатка агента':'Визит сохранён');
+ toast(items.length?(autoFollowup?'Визит сохранён. Повторный визит автоматически через 14 дней.':'Визит сохранён, товар списан с остатка агента'):'Визит сохранён');
  await refreshAll();
 };
 
