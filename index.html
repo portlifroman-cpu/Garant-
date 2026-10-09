@@ -230,6 +230,7 @@ tr:hover td{background:#fbfdff}
       <button data-page="catalog">Каталог / QR</button>
       <button data-page="employees">Команда</button>
       <button data-page="reports">Отчёты</button>
+      <button id="jointExpensesTab" data-page="joint-expenses" class="hidden">Совместные расходы</button>
       <button id="changePasswordBtn" type="button">Пароль</button>
     </div>
 
@@ -385,6 +386,24 @@ tr:hover td{background:#fbfdff}
     <section id="page-tasks" class="page hidden">
       <div class="toolbar"><div><label>Статус</label><select id="taskStatusFilter"><option value="">Все</option><option value="planned">Запланирована</option><option value="done">Выполнена</option><option value="overdue">Просрочена</option><option value="cancelled">Отменена</option></select></div><button class="primary" onclick="openTask()">+ Задача</button></div>
       <div id="tasksTable" class="tablewrap"></div>
+    </section>
+
+    <section id="page-joint-expenses" class="page hidden">
+      <div class="toolbar">
+        <div><label>С даты</label><input id="jointExpenseFrom" type="date"></div>
+        <div><label>По дату</label><input id="jointExpenseTo" type="date"></div>
+        <div><label>Кто оплатил</label><select id="jointExpensePaidFilter"><option value="">Все</option><option value="roman">Роман</option><option value="partner">Компаньон</option><option value="joint">Совместно</option></select></div>
+        <button class="light" onclick="renderJointExpenses()">Обновить</button>
+        <button class="primary" onclick="openJointExpense()">+ Добавить расход</button>
+      </div>
+      <div class="grid4" style="margin-bottom:10px">
+        <div class="card stat"><strong id="jeTotal">0 €</strong><span>Всего расходов</span></div>
+        <div class="card stat"><strong id="jeRoman">0 €</strong><span>Оплатил Роман</span></div>
+        <div class="card stat"><strong id="jePartner">0 €</strong><span>Оплатил компаньон</span></div>
+        <div class="card stat"><strong id="jeBalance">0 €</strong><span>Баланс 50/50</span></div>
+      </div>
+      <div id="jointExpensesTable" class="tablewrap"></div>
+      <p class="muted" style="margin-top:8px">В этой таблице учитываются только совместные расходы. Совместное имущество сюда не входит.</p>
     </section>
 
     <section id="page-reports" class="page hidden">
@@ -691,6 +710,27 @@ tr:hover td{background:#fbfdff}
   <button id="saveEmployeeBtn" class="primary" style="width:100%" onclick="saveEmployee()">Отправить приглашение</button>
 </div></div>
 
+<div class="modal" id="jointExpenseModal"><div class="sheet">
+  <div class="head"><h2 id="jointExpenseModalTitle">Совместный расход</h2><button class="close">×</button></div>
+  <div class="row">
+    <div><label>Дата *</label><input id="jeDate" type="date"></div>
+    <div><label>Сумма, € *</label><input id="jeAmount" type="number" min="0" step="0.01"></div>
+  </div>
+  <label>Описание *</label><input id="jeDescription" placeholder="Например: реклама, транспорт, образцы">
+  <div class="row">
+    <div><label>Категория</label><input id="jeCategory" placeholder="Реклама / логистика / другое"></div>
+    <div><label>Кто оплатил</label>
+      <select id="jePaidBy">
+        <option value="roman">Роман</option>
+        <option value="partner">Компаньон</option>
+        <option value="joint">Совместно</option>
+      </select>
+    </div>
+  </div>
+  <label>Комментарий</label><textarea id="jeComment"></textarea>
+  <button class="primary" style="width:100%" onclick="saveJointExpense()">Сохранить</button>
+</div></div>
+
 <div class="modal" id="passwordModal"><div class="sheet">
   <div class="head"><h2>Новый пароль</h2><button class="close">×</button></div>
   <p id="passwordHelp" class="muted">Придумайте новый пароль для входа в GARANT.</p>
@@ -741,7 +781,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const money=n=>(Number(n)||0).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
 const colors={'Клиент Garant':'#17a34a','Заинтересован':'#edc200','Оставили образцы':'#1375f2','Повторный визит':'#fa7b21','Отказ':'#db3434','Не посещён':'#98a4b1'};
 const orderStatusNames={draft:'Черновик',confirmed:'Подтверждён',processing:'В обработке',reserved:'Зарезервирован',ready:'Готов к отгрузке',shipped:'Отгружен',delivered:'Доставлен',paid:'Оплачен',cancelled:'Отменён'};
-let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],agentStockBalances=[],agentStockMovements=[],orders=[],orderItems=[],tasks=[],bonusRules=[],employeeDocuments=[],dealStages=[],deals=[];let editingDealId=null,editingProductId=null;
+let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],agentStockBalances=[],agentStockMovements=[],orders=[],orderItems=[],tasks=[],bonusRules=[],employeeDocuments=[],dealStages=[],deals=[],jointExpenses=[];let editingDealId=null,editingProductId=null,editingJointExpenseId=null;
 const OWNER_USER_ID='ceae49cb-4385-4052-a022-6aa0cea662ef';
 const TEMP_EMPLOYEE_PASSWORD=['12','34','56','78'].join('');
 const isOwner=()=>user?.id===OWNER_USER_ID;
@@ -852,6 +892,7 @@ async function boot(){
  profile=p.data;$('who').textContent=(profile.full_name||'Сотрудник')+' · '+(isManager()?'Руководитель':'Агент');
  $('auth').classList.add('hidden');$('mainApp').classList.remove('hidden');
  if(!isManager()){['addProductBtn','addWarehouseBtn','adjustStockBtn'].forEach(id=>$(id)?.classList.add('hidden'))}
+ if(isManager())$('jointExpensesTab')?.classList.remove('hidden');
  if(isOwner())$('addEmployeeBtn')?.classList.remove('hidden');
  await refreshAll();showPage('dashboard');
 }
@@ -873,10 +914,11 @@ async function refreshAll(){
   db.from('bonus_rules').select('*').eq('active',true).limit(10),
   db.from('employee_documents').select('*').order('created_at',{ascending:false}).limit(1000),
   db.from('pipeline_stages').select('*').eq('active',true).order('position'),
-  db.from('deals').select('*').order('updated_at',{ascending:false}).limit(2000)
+  db.from('deals').select('*').order('updated_at',{ascending:false}).limit(2000),
+  db.from('joint_expenses').select('*').order('expense_date',{ascending:false}).order('created_at',{ascending:false}).limit(5000)
  ];
  const r=await Promise.all(qs.map(q=>q.then(x=>x).catch(e=>({error:e}))));
- shops=safeData(r[0],'shops');visits=safeData(r[1],'visits');profiles=safeData(r[2],'profiles');products=safeData(r[3],'products');warehouses=safeData(r[4],'warehouses');balances=safeData(r[5],'inventory_balances');movements=safeData(r[6],'inventory_movements');agentStockBalances=safeData(r[7],'agent_stock_balances');agentStockMovements=safeData(r[8],'agent_stock_movements');orders=safeData(r[9],'sales_orders');orderItems=safeData(r[10],'sales_order_items');tasks=safeData(r[11],'tasks');bonusRules=safeData(r[12],'bonus_rules');employeeDocuments=safeData(r[13],'employee_documents');dealStages=safeData(r[14],'pipeline_stages');deals=safeData(r[15],'deals');
+ shops=safeData(r[0],'shops');visits=safeData(r[1],'visits');profiles=safeData(r[2],'profiles');products=safeData(r[3],'products');warehouses=safeData(r[4],'warehouses');balances=safeData(r[5],'inventory_balances');movements=safeData(r[6],'inventory_movements');agentStockBalances=safeData(r[7],'agent_stock_balances');agentStockMovements=safeData(r[8],'agent_stock_movements');orders=safeData(r[9],'sales_orders');orderItems=safeData(r[10],'sales_order_items');tasks=safeData(r[11],'tasks');bonusRules=safeData(r[12],'bonus_rules');employeeDocuments=safeData(r[13],'employee_documents');dealStages=safeData(r[14],'pipeline_stages');deals=safeData(r[15],'deals');jointExpenses=safeData(r[16],'joint_expenses');
  renderAll();
 }
 
@@ -906,6 +948,7 @@ window.syncOfficialCatalog=async()=>{
 };
 
 function showPage(name){
+ if(name==='joint-expenses'&&!isManager()){toast('Раздел доступен только руководителям');return}
  document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$('page-'+name).classList.remove('hidden');
  document.querySelectorAll('#tabs button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
  if(name==='map'){
@@ -936,7 +979,7 @@ document.querySelectorAll('#tabs button[data-page]').forEach(b=>b.onclick=()=>{
   showPage(b.dataset.page);
 });
 
-function renderAll(){fillSelects();renderDashboard();renderShops();renderDeals();renderOrders();renderProducts();renderStock();renderEmployees();renderTasks();renderReports();if(map)drawMap()}
+function renderAll(){fillSelects();renderDashboard();renderShops();renderDeals();renderOrders();renderProducts();renderStock();renderEmployees();renderTasks();renderReports();if(isManager())renderJointExpenses();if(map)drawMap()}
 function fillSelects(){
  const statusOptions=Object.keys(colors).map(x=>`<option>${esc(x)}</option>`).join('');
  $('mapStatus').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('shopStatusFilter').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('nsStatus').innerHTML=statusOptions;$('esStatus').innerHTML=statusOptions;$('vStatus').innerHTML=Object.keys(colors).filter(x=>x!=='Не посещён').map(x=>`<option>${esc(x)}</option>`).join('');
@@ -1639,6 +1682,97 @@ function renderShops(){
 $('shopSearch').addEventListener('input',renderShops);
 $('shopStatusFilter').addEventListener('change',renderShops);
 $('shopOpenedByFilter').addEventListener('change',renderShops);
+function jointExpensePaidLabel(v){
+  return v==='roman'?'Роман':v==='partner'?'Компаньон':v==='joint'?'Совместно':'—';
+}
+window.renderJointExpenses=()=>{
+  if(!isManager()||!$('jointExpensesTable'))return;
+  const from=$('jointExpenseFrom')?.value||'';
+  const to=$('jointExpenseTo')?.value||'';
+  const paid=$('jointExpensePaidFilter')?.value||'';
+  const rows=jointExpenses.filter(x=>
+    (!from||x.expense_date>=from)&&
+    (!to||x.expense_date<=to)&&
+    (!paid||x.paid_by===paid)
+  );
+  const total=rows.reduce((a,x)=>a+Number(x.amount_eur||0),0);
+  let roman=0,partner=0;
+  rows.forEach(x=>{
+    const a=Number(x.amount_eur||0);
+    if(x.paid_by==='roman')roman+=a;
+    else if(x.paid_by==='partner')partner+=a;
+    else if(x.paid_by==='joint'){roman+=a/2;partner+=a/2}
+  });
+  $('jeTotal').textContent=money(total);
+  $('jeRoman').textContent=money(roman);
+  $('jePartner').textContent=money(partner);
+  const balance=(roman-partner)/2;
+  $('jeBalance').textContent=balance>0?'Компаньон должен Роману '+money(balance):balance<0?'Роман должен компаньону '+money(Math.abs(balance)):'0 €';
+  $('jointExpensesTable').innerHTML=`<table><thead><tr><th>Дата</th><th>Описание</th><th>Категория</th><th>Сумма</th><th>Кто оплатил</th><th>Комментарий</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr>
+    <td>${formatShopDate(x.expense_date)}</td>
+    <td><b>${esc(x.description||'')}</b></td>
+    <td>${esc(x.category||'—')}</td>
+    <td><b>${money(x.amount_eur)}</b></td>
+    <td>${esc(jointExpensePaidLabel(x.paid_by))}</td>
+    <td>${esc(x.comment||'')}</td>
+    <td style="white-space:nowrap">
+      <button class="light" onclick="editJointExpense('${x.id}')">✏️</button>
+      <button class="danger" onclick="deleteJointExpense('${x.id}')">🗑</button>
+    </td>
+  </tr>`).join('')}</tbody></table>`;
+};
+window.openJointExpense=()=>{
+  if(!isManager())return toast('Только для руководителей');
+  editingJointExpenseId=null;
+  $('jointExpenseModalTitle').textContent='Добавить совместный расход';
+  $('jeDate').value=new Date().toISOString().slice(0,10);
+  $('jeAmount').value='';
+  $('jeDescription').value='';
+  $('jeCategory').value='';
+  $('jePaidBy').value='roman';
+  $('jeComment').value='';
+  openModal('jointExpenseModal');
+};
+window.editJointExpense=id=>{
+  if(!isManager())return;
+  const x=jointExpenses.find(e=>e.id===id);if(!x)return;
+  editingJointExpenseId=id;
+  $('jointExpenseModalTitle').textContent='Редактировать совместный расход';
+  $('jeDate').value=x.expense_date||'';
+  $('jeAmount').value=x.amount_eur??'';
+  $('jeDescription').value=x.description||'';
+  $('jeCategory').value=x.category||'';
+  $('jePaidBy').value=x.paid_by||'roman';
+  $('jeComment').value=x.comment||'';
+  openModal('jointExpenseModal');
+};
+window.saveJointExpense=async()=>{
+  if(!isManager())return toast('Только для руководителей');
+  const row={
+    expense_date:$('jeDate').value,
+    description:$('jeDescription').value.trim(),
+    category:$('jeCategory').value.trim()||null,
+    amount_eur:Number($('jeAmount').value||0),
+    paid_by:$('jePaidBy').value,
+    comment:$('jeComment').value.trim()||null,
+    updated_at:new Date().toISOString()
+  };
+  if(!row.expense_date||!row.description||row.amount_eur<=0)return toast('Заполните дату, описание и сумму');
+  let r;
+  if(editingJointExpenseId)r=await db.from('joint_expenses').update(row).eq('id',editingJointExpenseId);
+  else r=await db.from('joint_expenses').insert({...row,created_by:user.id});
+  if(r.error)return toast('Не удалось сохранить: '+r.error.message);
+  closeModals();toast('Совместный расход сохранён');await refreshAll();
+};
+window.deleteJointExpense=async id=>{
+  if(!isManager())return;
+  const x=jointExpenses.find(e=>e.id===id);if(!x)return;
+  if(!confirm('Удалить расход «'+x.description+'» на '+money(x.amount_eur)+'?'))return;
+  const {error}=await db.from('joint_expenses').delete().eq('id',id);
+  if(error)return toast('Не удалось удалить: '+error.message);
+  toast('Расход удалён');await refreshAll();
+};
+
 window.resetShopFilters=()=>{
   $('shopSearch').value='';
   $('shopStatusFilter').value='';
