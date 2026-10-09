@@ -230,7 +230,7 @@ tr:hover td{background:#fbfdff}
       <button data-page="catalog">Каталог / QR</button>
       <button data-page="employees">Команда</button>
       <button data-page="reports">Отчёты</button>
-      <button id="jointExpensesTab" data-page="joint-expenses" class="hidden">Совместные расходы</button>
+      <button id="jointExpensesTab" data-page="joint-expenses" class="hidden">Совместные деньги</button>
       <button id="changePasswordBtn" type="button">Пароль</button>
     </div>
 
@@ -397,14 +397,14 @@ tr:hover td{background:#fbfdff}
         <button class="primary" onclick="openJointExpense()">+ Добавить расход</button>
       </div>
       <div class="grid4" style="margin-bottom:10px">
-        <div class="card stat"><strong id="jeTotal">0 €</strong><span>Всего расходов</span></div>
-        <div class="card stat"><strong id="jeRoman">0 €</strong><span>Оплатил Роман</span></div>
-        <div class="card stat"><strong id="jePartner">0 €</strong><span>Оплатил компаньон</span></div>
-        <div class="card stat"><strong id="jeBalance">0 €</strong><span>Баланс 50/50</span></div>
+        <div class="card stat"><strong id="jeTotal">0 €</strong><span>Общий остаток</span></div>
+        <div class="card stat"><strong id="jeRoman">0 €</strong><span>Чистый вклад Роман</span></div>
+        <div class="card stat"><strong id="jePartner">0 €</strong><span>Чистый вклад Роман С</span></div>
+        <div class="card stat"><strong id="jeBalance">0 €</strong><span>Разница вкладов</span></div>
       </div>
       <div id="jeSettlementSummary" class="card" style="margin-bottom:10px"></div>
       <div id="jointExpensesTable" class="tablewrap"></div>
-      <p class="muted" style="margin-top:8px">В этой таблице учитываются только совместные расходы. Совместное имущество сюда не входит.</p>
+      <p class="muted" style="margin-top:8px">Здесь видно, кто сколько вложил и сколько потом забрал. Совместное имущество сюда не входит.</p>
     </section>
 
     <section id="page-reports" class="page hidden">
@@ -712,23 +712,26 @@ tr:hover td{background:#fbfdff}
 </div></div>
 
 <div class="modal" id="jointExpenseModal"><div class="sheet">
-  <div class="head"><h2 id="jointExpenseModalTitle">Совместный расход</h2><button class="close">×</button></div>
+  <div class="head"><h2 id="jointExpenseModalTitle">Операция по совместным деньгам</h2><button class="close">×</button></div>
   <div class="row">
     <div><label>Дата *</label><input id="jeDate" type="date"></div>
     <div><label>Сумма, € *</label><input id="jeAmount" type="number" min="0" step="0.01"></div>
   </div>
-  <label>Описание *</label><input id="jeDescription" placeholder="Например: реклама, транспорт, образцы">
-  <label>Кому заплатили</label><input id="jeRecipient" placeholder="Компания, магазин, человек или поставщик">
   <div class="row">
-    <div><label>Категория</label><input id="jeCategory" placeholder="Реклама / логистика / другое"></div>
-    <div><label>Кто оплатил</label>
+    <div><label>Кто</label>
       <select id="jePaidBy">
         <option value="roman">Роман</option>
-        <option value="partner">Компаньон</option>
-        <option value="joint">Совместно</option>
+        <option value="partner">Роман С</option>
+      </select>
+    </div>
+    <div><label>Операция</label>
+      <select id="jeTransactionType">
+        <option value="deposit">Вложил</option>
+        <option value="withdrawal">Забрал</option>
       </select>
     </div>
   </div>
+  <label>За что / назначение</label><input id="jeDescription" placeholder="Например: вложение в проект, возврат части денег">
   <label>Комментарий</label><textarea id="jeComment"></textarea>
   <label>Фото чека</label>
   <input id="jeReceipt" type="file" accept="image/*,application/pdf">
@@ -1692,7 +1695,7 @@ $('shopSearch').addEventListener('input',renderShops);
 $('shopStatusFilter').addEventListener('change',renderShops);
 $('shopOpenedByFilter').addEventListener('change',renderShops);
 function jointExpensePaidLabel(v){
-  return v==='roman'?'Роман':v==='partner'?'Компаньон':v==='joint'?'Совместно':'—';
+  return v==='roman'?'Роман':v==='partner'?'Роман С':'—';
 }
 window.renderJointExpenses=()=>{
   if(!canViewJointExpenses()||!$('jointExpensesTable'))return;
@@ -1704,36 +1707,30 @@ window.renderJointExpenses=()=>{
     (!to||x.expense_date<=to)&&
     (!paid||x.paid_by===paid)
   );
-  const total=rows.reduce((a,x)=>a+Number(x.amount_eur||0),0);
   let roman=0,partner=0;
   rows.forEach(x=>{
-    const a=Number(x.amount_eur||0);
-    if(x.paid_by==='roman')roman+=a;
-    else if(x.paid_by==='partner')partner+=a;
-    else if(x.paid_by==='joint'){roman+=a/2;partner+=a/2}
+    const signed=(x.transaction_type==='withdrawal'?-1:1)*Number(x.amount_eur||0);
+    if(x.paid_by==='roman')roman+=signed;
+    else if(x.paid_by==='partner')partner+=signed;
   });
+  const total=roman+partner;
   $('jeTotal').textContent=money(total);
   $('jeRoman').textContent=money(roman);
   $('jePartner').textContent=money(partner);
-  const balance=(roman-partner)/2;
-  $('jeBalance').textContent=balance>0?'Компаньон → Роману '+money(balance):balance<0?'Роман → компаньону '+money(Math.abs(balance)):'Расчёт закрыт';
+  const diff=roman-partner;
+  $('jeBalance').textContent=diff===0?'Вклады равны':diff>0?'Роман вложил больше на '+money(diff):'Роман С вложил больше на '+money(Math.abs(diff));
   if($('jeSettlementSummary')){
-    $('jeSettlementSummary').innerHTML=`<b>Расчёт между партнёрами</b>
-      <div style="margin-top:6px">Роман оплатил: <b>${money(roman)}</b> · Компаньон оплатил: <b>${money(partner)}</b></div>
-      <div style="margin-top:6px">${balance>0?'Компаньон должен Роману <b>'+money(balance)+'</b>':balance<0?'Роман должен компаньону <b>'+money(Math.abs(balance))+'</b>':'Никто никому не должен'}</div>`;
+    $('jeSettlementSummary').innerHTML=`<b>Совместные деньги</b>
+      <div style="margin-top:6px">Роман: вложено минус забрано = <b>${money(roman)}</b></div>
+      <div style="margin-top:6px">Роман С: вложено минус забрано = <b>${money(partner)}</b></div>
+      <div style="margin-top:6px">Общий остаток вложенных денег: <b>${money(total)}</b></div>`;
   }
-  $('jointExpensesTable').innerHTML=`<table><thead><tr><th>Дата</th><th>За что</th><th>Кому</th><th>Категория</th><th>Сумма</th><th>Кто оплатил</th><th>Расчёт 50/50</th><th>Комментарий</th><th>Чек</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr>
+  $('jointExpensesTable').innerHTML=`<table><thead><tr><th>Дата</th><th>Кто</th><th>Операция</th><th>Сумма</th><th>За что / назначение</th><th>Комментарий</th><th>Чек</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr>
     <td>${formatShopDate(x.expense_date)}</td>
-    <td><b>${esc(x.description||'')}</b></td>
-    <td>${esc(x.recipient||'—')}</td>
-    <td>${esc(x.category||'—')}</td>
-    <td><b>${money(x.amount_eur)}</b></td>
-    <td>${esc(jointExpensePaidLabel(x.paid_by))}</td>
-    <td>${x.paid_by==='roman'
-      ?'Компаньон → Роману '+money(Number(x.amount_eur||0)/2)
-      :x.paid_by==='partner'
-        ?'Роман → компаньону '+money(Number(x.amount_eur||0)/2)
-        :'Долга нет'}</td>
+    <td><b>${esc(jointExpensePaidLabel(x.paid_by))}</b></td>
+    <td>${x.transaction_type==='withdrawal'?'<span class="negative"><b>Забрал</b></span>':'<b>Вложил</b>'}</td>
+    <td><b>${x.transaction_type==='withdrawal'?'-':''}${money(x.amount_eur)}</b></td>
+    <td>${esc(x.description||'—')}</td>
     <td>${esc(x.comment||'')}</td>
     <td>${x.receipt_path?`<button class="light" onclick="openJointExpenseReceipt('${x.id}')">📷 Фото чека</button>`:'—'}</td>
     <td style="white-space:nowrap">
@@ -1745,13 +1742,12 @@ window.renderJointExpenses=()=>{
 window.openJointExpense=()=>{
   if(!canViewJointExpenses())return toast('Раздел доступен только Роману и Роману С');
   editingJointExpenseId=null;
-  $('jointExpenseModalTitle').textContent='Добавить совместный расход';
+  $('jointExpenseModalTitle').textContent='Добавить операцию';
   $('jeDate').value=new Date().toISOString().slice(0,10);
   $('jeAmount').value='';
   $('jeDescription').value='';
-  $('jeRecipient').value='';
-  $('jeCategory').value='';
   $('jePaidBy').value='roman';
+  $('jeTransactionType').value='deposit';
   $('jeComment').value='';
   $('jeReceipt').value='';
   $('jeReceiptStatus').textContent='Можно прикрепить фото или PDF чека. До 8 МБ.';
@@ -1761,13 +1757,12 @@ window.editJointExpense=id=>{
   if(!canViewJointExpenses())return;
   const x=jointExpenses.find(e=>e.id===id);if(!x)return;
   editingJointExpenseId=id;
-  $('jointExpenseModalTitle').textContent='Редактировать совместный расход';
+  $('jointExpenseModalTitle').textContent='Редактировать операцию';
   $('jeDate').value=x.expense_date||'';
   $('jeAmount').value=x.amount_eur??'';
   $('jeDescription').value=x.description||'';
-  $('jeRecipient').value=x.recipient||'';
-  $('jeCategory').value=x.category||'';
   $('jePaidBy').value=x.paid_by||'roman';
+  $('jeTransactionType').value=x.transaction_type||'deposit';
   $('jeComment').value=x.comment||'';
   $('jeReceipt').value='';
   $('jeReceiptStatus').textContent=x.receipt_path?'Чек уже прикреплён. Выберите новый файл, чтобы заменить.':'Чек не прикреплён.';
@@ -1797,15 +1792,14 @@ window.saveJointExpense=async()=>{
   if(!canViewJointExpenses())return toast('Раздел доступен только Роману и Роману С');
   const row={
     expense_date:$('jeDate').value,
-    description:$('jeDescription').value.trim(),
-    recipient:$('jeRecipient').value.trim()||null,
-    category:$('jeCategory').value.trim()||null,
+    description:$('jeDescription').value.trim()||null,
     amount_eur:Number($('jeAmount').value||0),
     paid_by:$('jePaidBy').value,
+    transaction_type:$('jeTransactionType').value,
     comment:$('jeComment').value.trim()||null,
     updated_at:new Date().toISOString()
   };
-  if(!row.expense_date||!row.description||row.amount_eur<=0)return toast('Заполните дату, описание и сумму');
+  if(!row.expense_date||row.amount_eur<=0)return toast('Заполните дату и сумму');
 
   const file=$('jeReceipt')?.files?.[0]||null;
   let expenseId=editingJointExpenseId;
@@ -1827,19 +1821,19 @@ window.saveJointExpense=async()=>{
       if(upd.error)throw upd.error;
       if(prev&&prev!==path)await db.storage.from('joint-expense-receipts').remove([prev]);
     }catch(e){
-      $('jeReceiptStatus').textContent='Расход сохранён, но чек не загрузился: '+(e.message||String(e));
-      toast('Расход сохранён, чек не загрузился');
+      $('jeReceiptStatus').textContent='Операция сохранена, но чек не загрузился: '+(e.message||String(e));
+      toast('Операция сохранена, чек не загрузился');
       await refreshAll();
       return;
     }
   }
 
-  closeModals();toast(file?'Расход и фото чека сохранены':'Совместный расход сохранён');await refreshAll();
+  closeModals();toast(file?'Операция и фото чека сохранены':'Операция сохранена');await refreshAll();
 };
 window.deleteJointExpense=async id=>{
   if(!canViewJointExpenses())return;
   const x=jointExpenses.find(e=>e.id===id);if(!x)return;
-  if(!confirm('Удалить расход «'+x.description+'» на '+money(x.amount_eur)+'?'))return;
+  if(!confirm('Удалить операцию на '+money(x.amount_eur)+'?'))return;
   const {error}=await db.from('joint_expenses').delete().eq('id',id);
   if(error)return toast('Не удалось удалить: '+error.message);
   toast('Расход удалён');await refreshAll();
