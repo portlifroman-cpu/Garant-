@@ -734,8 +734,9 @@ tr:hover td{background:#fbfdff}
   <label>За что / назначение</label><input id="jeDescription" placeholder="Например: вложение в проект, возврат части денег">
   <label>Комментарий</label><textarea id="jeComment"></textarea>
   <label>Фото чека</label>
-  <input id="jeReceipt" type="file" accept="image/*,application/pdf">
-  <p id="jeReceiptStatus" class="muted">Можно прикрепить фото или PDF чека. До 8 МБ.</p>
+  <input id="jeReceipt" type="file" accept="image/*,application/pdf" class="hidden" onchange="jointReceiptSelected()">
+  <button type="button" class="light" style="width:100%;margin-bottom:6px" onclick="document.getElementById('jeReceipt').click()">📷 Добавить фото чека</button>
+  <p id="jeReceiptStatus" class="muted">Можно сфотографировать чек или выбрать фото/PDF. До 8 МБ.</p>
   <button class="primary" style="width:100%" onclick="saveJointExpense()">Сохранить</button>
 </div></div>
 
@@ -1768,6 +1769,11 @@ window.editJointExpense=id=>{
   $('jeReceiptStatus').textContent=x.receipt_path?'Чек уже прикреплён. Выберите новый файл, чтобы заменить.':'Чек не прикреплён.';
   openModal('jointExpenseModal');
 };
+window.jointReceiptSelected=()=>{
+  const file=$('jeReceipt')?.files?.[0];
+  $('jeReceiptStatus').textContent=file?'Выбран чек: '+file.name:'Чек не выбран';
+};
+
 async function uploadJointExpenseReceipt(expenseId,file){
   if(!file)return null;
   if(file.size>8*1024*1024)throw new Error('Файл чека больше 8 МБ');
