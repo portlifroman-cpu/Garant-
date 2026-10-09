@@ -785,6 +785,8 @@ let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],pr
 const OWNER_USER_ID='ceae49cb-4385-4052-a022-6aa0cea662ef';
 const TEMP_EMPLOYEE_PASSWORD=['12','34','56','78'].join('');
 const isOwner=()=>user?.id===OWNER_USER_ID;
+const ROMAN_S_USER_ID='f1ba2c98-124e-4b1e-8fe3-9f5b4aacecbb';
+const canViewJointExpenses=()=>[OWNER_USER_ID,ROMAN_S_USER_ID].includes(user?.id);
 let selectedShop=null,selectedEmployee=null,newCoords=null,picking=false,draftPin=null,infoWindow=null,googleStoreMarkers=[],nearbySearchTimer=null,lastNearbySearchKey='',myLocationMarker=null,myAccuracyCircle=null,myLocationWatchId=null,myLocationEnabled=false,pendingGeoPosition=null,pendingGeoError=null;
 
 function toast(s){$('toast').textContent=s;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3200)}
@@ -892,7 +894,7 @@ async function boot(){
  profile=p.data;$('who').textContent=(profile.full_name||'Сотрудник')+' · '+(isManager()?'Руководитель':'Агент');
  $('auth').classList.add('hidden');$('mainApp').classList.remove('hidden');
  if(!isManager()){['addProductBtn','addWarehouseBtn','adjustStockBtn'].forEach(id=>$(id)?.classList.add('hidden'))}
- if(isManager())$('jointExpensesTab')?.classList.remove('hidden');
+ if(canViewJointExpenses())$('jointExpensesTab')?.classList.remove('hidden');
  if(isOwner())$('addEmployeeBtn')?.classList.remove('hidden');
  await refreshAll();showPage('dashboard');
 }
@@ -915,7 +917,9 @@ async function refreshAll(){
   db.from('employee_documents').select('*').order('created_at',{ascending:false}).limit(1000),
   db.from('pipeline_stages').select('*').eq('active',true).order('position'),
   db.from('deals').select('*').order('updated_at',{ascending:false}).limit(2000),
-  db.from('joint_expenses').select('*').order('expense_date',{ascending:false}).order('created_at',{ascending:false}).limit(5000)
+  canViewJointExpenses()
+    ? db.from('joint_expenses').select('*').order('expense_date',{ascending:false}).order('created_at',{ascending:false}).limit(5000)
+    : Promise.resolve({data:[],error:null})
  ];
  const r=await Promise.all(qs.map(q=>q.then(x=>x).catch(e=>({error:e}))));
  shops=safeData(r[0],'shops');visits=safeData(r[1],'visits');profiles=safeData(r[2],'profiles');products=safeData(r[3],'products');warehouses=safeData(r[4],'warehouses');balances=safeData(r[5],'inventory_balances');movements=safeData(r[6],'inventory_movements');agentStockBalances=safeData(r[7],'agent_stock_balances');agentStockMovements=safeData(r[8],'agent_stock_movements');orders=safeData(r[9],'sales_orders');orderItems=safeData(r[10],'sales_order_items');tasks=safeData(r[11],'tasks');bonusRules=safeData(r[12],'bonus_rules');employeeDocuments=safeData(r[13],'employee_documents');dealStages=safeData(r[14],'pipeline_stages');deals=safeData(r[15],'deals');jointExpenses=safeData(r[16],'joint_expenses');
@@ -948,7 +952,7 @@ window.syncOfficialCatalog=async()=>{
 };
 
 function showPage(name){
- if(name==='joint-expenses'&&!isManager()){toast('Раздел доступен только руководителям');return}
+ if(name==='joint-expenses'&&!canViewJointExpenses()){toast('Раздел доступен только Роману и Роману С');return}
  document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$('page-'+name).classList.remove('hidden');
  document.querySelectorAll('#tabs button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
  if(name==='map'){
@@ -979,7 +983,7 @@ document.querySelectorAll('#tabs button[data-page]').forEach(b=>b.onclick=()=>{
   showPage(b.dataset.page);
 });
 
-function renderAll(){fillSelects();renderDashboard();renderShops();renderDeals();renderOrders();renderProducts();renderStock();renderEmployees();renderTasks();renderReports();if(isManager())renderJointExpenses();if(map)drawMap()}
+function renderAll(){fillSelects();renderDashboard();renderShops();renderDeals();renderOrders();renderProducts();renderStock();renderEmployees();renderTasks();renderReports();if(canViewJointExpenses())renderJointExpenses();if(map)drawMap()}
 function fillSelects(){
  const statusOptions=Object.keys(colors).map(x=>`<option>${esc(x)}</option>`).join('');
  $('mapStatus').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('shopStatusFilter').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('nsStatus').innerHTML=statusOptions;$('esStatus').innerHTML=statusOptions;$('vStatus').innerHTML=Object.keys(colors).filter(x=>x!=='Не посещён').map(x=>`<option>${esc(x)}</option>`).join('');
@@ -1686,7 +1690,7 @@ function jointExpensePaidLabel(v){
   return v==='roman'?'Роман':v==='partner'?'Компаньон':v==='joint'?'Совместно':'—';
 }
 window.renderJointExpenses=()=>{
-  if(!isManager()||!$('jointExpensesTable'))return;
+  if(!canViewJointExpenses()||!$('jointExpensesTable'))return;
   const from=$('jointExpenseFrom')?.value||'';
   const to=$('jointExpenseTo')?.value||'';
   const paid=$('jointExpensePaidFilter')?.value||'';
@@ -1722,7 +1726,7 @@ window.renderJointExpenses=()=>{
   </tr>`).join('')}</tbody></table>`;
 };
 window.openJointExpense=()=>{
-  if(!isManager())return toast('Только для руководителей');
+  if(!canViewJointExpenses())return toast('Раздел доступен только Роману и Роману С');
   editingJointExpenseId=null;
   $('jointExpenseModalTitle').textContent='Добавить совместный расход';
   $('jeDate').value=new Date().toISOString().slice(0,10);
@@ -1734,7 +1738,7 @@ window.openJointExpense=()=>{
   openModal('jointExpenseModal');
 };
 window.editJointExpense=id=>{
-  if(!isManager())return;
+  if(!canViewJointExpenses())return;
   const x=jointExpenses.find(e=>e.id===id);if(!x)return;
   editingJointExpenseId=id;
   $('jointExpenseModalTitle').textContent='Редактировать совместный расход';
@@ -1765,7 +1769,7 @@ window.saveJointExpense=async()=>{
   closeModals();toast('Совместный расход сохранён');await refreshAll();
 };
 window.deleteJointExpense=async id=>{
-  if(!isManager())return;
+  if(!canViewJointExpenses())return;
   const x=jointExpenses.find(e=>e.id===id);if(!x)return;
   if(!confirm('Удалить расход «'+x.description+'» на '+money(x.amount_eur)+'?'))return;
   const {error}=await db.from('joint_expenses').delete().eq('id',id);
