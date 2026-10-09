@@ -402,6 +402,7 @@ tr:hover td{background:#fbfdff}
         <div class="card stat"><strong id="jePartner">0 €</strong><span>Оплатил компаньон</span></div>
         <div class="card stat"><strong id="jeBalance">0 €</strong><span>Баланс 50/50</span></div>
       </div>
+      <div id="jeSettlementSummary" class="card" style="margin-bottom:10px"></div>
       <div id="jointExpensesTable" class="tablewrap"></div>
       <p class="muted" style="margin-top:8px">В этой таблице учитываются только совместные расходы. Совместное имущество сюда не входит.</p>
     </section>
@@ -717,6 +718,7 @@ tr:hover td{background:#fbfdff}
     <div><label>Сумма, € *</label><input id="jeAmount" type="number" min="0" step="0.01"></div>
   </div>
   <label>Описание *</label><input id="jeDescription" placeholder="Например: реклама, транспорт, образцы">
+  <label>Кому заплатили</label><input id="jeRecipient" placeholder="Компания, магазин, человек или поставщик">
   <div class="row">
     <div><label>Категория</label><input id="jeCategory" placeholder="Реклама / логистика / другое"></div>
     <div><label>Кто оплатил</label>
@@ -1714,13 +1716,24 @@ window.renderJointExpenses=()=>{
   $('jeRoman').textContent=money(roman);
   $('jePartner').textContent=money(partner);
   const balance=(roman-partner)/2;
-  $('jeBalance').textContent=balance>0?'Компаньон должен Роману '+money(balance):balance<0?'Роман должен компаньону '+money(Math.abs(balance)):'0 €';
-  $('jointExpensesTable').innerHTML=`<table><thead><tr><th>Дата</th><th>Описание</th><th>Категория</th><th>Сумма</th><th>Кто оплатил</th><th>Комментарий</th><th>Чек</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr>
+  $('jeBalance').textContent=balance>0?'Компаньон → Роману '+money(balance):balance<0?'Роман → компаньону '+money(Math.abs(balance)):'Расчёт закрыт';
+  if($('jeSettlementSummary')){
+    $('jeSettlementSummary').innerHTML=`<b>Расчёт между партнёрами</b>
+      <div style="margin-top:6px">Роман оплатил: <b>${money(roman)}</b> · Компаньон оплатил: <b>${money(partner)}</b></div>
+      <div style="margin-top:6px">${balance>0?'Компаньон должен Роману <b>'+money(balance)+'</b>':balance<0?'Роман должен компаньону <b>'+money(Math.abs(balance))+'</b>':'Никто никому не должен'}</div>`;
+  }
+  $('jointExpensesTable').innerHTML=`<table><thead><tr><th>Дата</th><th>За что</th><th>Кому</th><th>Категория</th><th>Сумма</th><th>Кто оплатил</th><th>Расчёт 50/50</th><th>Комментарий</th><th>Чек</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr>
     <td>${formatShopDate(x.expense_date)}</td>
     <td><b>${esc(x.description||'')}</b></td>
+    <td>${esc(x.recipient||'—')}</td>
     <td>${esc(x.category||'—')}</td>
     <td><b>${money(x.amount_eur)}</b></td>
     <td>${esc(jointExpensePaidLabel(x.paid_by))}</td>
+    <td>${x.paid_by==='roman'
+      ?'Компаньон → Роману '+money(Number(x.amount_eur||0)/2)
+      :x.paid_by==='partner'
+        ?'Роман → компаньону '+money(Number(x.amount_eur||0)/2)
+        :'Долга нет'}</td>
     <td>${esc(x.comment||'')}</td>
     <td>${x.receipt_path?`<button class="light" onclick="openJointExpenseReceipt('${x.id}')">📷 Фото чека</button>`:'—'}</td>
     <td style="white-space:nowrap">
@@ -1736,6 +1749,7 @@ window.openJointExpense=()=>{
   $('jeDate').value=new Date().toISOString().slice(0,10);
   $('jeAmount').value='';
   $('jeDescription').value='';
+  $('jeRecipient').value='';
   $('jeCategory').value='';
   $('jePaidBy').value='roman';
   $('jeComment').value='';
@@ -1751,6 +1765,7 @@ window.editJointExpense=id=>{
   $('jeDate').value=x.expense_date||'';
   $('jeAmount').value=x.amount_eur??'';
   $('jeDescription').value=x.description||'';
+  $('jeRecipient').value=x.recipient||'';
   $('jeCategory').value=x.category||'';
   $('jePaidBy').value=x.paid_by||'roman';
   $('jeComment').value=x.comment||'';
@@ -1783,6 +1798,7 @@ window.saveJointExpense=async()=>{
   const row={
     expense_date:$('jeDate').value,
     description:$('jeDescription').value.trim(),
+    recipient:$('jeRecipient').value.trim()||null,
     category:$('jeCategory').value.trim()||null,
     amount_eur:Number($('jeAmount').value||0),
     paid_by:$('jePaidBy').value,
