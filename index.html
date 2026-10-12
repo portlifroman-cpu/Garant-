@@ -368,7 +368,7 @@ tr:hover td{background:#fbfdff}
             <p id="catalogSyncStatus" class="muted"></p>
           </div>
           <div style="text-align:center">
-            <canvas id="catalogQr" width="360" height="360" style="max-width:100%;background:#fff;border-radius:16px;border:1px solid #dfe8ef;padding:10px"></canvas>
+            <img id="catalogQr" alt="QR каталога GARANT" style="width:360px;max-width:100%;background:#fff;border-radius:16px;border:1px solid #dfe8ef;padding:10px" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeoAAAHqAQAAAADjFjCXAAAEUklEQVR4nO2dTY7jOAxGH0cGspSBOkCOIt+gjzToI/UNrKPUAQqwlwFksBeibCdAb2IPujIhFy7n50EOQEjkR1ElygHL/xyhwXHHHXfccccdd9zxc3Ex6xCRDrJ0yDBvdyJkEZFhbl8dzhvd8XfDu/onjQDzB8rcixK/RHMfkDR9oPlaOiF+dcocCgByyuiOvyeOqqqSJiBNQetLYoGkBSCoqhZUp6CqU1AgKElVdXzp3+74d8HrCpsmIMtFSdMiIn34g8DyvR7e8RfFVesMByS9Cbk63CIQb/Jfj+74e+FRVUcAZhGYLza5JS3oOHfAbDHgzjG/ycM7/pp4FhGRHmRgXU3ni8LcIf9OQWUgqAwsNYU9dXTH3wyv89cWtSnzIsAimnuE3Afq4pp7BOJ9gPfSv93xv4XXHHafm94nssRSl1Qdo6qtxFE9h3X8BDzeRMd4kxrc5X4R1c/OQrrcB5UBIH3uI7zv8vCOvxh+r9dRpzTVCeq8Vme9dRIcYzFdxec6x5+3tsJCdakqC0/mf5bDRn1cf6u51zn+lNlcpwUdN4cDK1WM2zej6SUe1zl+Th0WgkpSEGLpJE19fVcANA9A+nVRgVCApWEv/dsd/7u4jrOI/hQRyxeAmr5a5logXwu1QDZ4NuH4MbMALe6XWdNLJmrNnzSFKprUhMPjOsfPwGVgEf0pa83r86Kml1Q1xZTj+nHuF99f5/gRs0kLk0VML27yyU5DqdPhZBufPJtw/IC1xbI5XGpOCK0iu/vAFlzc6xw/Yq36pesctl6ah+nIquatGYZ7nePP26bXYQLxVofQNa9o2YRtLfZswvFD1ipioe1bn9b5j7v0FY/rHD8ZjzepVf18VSWLtMw13mwfQN0MALhe5/iJcZ2VW/d5bdtkHPYZRtKCr7COHzCL0FoDmO0q0W1rSVkdc2sZ87jO8RPwfL2JyLX5VW2UiKpVOc49kD4v62YAV4kdP2I1QpM0LZB+dUWgK1svmEAokj67onUvOwBzf9Lojr8nvt9zQryJ9f4DkvsJrecBcBMlTvUoAIjqvf+On4FvddjWI5YmK9CS5aJ212ML7rmjO/5WuPWIZQFJCuQBAUJR5o/SDjZZRPOPoOTh1NEdf098rU2s5X4tbC0TOw1lax5LrhI7fsyaX1ml1S532txWL2NVTtzrHD9grSKGCXRWFrOWCa2bUbSsvTz2FdfrHD9gem+k9bKrvm6OeXfnXuf4U2Z6nb0KRXP/1SksHWlcOpi7AvNHgVi6/d0Zozv+nvjjWZ1CBPIQVEwMXqTqdVmCytaeeMrojr8n/nhW5+5ut91uW3CBdpKnr7COP2ndw2vNV0Xy9SbK/GHv7T6PE1ILGWeM7vh74o9eJ8TqZrVABgSs93ruyj7WO2N0x98Tv1eJt0PE2v7i/bE7dweLuXLi+PNmblattSeu2txDo86+l8e9zvFnTfy/1znuuOOOO+64447/L/Df0lfbfJyi/hIAAAAASUVORK5CYII=">
             <div class="actions" style="justify-content:center">
               <button class="light" onclick="downloadCatalogQr()">Скачать QR</button>
             </div>
@@ -977,12 +977,13 @@ async function refreshAll(){
 }
 
 const CATALOG_URL='https://garantkartaprodazhcloud.vercel.app/catalogo.html';
+const CATALOG_QR_PNG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeoAAAHqAQAAAADjFjCXAAAEUklEQVR4nO2dTY7jOAxGH0cGspSBOkCOIt+gjzToI/UNrKPUAQqwlwFksBeibCdAb2IPujIhFy7n50EOQEjkR1ElygHL/xyhwXHHHXfccccdd9zxc3Ex6xCRDrJ0yDBvdyJkEZFhbl8dzhvd8XfDu/onjQDzB8rcixK/RHMfkDR9oPlaOiF+dcocCgByyuiOvyeOqqqSJiBNQetLYoGkBSCoqhZUp6CqU1AgKElVdXzp3+74d8HrCpsmIMtFSdMiIn34g8DyvR7e8RfFVesMByS9Cbk63CIQb/Jfj+74e+FRVUcAZhGYLza5JS3oOHfAbDHgzjG/ycM7/pp4FhGRHmRgXU3ni8LcIf9OQWUgqAwsNYU9dXTH3wyv89cWtSnzIsAimnuE3Afq4pp7BOJ9gPfSv93xv4XXHHafm94nssRSl1Qdo6qtxFE9h3X8BDzeRMd4kxrc5X4R1c/OQrrcB5UBIH3uI7zv8vCOvxh+r9dRpzTVCeq8Vme9dRIcYzFdxec6x5+3tsJCdakqC0/mf5bDRn1cf6u51zn+lNlcpwUdN4cDK1WM2zej6SUe1zl+Th0WgkpSEGLpJE19fVcANA9A+nVRgVCApWEv/dsd/7u4jrOI/hQRyxeAmr5a5logXwu1QDZ4NuH4MbMALe6XWdNLJmrNnzSFKprUhMPjOsfPwGVgEf0pa83r86Kml1Q1xZTj+nHuF99f5/gRs0kLk0VML27yyU5DqdPhZBufPJtw/IC1xbI5XGpOCK0iu/vAFlzc6xw/Yq36pesctl6ah+nIquatGYZ7nePP26bXYQLxVofQNa9o2YRtLfZswvFD1ipioe1bn9b5j7v0FY/rHD8ZjzepVf18VSWLtMw13mwfQN0MALhe5/iJcZ2VW/d5bdtkHPYZRtKCr7COHzCL0FoDmO0q0W1rSVkdc2sZ87jO8RPwfL2JyLX5VW2UiKpVOc49kD4v62YAV4kdP2I1QpM0LZB+dUWgK1svmEAokj67onUvOwBzf9Lojr8nvt9zQryJ9f4DkvsJrecBcBMlTvUoAIjqvf+On4FvddjWI5YmK9CS5aJ212ML7rmjO/5WuPWIZQFJCuQBAUJR5o/SDjZZRPOPoOTh1NEdf098rU2s5X4tbC0TOw1lax5LrhI7fsyaX1ml1S532txWL2NVTtzrHD9grSKGCXRWFrOWCa2bUbSsvTz2FdfrHD9gem+k9bKrvm6OeXfnXuf4U2Z6nb0KRXP/1SksHWlcOpi7AvNHgVi6/d0Zozv+nvjjWZ1CBPIQVEwMXqTqdVmCytaeeMrojr8n/nhW5+5ut91uW3CBdpKnr7COP2ndw2vNV0Xy9SbK/GHv7T6PE1ILGWeM7vh74o9eJ8TqZrVABgSs93ruyj7WO2N0x98Tv1eJt0PE2v7i/bE7dweLuXLi+PNmblattSeu2txDo86+l8e9zvFnTfy/1znuuOOOO+64447/L/Df0lfbfJyi/hIAAAAASUVORK5CYII=';
 const ELECTRONIC_CATALOG_URL='https://garantkartaprodazhcloud.vercel.app/catalogo.html';
 const SPANISH_WEBSITE_URL='https://garantsnus.es';
 const SPANISH_WEBSITE_QR_PNG='data:image/png;base64,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';
 function renderCatalogQr(){
-  const canvas=$('catalogQr');if(!canvas||!window.QRCode)return;
-  QRCode.toCanvas(canvas,CATALOG_URL,{width:360,margin:2,errorCorrectionLevel:'H'},()=>{});
+  const img=$('catalogQr');if(!img)return;
+  img.src=CATALOG_QR_PNG;
 }
 function renderWebsiteQr(){
   const img=$('websiteQr');if(!img)return;
@@ -1007,7 +1008,14 @@ window.openElectronicCatalog=()=>window.open(ELECTRONIC_CATALOG_URL,'_blank');
 window.copyElectronicCatalog=async()=>{try{await navigator.clipboard.writeText(ELECTRONIC_CATALOG_URL);toast('Ссылка на электронный каталог скопирована')}catch{toast('Не удалось скопировать ссылку')}};
 window.openPublicCatalog=()=>window.open(CATALOG_URL,'_blank');
 window.copyCatalogLink=async()=>{try{await navigator.clipboard.writeText(CATALOG_URL);toast('Ссылка на каталог скопирована')}catch{toast('Не удалось скопировать ссылку')}};
-window.downloadCatalogQr=()=>{const canvas=$('catalogQr');if(!canvas)return;const a=document.createElement('a');a.download='GARANT_catalog_QR.png';a.href=canvas.toDataURL('image/png');a.click()};
+window.downloadCatalogQr=()=>{
+  const a=document.createElement('a');
+  a.download='GARANT_catalog_QR.png';
+  a.href=CATALOG_QR_PNG;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
 window.syncOfficialCatalog=async()=>{
   if(!isOwner())return toast('Обновлять каталог может только владелец');
   const btn=$('syncCatalogBtn');btn.disabled=true;btn.textContent='Обновляем…';$('catalogSyncStatus').textContent='Загружаем официальный каталог с garantsnus.com…';
