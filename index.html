@@ -975,14 +975,25 @@ window.downloadWebsiteQr=async()=>{
   const canvas=$('websiteQr');
   if(!canvas)return toast('QR-код ещё не готов');
   try{
+    const pad=32;
+    const out=document.createElement('canvas');
+    out.width=canvas.width+pad*2;
+    out.height=canvas.height+pad*2;
+    const ctx=out.getContext('2d');
+    ctx.fillStyle='#ffffff';
+    ctx.fillRect(0,0,out.width,out.height);
+    ctx.drawImage(canvas,pad,pad);
+
     const blob=await new Promise((resolve,reject)=>{
-      canvas.toBlob(b=>b?resolve(b):reject(new Error('Не удалось создать файл QR')),'image/png');
+      out.toBlob(b=>b?resolve(b):reject(new Error('Не удалось создать файл QR')),'image/png',1);
     });
+
     const file=new File([blob],'GARANT_Spain_Website_QR.png',{type:'image/png'});
     if(navigator.canShare&&navigator.canShare({files:[file]})&&navigator.share){
       await navigator.share({files:[file],title:'GARANT Spain QR'});
       return;
     }
+
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
     a.href=url;
@@ -991,15 +1002,23 @@ window.downloadWebsiteQr=async()=>{
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),2000);
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
   }catch(e){
     try{
-      const dataUrl=canvas.toDataURL('image/png');
+      const pad=32;
+      const out=document.createElement('canvas');
+      out.width=canvas.width+pad*2;
+      out.height=canvas.height+pad*2;
+      const ctx=out.getContext('2d');
+      ctx.fillStyle='#ffffff';
+      ctx.fillRect(0,0,out.width,out.height);
+      ctx.drawImage(canvas,pad,pad);
+      const dataUrl=out.toDataURL('image/png');
       const w=window.open(dataUrl,'_blank');
       if(!w)throw new Error('popup blocked');
-      toast('QR открыт. На iPhone удерживайте изображение и выберите «Сохранить в Фото».');
+      toast('QR открыт на белом фоне. На iPhone удерживайте изображение и выберите «Сохранить в Фото».');
     }catch{
-      toast('Не удалось сохранить QR. Откройте QR и сделайте снимок экрана.');
+      toast('Не удалось сохранить QR.');
     }
   }
 };
