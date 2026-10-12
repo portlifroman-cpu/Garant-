@@ -228,6 +228,7 @@ tr:hover td{background:#fbfdff}
       <button data-page="stock">Склад</button>
       <button data-page="products">Товары</button>
       <button data-page="catalog">Каталог / QR</button>
+      <button data-page="electronic-catalog">Электронный каталог</button>
       <button data-page="website-qr">QR сайт</button>
       <button data-page="employees">Команда</button>
       <button data-page="reports">Отчёты</button>
@@ -396,6 +397,22 @@ tr:hover td{background:#fbfdff}
             </div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <section id="page-electronic-catalog" class="page hidden">
+      <div class="card">
+        <div class="head" style="margin-bottom:10px">
+          <div>
+            <h2 style="margin:0">Электронный каталог GARANT</h2>
+            <p class="muted" style="margin:6px 0 0">Каталог на основе фирменного PRODUCT CATALOGUE. Внизу размещён QR-код на испанский сайт garantsnus.es.</p>
+          </div>
+          <div class="actions">
+            <button class="primary" onclick="openElectronicCatalog()">Открыть отдельно</button>
+            <button class="light" onclick="copyElectronicCatalog()">Копировать ссылку</button>
+          </div>
+        </div>
+        <iframe id="electronicCatalogFrame" title="GARANT Electronic Catalogue" src="/catalogo.html" style="width:100%;height:76vh;min-height:650px;border:1px solid var(--line);border-radius:18px;background:#fff"></iframe>
       </div>
     </section>
 
@@ -960,6 +977,7 @@ async function refreshAll(){
 }
 
 const CATALOG_URL='https://garantkartaprodazhcloud.vercel.app/catalogo.html';
+const ELECTRONIC_CATALOG_URL='https://garantkartaprodazhcloud.vercel.app/catalogo.html';
 const SPANISH_WEBSITE_URL='https://garantsnus.es';
 const SPANISH_WEBSITE_QR_PNG='data:image/png;base64,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';
 function renderCatalogQr(){
@@ -985,6 +1003,8 @@ window.downloadWebsiteQr=()=>{
     window.open(SPANISH_WEBSITE_QR_PNG,'_blank');
   }
 };
+window.openElectronicCatalog=()=>window.open(ELECTRONIC_CATALOG_URL,'_blank');
+window.copyElectronicCatalog=async()=>{try{await navigator.clipboard.writeText(ELECTRONIC_CATALOG_URL);toast('Ссылка на электронный каталог скопирована')}catch{toast('Не удалось скопировать ссылку')}};
 window.openPublicCatalog=()=>window.open(CATALOG_URL,'_blank');
 window.copyCatalogLink=async()=>{try{await navigator.clipboard.writeText(CATALOG_URL);toast('Ссылка на каталог скопирована')}catch{toast('Не удалось скопировать ссылку')}};
 window.downloadCatalogQr=()=>{const canvas=$('catalogQr');if(!canvas)return;const a=document.createElement('a');a.download='GARANT_catalog_QR.png';a.href=canvas.toDataURL('image/png');a.click()};
