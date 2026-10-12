@@ -390,7 +390,7 @@ tr:hover td{background:#fbfdff}
             </div>
           </div>
           <div style="text-align:center">
-            <canvas id="websiteQr" width="360" height="360" style="max-width:100%;background:#fff;border-radius:16px;border:1px solid #dfe8ef;padding:10px"></canvas>
+            <img id="websiteQr" alt="QR GARANT Spain" style="width:360px;max-width:100%;background:#fff;border-radius:16px;border:1px solid #dfe8ef;padding:10px" src="data:image/png;base64,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">
             <div class="actions" style="justify-content:center">
               <button class="light" onclick="downloadWebsiteQr()">Скачать QR</button>
             </div>
@@ -961,65 +961,28 @@ async function refreshAll(){
 
 const CATALOG_URL='https://garantkartaprodazhcloud.vercel.app/catalogo.html';
 const SPANISH_WEBSITE_URL='https://garantsnus.es';
+const SPANISH_WEBSITE_QR_PNG='data:image/png;base64,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';
 function renderCatalogQr(){
   const canvas=$('catalogQr');if(!canvas||!window.QRCode)return;
   QRCode.toCanvas(canvas,CATALOG_URL,{width:360,margin:2,errorCorrectionLevel:'H'},()=>{});
 }
 function renderWebsiteQr(){
-  const canvas=$('websiteQr');if(!canvas||!window.QRCode)return;
-  QRCode.toCanvas(canvas,SPANISH_WEBSITE_URL,{width:360,margin:2,errorCorrectionLevel:'H'},()=>{});
+  const img=$('websiteQr');if(!img)return;
+  img.src=SPANISH_WEBSITE_QR_PNG;
 }
 window.openSpanishWebsite=()=>window.open(SPANISH_WEBSITE_URL,'_blank');
 window.copySpanishWebsite=async()=>{try{await navigator.clipboard.writeText(SPANISH_WEBSITE_URL);toast('Ссылка на сайт скопирована')}catch{toast('Не удалось скопировать ссылку')}};
-window.downloadWebsiteQr=async()=>{
-  const canvas=$('websiteQr');
-  if(!canvas)return toast('QR-код ещё не готов');
+window.downloadWebsiteQr=()=>{
   try{
-    const pad=32;
-    const out=document.createElement('canvas');
-    out.width=canvas.width+pad*2;
-    out.height=canvas.height+pad*2;
-    const ctx=out.getContext('2d');
-    ctx.fillStyle='#ffffff';
-    ctx.fillRect(0,0,out.width,out.height);
-    ctx.drawImage(canvas,pad,pad);
-
-    const blob=await new Promise((resolve,reject)=>{
-      out.toBlob(b=>b?resolve(b):reject(new Error('Не удалось создать файл QR')),'image/png',1);
-    });
-
-    const file=new File([blob],'GARANT_Spain_Website_QR.png',{type:'image/png'});
-    if(navigator.canShare&&navigator.canShare({files:[file]})&&navigator.share){
-      await navigator.share({files:[file],title:'GARANT Spain QR'});
-      return;
-    }
-
-    const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url;
+    a.href=SPANISH_WEBSITE_QR_PNG;
     a.download='GARANT_Spain_Website_QR.png';
-    a.rel='noopener';
+    a.target='_blank';
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),5000);
   }catch(e){
-    try{
-      const pad=32;
-      const out=document.createElement('canvas');
-      out.width=canvas.width+pad*2;
-      out.height=canvas.height+pad*2;
-      const ctx=out.getContext('2d');
-      ctx.fillStyle='#ffffff';
-      ctx.fillRect(0,0,out.width,out.height);
-      ctx.drawImage(canvas,pad,pad);
-      const dataUrl=out.toDataURL('image/png');
-      const w=window.open(dataUrl,'_blank');
-      if(!w)throw new Error('popup blocked');
-      toast('QR открыт на белом фоне. На iPhone удерживайте изображение и выберите «Сохранить в Фото».');
-    }catch{
-      toast('Не удалось сохранить QR.');
-    }
+    window.open(SPANISH_WEBSITE_QR_PNG,'_blank');
   }
 };
 window.openPublicCatalog=()=>window.open(CATALOG_URL,'_blank');
