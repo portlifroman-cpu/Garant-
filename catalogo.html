@@ -1,46 +1,126 @@
 <!doctype html>
-<html lang="ru">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#ffffff">
-<title>GARANT — Каталог</title>
+<meta name="theme-color" content="#050505">
+<title>GARANT — Product Catalogue Spain</title>
 <style>
-:root{--ink:#142a3e;--muted:#6d7d8d;--line:#dfe8ef;--blue:#0876ed;--bg:#f3f6fa}
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,sans-serif;color:var(--ink);background:linear-gradient(180deg,#fff,#f4f7fb);min-height:100vh}
-.wrap{max-width:1100px;margin:auto;padding:18px}.hero{background:#fff;border:1px solid var(--line);border-radius:24px;padding:26px;box-shadow:0 16px 45px rgba(20,42,62,.08);display:flex;align-items:center;gap:20px;flex-wrap:wrap}
-.logo{width:210px;height:90px;object-fit:contain}.hero h1{font-size:34px;margin:0}.hero p{color:var(--muted);margin:7px 0 0}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}
-.card{position:relative;min-height:220px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px 112px 16px 16px;box-shadow:0 10px 25px rgba(20,42,62,.06);overflow:hidden}
-.product-img{position:absolute;right:12px;top:58%;transform:translateY(-40%);width:88px;height:88px;object-fit:contain;border-radius:14px;background:transparent;filter:drop-shadow(0 8px 12px rgba(20,42,62,.16))}
-.card h3{padding-right:2px}
-
-.card h3{margin:0 0 8px}.meta{color:var(--muted);font-size:14px;line-height:1.45}.price{font-size:22px;font-weight:800;margin-top:12px}.empty{background:#fff;border:1px dashed #cbd7e3;border-radius:18px;padding:26px;text-align:center;color:var(--muted);margin-top:18px}
-@media(max-width:780px){.grid{grid-template-columns:1fr}.hero h1{font-size:28px}.logo{width:170px;height:74px}.card{min-height:210px;padding-right:108px}.product-img{width:82px;height:82px;right:10px;top:60%}}
+:root{--gold:#c7a338;--ink:#0b0b0b;--muted:#717171;--line:#e9e4d6;--paper:#fff;--soft:#faf8f2}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#171717;background:#ece9df}
+.wrap{max-width:1120px;margin:auto;padding:18px}
+.cover,.back{min-height:68vh;border-radius:28px;overflow:hidden;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;background:
+ radial-gradient(circle at 10% 0%,rgba(220,184,50,.55),transparent 28%),
+ radial-gradient(circle at 90% 100%,rgba(218,179,44,.52),transparent 30%),
+ #030303;box-shadow:0 18px 55px rgba(0,0,0,.18)}
+.cover-inner,.back-inner{padding:55px 24px;max-width:760px}
+.logo{width:min(470px,82vw);height:auto;filter:brightness(0) invert(1)}
+.cover h1{font-size:clamp(25px,4vw,44px);letter-spacing:.28em;margin:22px 0 0;font-weight:600}
+.cover p{font-size:15px;letter-spacing:.22em;color:#ddd}
+.section{margin:22px 0;background:var(--paper);border-radius:26px;padding:24px;box-shadow:0 12px 35px rgba(35,30,15,.08)}
+.section-title{text-align:center;text-transform:uppercase;letter-spacing:.18em;font-size:clamp(24px,4vw,40px);margin:2px 0 6px}
+.section-sub{text-align:center;color:var(--muted);margin:0 0 20px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.card{position:relative;min-height:245px;border:1px solid var(--line);border-radius:20px;padding:18px 126px 18px 18px;background:linear-gradient(145deg,#fff,#fbfaf6);overflow:hidden}
+.card img{position:absolute;right:12px;top:54%;transform:translateY(-45%);width:108px;height:108px;object-fit:contain;filter:drop-shadow(0 10px 14px rgba(0,0,0,.16))}
+.card h3{font-size:19px;margin:0 0 10px;line-height:1.15}
+.meta{font-size:14px;line-height:1.5;color:#666}
+.price{font-size:21px;font-weight:800;margin-top:12px}
+.badge{display:inline-block;border:1px solid var(--gold);border-radius:999px;padding:4px 9px;font-size:12px;margin-bottom:8px;color:#6f5811;background:#fffaf0}
+.back{min-height:520px;margin-top:22px}
+.back h2{font-size:26px;letter-spacing:.18em;margin:18px 0 24px}
+.contact{line-height:1.8;color:#f0f0f0}
+.qr{width:180px;height:180px;background:#fff;padding:10px;border-radius:16px;margin:26px auto 12px;display:block}
+.site{font-weight:800;font-size:19px}
+.toolbar{position:sticky;top:8px;z-index:10;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:0 auto 14px}
+.toolbar button,.toolbar a{border:0;border-radius:12px;padding:10px 14px;font-weight:700;text-decoration:none;background:#111;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.15)}
+.toolbar .light{background:#fff;color:#111}
+.empty{text-align:center;padding:30px;color:#777}
+@media(max-width:820px){.wrap{padding:10px}.grid{grid-template-columns:1fr 1fr}.card{min-height:220px;padding-right:112px}.card img{width:94px;height:94px}.section{padding:15px}.cover,.back{border-radius:20px}}
+@media(max-width:560px){.grid{grid-template-columns:1fr}.card{min-height:205px}.cover{min-height:58vh}.section-title{letter-spacing:.11em}}
+@media print{body{background:#fff}.toolbar{display:none}.wrap{max-width:none;padding:0}.cover,.section,.back{box-shadow:none;break-inside:avoid;margin:0 0 12px;border-radius:0}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="hero">
-    <img class="logo" src="/assets/garant-logo-exact.svg?v=5" alt="GARANT">
-    <div><h1>Каталог GARANT</h1><p>Актуальные товары компании. Данные берутся напрямую из GARANT CRM.</p></div>
+  <div class="toolbar">
+    <a href="https://garantsnus.es" target="_blank" rel="noopener">GARANT España</a>
+    <button class="light" onclick="navigator.share?navigator.share({title:'GARANT Product Catalogue',url:location.href}):navigator.clipboard.writeText(location.href)">Compartir catálogo</button>
+    <button class="light" onclick="window.print()">Guardar / imprimir PDF</button>
   </div>
-  <div id="catalog" class="grid"></div>
-  <div id="empty" class="empty" style="display:none">Каталог пока пуст. Добавьте товары в CRM → раздел «Товары», и они появятся здесь автоматически.</div>
+
+  <section class="cover">
+    <div class="cover-inner">
+      <img class="logo" src="/assets/garant-logo-exact.svg?v=5" alt="GARANT">
+      <h1>PRODUCT CATALOGUE</h1>
+      <p>SPAIN · PG NORD GARANT S.L.</p>
+    </div>
+  </section>
+
+  <div id="sections"></div>
+
+  <section class="back">
+    <div class="back-inner">
+      <img class="logo" src="/assets/garant-logo-exact.svg?v=5" alt="GARANT">
+      <h2>PRODUCT CATALOGUE</h2>
+      <div class="contact">
+        <b>PG Nord Garant S.L.</b><br>
+        NIF: B26984146<br>
+        667 007 009<br>
+        sales@pgnord.eu
+      </div>
+      <img class="qr" src="data:image/png;base64,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" alt="QR garantsnus.es">
+      <div class="site">garantsnus.es</div>
+      <div style="margin-top:7px;color:#cfcfcf">Escanea el QR para visitar nuestra web española</div>
+    </div>
+  </section>
 </div>
 <script>
 const ENDPOINT='https://bxibrptyonhxcdnizacp.supabase.co/functions/v1/public-catalog-products';
 const PRODUCT_IMAGE_PROXY='https://bxibrptyonhxcdnizacp.supabase.co/functions/v1/official-garant-product-image';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const order=['Garant Prime Collection','Prime Collection','Classic Edition','Main line','Extreme Edition','Extreme','Mini Pouches','Chewing bags','Tobacco Chew Bags','Nicotine strips','Nicotine Strips'];
+function normCategory(x){
+  const c=(x.category||'Otros').trim();
+  if(/prime/i.test(c))return 'PRIME COLLECTION';
+  if(/extreme/i.test(c))return 'EXTREME EDITION';
+  if(/mini/i.test(c))return 'MINI POUCHES';
+  if(/chew/i.test(c))return 'TOBACCO CHEW BAGS';
+  if(/strip/i.test(c))return 'NICOTINE STRIPS';
+  if(/main|classic/i.test(c))return 'CLASSIC EDITION';
+  return c.toUpperCase();
+}
+function productCard(x){
+  const img=x.image_url||(x.source_url?PRODUCT_IMAGE_PROXY+'?url='+encodeURIComponent(x.source_url):'');
+  return `<article class="card">
+    <span class="badge">${esc(normCategory(x))}</span>
+    <h3>${esc(x.name)}</h3>
+    ${img?'<img src="'+esc(img)+'" alt="'+esc(x.name)+'" loading="lazy" onerror="this.style.display=\'none\'">':''}
+    <div class="meta">
+      ${x.flavor?'<div>Sabor: '+esc(x.flavor)+'</div>':''}
+      ${x.strength?'<div>Intensidad: '+esc(x.strength)+'</div>':''}
+      ${x.nicotine_mg_pouch?'<div>Nicotina: '+esc(x.nicotine_mg_pouch)+' mg/pouch</div>':''}
+      ${x.nicotine_mg_g?'<div>'+esc(x.nicotine_mg_g)+' mg/g</div>':''}
+      ${x.pouches_per_can?'<div>'+esc(x.pouches_per_can)+' pouches</div>':''}
+      ${x.total_weight_g?'<div>Peso: '+esc(x.total_weight_g)+' g</div>':''}
+    </div>
+    ${x.price>0?'<div class="price">'+Number(x.price).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €</div>':''}
+  </article>`;
+}
 (async()=>{
-  const holder=document.getElementById('catalog'),empty=document.getElementById('empty');
-  try{
-    const r=await fetch(ENDPOINT);
-    const j=await r.json();
-    const p=Array.isArray(j.products)?j.products:[];
-    if(!p.length){empty.style.display='block';return}
-    holder.innerHTML=p.map(x=>`<article class="card"><h3>${esc(x.name)}</h3>${(x.image_url||x.source_url)?'<img class="product-img" src="'+esc(x.image_url||PRODUCT_IMAGE_PROXY+'?url='+encodeURIComponent(x.source_url))+'" alt="'+esc(x.name)+'" loading="lazy" onerror="this.style.display=\'none\'">':''}<div class="meta">${x.category?'<div>Линейка: '+esc(x.category)+'</div>':''}${x.flavor?'<div>Вкус: '+esc(x.flavor)+'</div>':''}${x.strength?'<div>Крепость: '+esc(x.strength)+'</div>':''}${x.pouches_per_can?'<div>Порций в банке: '+esc(x.pouches_per_can)+'</div>':''}${x.total_weight_g?'<div>Вес: '+esc(x.total_weight_g)+' г</div>':''}${x.product_type?'<div>Тип: '+esc(x.product_type)+'</div>':''}</div>${x.description?'<p class="meta" style="margin-top:10px">'+esc(x.description)+'</p>':''}${x.source_url?'<p><a href="'+esc(x.source_url)+'" target="_blank" rel="noopener noreferrer">Страница товара</a></p>':''}${x.price>0?'<div class="price">'+Number(x.price).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' €</div>':''}</article>`).join('');
-  }catch(e){empty.style.display='block';empty.textContent='Не удалось загрузить каталог. Попробуйте обновить страницу.'}
+ const root=document.getElementById('sections');
+ try{
+   const r=await fetch(ENDPOINT);
+   const j=await r.json();
+   const products=Array.isArray(j.products)?j.products:[];
+   if(!products.length){root.innerHTML='<div class="section empty">El catálogo está vacío.</div>';return}
+   const groups={};
+   for(const p of products){const k=normCategory(p);(groups[k]??=[]).push(p)}
+   const preferred=['PRIME COLLECTION','CLASSIC EDITION','EXTREME EDITION','MINI POUCHES','TOBACCO CHEW BAGS','NICOTINE STRIPS'];
+   const keys=[...preferred.filter(k=>groups[k]),...Object.keys(groups).filter(k=>!preferred.includes(k)).sort()];
+   root.innerHTML=keys.map(k=>`<section class="section"><h2 class="section-title">${esc(k)}</h2><p class="section-sub">${groups[k].length} productos</p><div class="grid">${groups[k].map(productCard).join('')}</div></section>`).join('');
+ }catch(e){root.innerHTML='<div class="section empty">No se pudo cargar el catálogo. Actualiza la página.</div>'}
 })();
 </script>
 </body>
