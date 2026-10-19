@@ -106,7 +106,7 @@ async function loadTab(){const c=document.getElementById('content');try{
    document.getElementById('addmove').onclick=()=>createMovement(products,warehouses);
    return
  }
- if(tab==='products'){const d=await req('/rest/v1/products?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><b>Товары / вкусы</b>'+table(['SKU','Название','Вкус','Вес 1 банки','Порций','Вес порции','Никотин/порция','Закупка','Себестоимость','IVA'],d.map(x=>[x.sku||'—',x.name,x.flavor||'—',(x.unit_weight_g?Number(x.unit_weight_g).toLocaleString('ru-RU')+' г':'—'),x.pieces_per_can||'—',(x.piece_weight_g?Number(x.piece_weight_g).toLocaleString('ru-RU')+' г':'—'),x.nicotine_per_piece||'—',money(x.purchase_price),x.landing_cost_net?money(x.landing_cost_net):'—',(x.vat_rate||0)+'%']))+'</div>';return}
+ if(tab==='products'){const d=await req('/rest/v1/products?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><b>Товары / вкусы</b>'+table(['SKU','Название','Вкус','Вес 1 банки','Порций','Вес порции','Никотин/порция','Закупка','Акциз','Себестоимость','IVA'],d.map(x=>[x.sku||'—',x.name,x.flavor||'—',(x.unit_weight_g?Number(x.unit_weight_g).toLocaleString('ru-RU')+' г':'—'),x.pieces_per_can||'—',(x.piece_weight_g?Number(x.piece_weight_g).toLocaleString('ru-RU')+' г':'—'),x.nicotine_per_piece||'—',money(x.purchase_price),x.excise_per_unit?money(x.excise_per_unit):'—',x.landing_cost_net?money(x.landing_cost_net):'—',(x.vat_rate||0)+'%']))+'</div>';return}
 }catch(e){c.innerHTML='<div class="notice">Ошибка загрузки: '+esc(e.message)+'</div>'}}
 
 
