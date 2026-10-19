@@ -89,7 +89,7 @@ async function loadTab(){const c=document.getElementById('content');try{
  }
  if(tab==='warehouse'){
    const [products,warehouses,moves]=await Promise.all([
-     req('/rest/v1/products?select=id,sku,name,flavor,unit_weight_g&company_id=eq.'+company.id+'&order=name'),
+     req('/rest/v1/products?select=id,sku,name,flavor,unit_weight_g,landing_cost_net,pieces_per_can,piece_weight_g,nicotine_per_piece&company_id=eq.'+company.id+'&order=name'),
      req('/rest/v1/warehouses?select=id,name,type&company_id=eq.'+company.id+'&order=name'),
      req('/rest/v1/stock_movements?select=product_id,warehouse_id,movement_type,quantity,movement_at,note&company_id=eq.'+company.id+'&order=movement_at.desc')
    ]);
@@ -100,13 +100,13 @@ async function loadTab(){const c=document.getElementById('content');try{
      balances[k]=(balances[k]||0)+s*Number(m.quantity||0);
    }
    const rows=[];
-   for(const w of warehouses){for(const p of products){const q=balances[p.id+'|'+w.id]||0;if(q!==0){const grams=q*Number(p.unit_weight_g||0);rows.push([w.name,p.name,p.flavor||'—',p.sku||'—',q,grams?grams.toLocaleString('ru-RU')+' г':'—',grams?(grams/1000).toLocaleString('ru-RU',{maximumFractionDigits:3})+' кг':'—']);}}}
-   c.innerHTML='<div class="card"><div class="top"><div><b>Склад</b><div class="muted">Остатки по складам</div></div><div><button id="addwh" class="btn">+ Склад</button> <button id="addmove" class="btn primary">+ Движение</button></div></div>'+table(['Склад','Товар','Вкус','SKU','Банки','Вес, г','Вес, кг'],rows)+'</div><div class="card" style="margin-top:12px"><b>Последние движения</b>'+table(['Дата','Тип','Количество','Комментарий'],moves.slice(0,20).map(x=>[x.movement_at||'—',x.movement_type,x.quantity,x.note||'—']))+'</div>';
+   for(const w of warehouses){for(const p of products){const q=balances[p.id+'|'+w.id]||0;if(q!==0){const grams=q*Number(p.unit_weight_g||0);rows.push([w.name,p.name,p.flavor||'—',p.sku||'—',q,grams?grams.toLocaleString('ru-RU')+' г':'—',grams?(grams/1000).toLocaleString('ru-RU',{maximumFractionDigits:3})+' кг':'—',p.landing_cost_net?money(p.landing_cost_net):'—',p.landing_cost_net?money(q*Number(p.landing_cost_net)):'—']);}}}
+   c.innerHTML='<div class="card"><div class="top"><div><b>Склад</b><div class="muted">Остатки по складам</div></div><div><button id="addwh" class="btn">+ Склад</button> <button id="addmove" class="btn primary">+ Движение</button></div></div>'+table(['Склад','Товар','Вкус','SKU','Банки','Вес, г','Вес, кг','Себестоимость/шт','Стоимость остатка'],rows)+'</div><div class="card" style="margin-top:12px"><b>Последние движения</b>'+table(['Дата','Тип','Количество','Комментарий'],moves.slice(0,20).map(x=>[x.movement_at||'—',x.movement_type,x.quantity,x.note||'—']))+'</div>';
    document.getElementById('addwh').onclick=()=>createWarehouse();
    document.getElementById('addmove').onclick=()=>createMovement(products,warehouses);
    return
  }
- if(tab==='products'){const d=await req('/rest/v1/products?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><b>Товары / вкусы</b>'+table(['SKU','Название','Вкус','Вес 1 банки','Закупка','Продажа','IVA'],d.map(x=>[x.sku||'—',x.name,x.flavor||'—',(x.unit_weight_g?Number(x.unit_weight_g).toLocaleString('ru-RU')+' г':'—'),money(x.purchase_price),money(x.sale_price),(x.vat_rate||0)+'%']))+'</div>';return}
+ if(tab==='products'){const d=await req('/rest/v1/products?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><b>Товары / вкусы</b>'+table(['SKU','Название','Вкус','Вес 1 банки','Порций','Вес порции','Никотин/порция','Закупка','Себестоимость','Опт модель','IVA'],d.map(x=>[x.sku||'—',x.name,x.flavor||'—',(x.unit_weight_g?Number(x.unit_weight_g).toLocaleString('ru-RU')+' г':'—'),x.pieces_per_can||'—',(x.piece_weight_g?Number(x.piece_weight_g).toLocaleString('ru-RU')+' г':'—'),x.nicotine_per_piece||'—',money(x.purchase_price),x.landing_cost_net?money(x.landing_cost_net):'—',x.wholesale_net?money(x.wholesale_net):'—',(x.vat_rate||0)+'%']))+'</div>';return}
 }catch(e){c.innerHTML='<div class="notice">Ошибка загрузки: '+esc(e.message)+'</div>'}}
 
 
