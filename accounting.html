@@ -56,7 +56,7 @@ async function boot(){
 function setup(){app.innerHTML='<div class="wrap"><div class="card login"><h1>Первичная настройка</h1><div class="field"><label>Компания</label><input id="cn" value="PG Nord Garant S.L."></div><div class="field"><label>NIF</label><input id="tx" value="B26984146"></div><button id="create" class="btn primary full">Создать компанию</button></div></div>';document.getElementById('create').onclick=createCompany}
 async function createCompany(){try{const rows=await req('/rest/v1/companies',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({name:'GARANT',legal_name:document.getElementById('cn').value,tax_id:document.getElementById('tx').value,created_by:user.id})});company=rows[0];await req('/rest/v1/memberships',{method:'POST',body:JSON.stringify({company_id:company.id,user_id:user.id,role:'owner'})});await req('/rest/v1/warehouses',{method:'POST',body:JSON.stringify({company_id:company.id,name:'Главный склад',type:'main'})});render()}catch(e){alert(e.message)}}
 function nav(){return [['overview','Обзор'],['sales','Продажи'],['expenses','Расходы'],['payments','Оплаты'],['clients','Клиенты'],['products','Товары'],['warehouse','Склад'],['catalog','Каталог']].map(x=>'<button class="btn '+(tab===x[0]?'active':'')+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join('')}
-function render(){app.innerHTML='<div class="wrap"><div class="top"><div class="brand"><div class="logo">G</div><div><h1>GARANT Бухгалтерия</h1><div class="muted">'+esc(company.legal_name||company.name)+'</div></div></div><button id="logout" class="btn">Выйти</button></div><div class="nav">'+nav()+'</div><div id="content"></div></div>';document.getElementById('logout').onclick=()=>{localStorage.removeItem('garant_accounting_token');token='';login()};document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});loadTab()}
+function render(){app.innerHTML='<div class="wrap"><div class="top"><div class="brand"><div class="logo">G</div><div><h1>GARANT Бухгалтерия</h1><div class="muted">'+esc(company.legal_name||company.name)+'</div></div></div><div class="invoice-actions"><button id="selfPassword" class="btn">Сменить свой пароль</button><button id="logout" class="btn">Выйти</button></div></div><div class="nav">'+nav()+'</div><div id="content"></div></div>';document.getElementById('logout').onclick=()=>{localStorage.removeItem('garant_accounting_token');token='';login()};document.getElementById('selfPassword').onclick=()=>changeOwnPassword();document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});loadTab()}
 function table(h,rows){return '<div style="overflow:auto"><table class="table"><thead><tr>'+h.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(r=>'<tr>'+r.map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+h.length+'" class="muted">Пока нет записей</td></tr>')+'</tbody></table></div>'}
 async function loadTab(){const c=document.getElementById('content');try{
  if(tab==='overview'){const [s,e,p]=await Promise.all([req('/rest/v1/invoices?select=total,paid_total&company_id=eq.'+company.id+'&direction=eq.sale'),req('/rest/v1/expenses?select=total_amount&company_id=eq.'+company.id),req('/rest/v1/payments?select=amount,direction&company_id=eq.'+company.id)]);const sales=s.reduce((a,x)=>a+Number(x.total||0),0),paid=s.reduce((a,x)=>a+Number(x.paid_total||0),0),cost=e.reduce((a,x)=>a+Number(x.total_amount||0),0),cash=p.reduce((a,x)=>a+(x.direction==='in'?1:-1)*Number(x.amount||0),0);c.innerHTML='<div class="grid"><div class="card kpi"><span class="muted">Продажи</span><b>'+money(sales)+'</b></div><div class="card kpi"><span class="muted">Оплачено</span><b>'+money(paid)+'</b></div><div class="card kpi"><span class="muted">Расходы</span><b>'+money(cost)+'</b></div><div class="card kpi"><span class="muted">Денежный поток</span><b>'+money(cash)+'</b></div><button id="writeoffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Склад</span><b style="font-size:22px;display:block;margin-top:8px">Списание</b><span class="muted">Уменьшить остаток товара</span></button><button id="staffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Управление</span><b style="font-size:22px;display:block;margin-top:8px">Доступ сотрудников</b><span class="muted">Роли и пароли сотрудников</span></button></div>';document.getElementById('writeoffTile').onclick=()=>openWriteOff();document.getElementById('staffTile').onclick=()=>openStaffAccess();return}
@@ -203,6 +203,38 @@ function showInvoicePaper(x,saved){
 function printInvoicePaper(html){
  const w=window.open('','_blank');if(!w)return alert('Разрешите всплывающие окна для печати счёта');
  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Factura</title><style>body{margin:0;font-family:Arial,sans-serif}.invoice-paper{max-width:850px;margin:auto;padding:26px}.invoice-head{display:grid;grid-template-columns:1.4fr .8fr;gap:26px}.invoice-title{color:#0a5c73;font-size:22px;font-weight:800;border-bottom:4px solid #0a5c73;padding-bottom:6px;margin:18px 0}.invoice-client-label,.invoice-pay-label{display:inline-block;color:#0a5c73;font-weight:700;border-bottom:3px solid #0a5c73;padding:0 26px 4px 2px}.invoice-box{border:1px solid #333}.invoice-box div{display:flex;justify-content:space-between;gap:16px;padding:5px 8px;border-bottom:1px solid #aaa}.invoice-table{width:100%;border-collapse:collapse;margin-top:14px;border:2px solid #222}.invoice-table th,.invoice-table td{border-right:1px solid #222;padding:7px 5px}.invoice-table th{color:#0a5c73;border-bottom:2px solid #222}.amount{text-align:right}.invoice-total-box{margin-left:auto;width:310px;border-collapse:collapse}.invoice-total-box td{padding:5px 8px;border-bottom:1px solid #222}.invoice-total-box td:last-child{text-align:right;background:#f1eff8;border-left:1px solid #222}.invoice-footer{display:flex;justify-content:space-between;gap:24px;border-bottom:4px solid #0a5c73;padding-bottom:16px;margin-top:8px}.invoice-sign{text-align:right;margin-top:34px;font-style:italic}@media print{@page{size:A4;margin:10mm}}</style></head><body>'+html+'<script>window.onload=()=>{window.print()}<\/script></body></html>');w.document.close();
+}
+
+
+function changeOwnPassword(){
+ dialogBox('Сменить свой пароль',
+   '<div class="field"><label>Текущий пароль</label><input id="ownCurrentPass" type="password" autocomplete="current-password"></div>'+
+   '<div class="field"><label>Новый пароль</label><input id="ownNewPass" type="password" minlength="8" autocomplete="new-password"></div>'+
+   '<div class="field"><label>Повторите новый пароль</label><input id="ownNewPass2" type="password" minlength="8" autocomplete="new-password"></div>'+
+   '<div class="muted">Пароль должен быть не короче 8 символов.</div>',
+   async d=>{
+     const current=d.querySelector('#ownCurrentPass').value;
+     const p1=d.querySelector('#ownNewPass').value;
+     const p2=d.querySelector('#ownNewPass2').value;
+     if(!current)return alert('Введите текущий пароль.');
+     if(p1.length<8)return alert('Новый пароль должен быть не короче 8 символов.');
+     if(p1!==p2)return alert('Новые пароли не совпадают.');
+     try{
+       await req('/auth/v1/user',{
+         method:'PUT',
+         body:JSON.stringify({
+           email:user?.email,
+           current_password:current,
+           password:p1
+         })
+       });
+       d.remove();
+       alert('Пароль изменён.');
+     }catch(e){
+       alert('Не удалось изменить пароль: '+e.message);
+     }
+   }
+ );
 }
 
 function dialogBox(title,body,onSave){
