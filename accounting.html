@@ -12,7 +12,7 @@ h1{font-size:22px;margin:0}.muted{font-size:13px;color:#6b7280}.field{display:gr
 .notice{margin:12px 0;padding:11px 12px;border-radius:12px;background:#fff7ed;color:#9a3412;font-size:13px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:12px}.nav{display:flex;gap:8px;overflow:auto;margin:16px 0}.nav button{white-space:nowrap}.active{background:#111827!important;color:#fff!important}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.catalog-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.product-card{position:relative;min-height:225px;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:16px 112px 16px 16px;overflow:hidden}.product-card img{position:absolute;right:12px;top:54%;transform:translateY(-42%);width:88px;height:88px;object-fit:contain;filter:drop-shadow(0 7px 12px rgba(0,0,0,.15))}.product-card h3{margin:0 0 8px;font-size:16px}.product-meta{font-size:13px;color:#6b7280;line-height:1.45}.kpi b{font-size:26px;display:block;margin-top:6px}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px 7px;border-bottom:1px solid #eef0f3;text-align:left;font-size:14px}.table th{font-size:12px;color:#6b7280}
-.invoice-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.invoice-btn{background:#0a5c73;color:#fff}.danger-btn{background:#fee2e2;color:#991b1b}.danger-btn:hover{background:#fecaca}
+.invoice-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.invoice-btn{background:#0a5c73;color:#fff}.danger-btn{background:#fee2e2;color:#991b1b}.danger-btn:hover{background:#fecaca}.status-ok{display:inline-block;padding:4px 8px;border-radius:999px;background:#dcfce7;color:#166534;font-size:12px;font-weight:700}.status-wait{display:inline-block;padding:4px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:700}.staff-actions{display:flex;gap:6px;flex-wrap:wrap}.staff-role{padding:8px;border:1px solid #d1d5db;border-radius:10px;background:#fff}
 .inv-modal{position:fixed;inset:0;background:rgba(0,0,0,.42);display:grid;place-items:center;padding:12px;z-index:10000}.inv-panel{width:min(980px,100%);max-height:94vh;overflow:auto;background:#fff;border-radius:18px;padding:18px}.inv-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.inv-line{display:grid;grid-template-columns:2fr .65fr .8fr 42px;gap:8px;align-items:end;margin:8px 0}.inv-line select,.inv-line input,.inv-panel select,.inv-panel input{width:100%;padding:10px;border:1px solid #cfd8df;border-radius:10px;background:#fff}.inv-summary{margin-left:auto;width:min(360px,100%);display:grid;grid-template-columns:1fr auto;gap:7px 12px;padding-top:12px}.inv-summary .grand{font-weight:800;font-size:18px}.invoice-paper{background:#fff;color:#111;font-family:Arial,sans-serif;max-width:850px;margin:0 auto;padding:26px}.invoice-head{display:grid;grid-template-columns:1.4fr .8fr;gap:26px;align-items:start}.invoice-title{color:#0a5c73;font-size:22px;font-weight:800;border-bottom:4px solid #0a5c73;padding-bottom:6px;margin:18px 0}.invoice-client-label,.invoice-pay-label{display:inline-block;color:#0a5c73;font-weight:700;border-bottom:3px solid #0a5c73;padding:0 26px 4px 2px}.invoice-box{border:1px solid #333}.invoice-box div{display:flex;justify-content:space-between;gap:16px;padding:5px 8px;border-bottom:1px solid #aaa}.invoice-box div:last-child{border-bottom:0}.invoice-table{width:100%;border-collapse:collapse;margin-top:14px;border:2px solid #222}.invoice-table th,.invoice-table td{border-right:1px solid #222;padding:7px 5px}.invoice-table th{color:#0a5c73;border-bottom:2px solid #222}.invoice-table th:last-child,.invoice-table td:last-child{border-right:0}.invoice-table .amount{text-align:right}.invoice-total-box{margin-left:auto;width:310px;border-collapse:collapse}.invoice-total-box td{padding:5px 8px;border-bottom:1px solid #222}.invoice-total-box td:last-child{text-align:right;background:#f1eff8;border-left:1px solid #222}.invoice-footer{display:flex;justify-content:space-between;gap:24px;border-bottom:4px solid #0a5c73;padding-bottom:16px;margin-top:8px}.invoice-sign{text-align:right;margin-top:34px;font-style:italic}
 @media(max-width:760px){.inv-grid{grid-template-columns:1fr}.inv-line{grid-template-columns:1fr .7fr .8fr 42px}.invoice-head{grid-template-columns:1fr}.invoice-paper{padding:14px;font-size:12px}}
 @media(max-width:760px){.grid{grid-template-columns:1fr 1fr}.catalog-grid{grid-template-columns:1fr}.wrap{padding:12px}.product-card{min-height:210px}}
@@ -59,7 +59,7 @@ function nav(){return [['overview','Обзор'],['sales','Продажи'],['ex
 function render(){app.innerHTML='<div class="wrap"><div class="top"><div class="brand"><div class="logo">G</div><div><h1>GARANT Бухгалтерия</h1><div class="muted">'+esc(company.legal_name||company.name)+'</div></div></div><button id="logout" class="btn">Выйти</button></div><div class="nav">'+nav()+'</div><div id="content"></div></div>';document.getElementById('logout').onclick=()=>{localStorage.removeItem('garant_accounting_token');token='';login()};document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});loadTab()}
 function table(h,rows){return '<div style="overflow:auto"><table class="table"><thead><tr>'+h.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(r=>'<tr>'+r.map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+h.length+'" class="muted">Пока нет записей</td></tr>')+'</tbody></table></div>'}
 async function loadTab(){const c=document.getElementById('content');try{
- if(tab==='overview'){const [s,e,p]=await Promise.all([req('/rest/v1/invoices?select=total,paid_total&company_id=eq.'+company.id+'&direction=eq.sale'),req('/rest/v1/expenses?select=total_amount&company_id=eq.'+company.id),req('/rest/v1/payments?select=amount,direction&company_id=eq.'+company.id)]);const sales=s.reduce((a,x)=>a+Number(x.total||0),0),paid=s.reduce((a,x)=>a+Number(x.paid_total||0),0),cost=e.reduce((a,x)=>a+Number(x.total_amount||0),0),cash=p.reduce((a,x)=>a+(x.direction==='in'?1:-1)*Number(x.amount||0),0);c.innerHTML='<div class="grid"><div class="card kpi"><span class="muted">Продажи</span><b>'+money(sales)+'</b></div><div class="card kpi"><span class="muted">Оплачено</span><b>'+money(paid)+'</b></div><div class="card kpi"><span class="muted">Расходы</span><b>'+money(cost)+'</b></div><div class="card kpi"><span class="muted">Денежный поток</span><b>'+money(cash)+'</b></div><button id="writeoffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Склад</span><b style="font-size:22px;display:block;margin-top:8px">Списание</b><span class="muted">Уменьшить остаток товара</span></button></div>';document.getElementById('writeoffTile').onclick=()=>openWriteOff();return}
+ if(tab==='overview'){const [s,e,p]=await Promise.all([req('/rest/v1/invoices?select=total,paid_total&company_id=eq.'+company.id+'&direction=eq.sale'),req('/rest/v1/expenses?select=total_amount&company_id=eq.'+company.id),req('/rest/v1/payments?select=amount,direction&company_id=eq.'+company.id)]);const sales=s.reduce((a,x)=>a+Number(x.total||0),0),paid=s.reduce((a,x)=>a+Number(x.paid_total||0),0),cost=e.reduce((a,x)=>a+Number(x.total_amount||0),0),cash=p.reduce((a,x)=>a+(x.direction==='in'?1:-1)*Number(x.amount||0),0);c.innerHTML='<div class="grid"><div class="card kpi"><span class="muted">Продажи</span><b>'+money(sales)+'</b></div><div class="card kpi"><span class="muted">Оплачено</span><b>'+money(paid)+'</b></div><div class="card kpi"><span class="muted">Расходы</span><b>'+money(cost)+'</b></div><div class="card kpi"><span class="muted">Денежный поток</span><b>'+money(cash)+'</b></div><button id="writeoffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Склад</span><b style="font-size:22px;display:block;margin-top:8px">Списание</b><span class="muted">Уменьшить остаток товара</span></button><button id="staffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Управление</span><b style="font-size:22px;display:block;margin-top:8px">Доступ сотрудников</b><span class="muted">Роли и пароли сотрудников</span></button></div>';document.getElementById('writeoffTile').onclick=()=>openWriteOff();document.getElementById('staffTile').onclick=()=>openStaffAccess();return}
  if(tab==='sales'){
    const d=await req('/rest/v1/invoices?select=id,invoice_date,number,status,total,paid_total&company_id=eq.'+company.id+'&direction=eq.sale&order=invoice_date.desc');
    c.innerHTML='<div class="card"><div class="top"><div><b>Продажи / счета</b><div class="muted">Счета PG Nord Garant S.L.</div></div><button id="newinvoice" class="btn invoice-btn">+ Выставить счёт</button></div><div style="overflow:auto"><table class="table"><thead><tr><th>Дата</th><th>№</th><th>Статус</th><th>Сумма</th><th>Оплачено</th><th></th></tr></thead><tbody>'+(d.length?d.map(x=>'<tr><td>'+esc(x.invoice_date||'—')+'</td><td>'+esc(x.number||'—')+'</td><td>'+esc(x.status||'—')+'</td><td>'+esc(money(x.total))+'</td><td>'+esc(money(x.paid_total))+'</td><td><div class="invoice-actions"><button class="btn" data-invoice="'+x.id+'">Открыть</button><button class="btn danger-btn" data-delete-invoice="'+x.id+'" data-number="'+esc(x.number||'')+'">Удалить</button></div></td></tr>').join(''):'<tr><td colspan="6" class="muted">Пока нет счетов</td></tr>')+'</tbody></table></div></div>';
@@ -218,6 +218,66 @@ function createWarehouse(){
    const name=d.querySelector('#whname').value.trim(); if(!name)return alert('Введите название склада');
    try{await req('/rest/v1/warehouses',{method:'POST',body:JSON.stringify({company_id:company.id,name,type:'main'})});d.remove();loadTab()}catch(e){alert(e.message)}
  });
+}
+
+
+async function staffAdmin(action,payload={}){
+ const r=await fetch(URL+'/functions/v1/accounting-staff-admin',{
+   method:'POST',
+   headers:{'apikey':KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+   body:JSON.stringify(Object.assign({action},payload))
+ });
+ const text=await r.text();let data={};try{data=text?JSON.parse(text):{}}catch{data={error:text}}
+ if(!r.ok)throw new Error(data.error||('HTTP '+r.status));
+ return data;
+}
+async function openStaffAccess(){
+ try{
+   const data=await staffAdmin('list');
+   const modal=document.createElement('div');modal.className='inv-modal';
+   const roleLabel={owner:'Владелец',manager:'Руководитель',accountant:'Бухгалтер',viewer:'Просмотр'};
+   modal.innerHTML='<div class="inv-panel"><div class="top"><div><h2 style="margin:0">Доступ сотрудников</h2><div class="muted">Роли, статус аккаунта и смена пароля</div></div><button id="staffClose" class="btn">×</button></div>'+
+     '<div class="card" style="margin-top:14px;background:#f9fafb"><b>Добавить сотрудника</b><div class="inv-grid"><div class="field"><label>Email</label><input id="staffEmail" type="email" placeholder="name@pgnord.eu"></div><div class="field"><label>Роль</label><select id="staffRole" class="staff-role"><option value="viewer">Просмотр</option><option value="accountant">Бухгалтер</option>'+(data.caller_role==='owner'?'<option value="manager">Руководитель</option>':'')+'</select></div></div><button id="staffAdd" class="btn primary">Добавить доступ</button></div>'+
+     '<div style="margin-top:14px;overflow:auto"><table class="table"><thead><tr><th>Email</th><th>Роль</th><th>Статус</th><th>Действия</th></tr></thead><tbody>'+
+     (data.staff?.length?data.staff.map(s=>{
+       const status=s.account_exists?(s.confirmed?'<span class="status-ok">Активен</span>':'<span class="status-wait">Не подтверждён email</span>'):'<span class="status-wait">Ждёт регистрации</span>';
+       const roleOptions=s.role==='owner'
+         ? '<option value="owner" selected>Владелец</option>'
+         : '<option value="viewer" '+(s.role==='viewer'?'selected':'')+'>Просмотр</option><option value="accountant" '+(s.role==='accountant'?'selected':'')+'>Бухгалтер</option>'+(data.caller_role==='owner'?'<option value="manager" '+(s.role==='manager'?'selected':'')+'>Руководитель</option>':'');
+       return '<tr><td>'+esc(s.email)+'</td><td><select class="staff-role" data-role-email="'+esc(s.email)+'" '+(s.role==='owner'?'disabled':'')+'>'+roleOptions+'</select></td><td>'+status+'</td><td><div class="staff-actions">'+(s.role!=='owner'?'<button class="btn" data-pass-email="'+esc(s.email)+'" '+(!s.account_exists?'disabled':'')+'>Сменить пароль</button>':'')+'</div></td></tr>';
+     }).join(''):'<tr><td colspan="4" class="muted">Сотрудников пока нет</td></tr>')+
+     '</tbody></table></div></div>';
+   document.body.appendChild(modal);
+   modal.querySelector('#staffClose').onclick=()=>modal.remove();
+
+   modal.querySelector('#staffAdd').onclick=async()=>{
+     const email=modal.querySelector('#staffEmail').value.trim();
+     const role=modal.querySelector('#staffRole').value;
+     if(!email.includes('@'))return alert('Введите email сотрудника.');
+     try{await staffAdmin('invite',{email,role});modal.remove();alert('Доступ сохранён.');openStaffAccess()}catch(e){alert(e.message)}
+   };
+
+   modal.querySelectorAll('[data-role-email]').forEach(sel=>{
+     sel.onchange=async()=>{
+       try{await staffAdmin('set_role',{email:sel.dataset.roleEmail,role:sel.value});alert('Роль изменена.')}catch(e){alert(e.message);modal.remove();openStaffAccess()}
+     };
+   });
+
+   modal.querySelectorAll('[data-pass-email]').forEach(btn=>{
+     btn.onclick=()=>{
+       const email=btn.dataset.passEmail;
+       dialogBox('Новый пароль для '+email,
+         '<div class="field"><label>Новый пароль</label><input id="newStaffPass" type="password" minlength="8" placeholder="Минимум 8 символов"></div><div class="field"><label>Повторите пароль</label><input id="newStaffPass2" type="password" minlength="8"></div><div class="muted">Старый пароль не показывается и не хранится в приложении.</div>',
+         async d=>{
+           const p1=d.querySelector('#newStaffPass').value,p2=d.querySelector('#newStaffPass2').value;
+           if(p1.length<8)return alert('Пароль должен быть не короче 8 символов.');
+           if(p1!==p2)return alert('Пароли не совпадают.');
+           try{await staffAdmin('set_password',{email,password:p1});d.remove();alert('Пароль сотрудника изменён.')}catch(e){alert(e.message)}
+         }
+       );
+     };
+   });
+ }catch(e){alert('Не удалось открыть доступ сотрудников: '+e.message)}
 }
 
 async function openWriteOff(){
