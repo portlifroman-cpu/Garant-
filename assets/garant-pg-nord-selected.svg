@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 360" role="img" aria-label="GARANT PG NORD">
+  <g fill="none" stroke="#0b2a83" stroke-width="14" stroke-linecap="butt">
+    <path d="M105 92 A78 78 0 0 1 190 37"/>
+    <path d="M207 43 A78 78 0 0 1 260 96"/>
+    <path d="M259 115 A78 78 0 0 1 207 190"/>
+    <path d="M188 195 A78 78 0 0 1 105 139"/>
+    <path d="M98 121 A78 78 0 0 1 101 105"/>
+  </g>
+  <text x="180" y="162" text-anchor="middle" fill="#0b2a83" font-family="Georgia, 'Times New Roman', serif" font-size="138" font-weight="600">G</text>
+  <text x="420" y="150" text-anchor="middle" fill="#0b2a83" font-family="Georgia, 'Times New Roman', serif" font-size="92" font-weight="600" letter-spacing="5">GARANT</text>
+  <g fill="#0b2a83">
+    <rect x="278" y="190" width="95" height="9"/>
+    <rect x="616" y="190" width="95" height="9"/>
+    <text x="495" y="210" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="48" font-weight="700" letter-spacing="2">PG NORD</text>
+  </g>
+</svg>
