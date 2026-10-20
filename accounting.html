@@ -38,7 +38,22 @@ function login(msg=''){app.innerHTML='<div class="wrap"><div class="card login">
 async function signin(){
  const email=document.getElementById('email').value.trim(), password=document.getElementById('pass').value;
  if(!email||!password)return login('Введите email и пароль.');
- try{const d=await req('/auth/v1/token?grant_type=password',{method:'POST',body:JSON.stringify({email,password})});token=d.access_token;localStorage.setItem('garant_accounting_token',token);await boot()}catch(e){login('Ошибка входа: '+e.message)}
+ const btn=document.getElementById('signin');
+ if(btn){btn.disabled=true;btn.textContent='Входим…';}
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),45000);
+ try{
+   const headers={'apikey':KEY,'Content-Type':'application/json'};
+   const r=await fetch(URL+'/auth/v1/token?grant_type=password',{method:'POST',headers,body:JSON.stringify({email,password}),signal:controller.signal});
+   const text=await r.text();let d=null;try{d=text?JSON.parse(text):null}catch{d={}}
+   if(!r.ok)throw new Error((d&&d.msg)||(d&&d.error_description)||(d&&d.message)||('HTTP '+r.status));
+   token=d.access_token;
+   localStorage.setItem('garant_accounting_token',token);
+   await boot();
+ }catch(e){
+   if(e.name==='AbortError')login('Сервер входа отвечает слишком долго. Попробуйте ещё раз через несколько секунд.');
+   else login('Ошибка входа: '+e.message);
+ }finally{clearTimeout(timer)}
 }
 function register(){app.innerHTML='<div class="wrap"><div class="card login"><h1>Регистрация</h1><div class="field"><label>Email</label><input id="re" type="email"></div><div class="field"><label>Пароль</label><input id="rp" type="password"></div><div class="field"><label>Повторите пароль</label><input id="rp2" type="password"></div><button id="do" class="btn primary full">Зарегистрироваться</button><button id="back" class="btn full">Назад</button></div></div>';document.getElementById('back').onclick=()=>login();document.getElementById('do').onclick=signup}
 async function signup(){const email=document.getElementById('re').value.trim(),p=document.getElementById('rp').value,p2=document.getElementById('rp2').value;if(!email.includes('@'))return alert('Введите корректный email');if(p.length<6)return alert('Пароль минимум 6 символов');if(p!==p2)return alert('Пароли не совпадают');try{await req('/auth/v1/signup',{method:'POST',body:JSON.stringify({email,password:p,data:{},gotrue_meta_security:{captcha_token:''}})});login('Аккаунт создан. Если email уже подтверждён — просто войдите. Если придёт письмо, подтвердите адрес.')}catch(e){login('Ошибка регистрации: '+e.message)}}
