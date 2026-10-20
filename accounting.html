@@ -237,7 +237,7 @@ async function openStaffAccess(){
    const modal=document.createElement('div');modal.className='inv-modal';
    const roleLabel={owner:'Владелец',manager:'Руководитель',accountant:'Бухгалтер',viewer:'Просмотр'};
    modal.innerHTML='<div class="inv-panel"><div class="top"><div><h2 style="margin:0">Доступ сотрудников</h2><div class="muted">Роли, статус аккаунта и смена пароля</div></div><button id="staffClose" class="btn">×</button></div>'+
-     '<div class="card" style="margin-top:14px;background:#f9fafb"><b>Добавить сотрудника</b><div class="inv-grid"><div class="field"><label>Email</label><input id="staffEmail" type="email" placeholder="name@pgnord.eu"></div><div class="field"><label>Роль</label><select id="staffRole" class="staff-role"><option value="viewer">Просмотр</option><option value="accountant">Бухгалтер</option>'+(data.caller_role==='owner'?'<option value="manager">Руководитель</option>':'')+'</select></div></div><button id="staffAdd" class="btn primary">Добавить доступ</button></div>'+
+     '<div class="card" style="margin-top:14px;background:#f9fafb"><b>Добавить сотрудника</b><div class="inv-grid"><div class="field"><label>Email</label><input id="staffEmail" type="email" placeholder="name@pgnord.eu"></div><div class="field"><label>Роль</label><select id="staffRole" class="staff-role"><option value="viewer">Просмотр</option><option value="accountant">Бухгалтер</option>'+(data.caller_role==='owner'?'<option value="manager">Руководитель</option>':'')+'</select></div><div class="field"><label>Пароль</label><input id="staffPassword" type="password" minlength="8" placeholder="Минимум 8 символов"></div><div class="field"><label>Повторите пароль</label><input id="staffPassword2" type="password" minlength="8"></div></div><div class="staff-actions"><button id="staffCreate" class="btn primary">Создать аккаунт</button><button id="staffInvite" class="btn">Только дать доступ</button></div><div class="muted" style="margin-top:8px">«Создать аккаунт» сразу создаёт сотрудника с указанным email и паролем. Подтверждение email не требуется.</div></div>'+
      '<div style="margin-top:14px;overflow:auto"><table class="table"><thead><tr><th>Email</th><th>Роль</th><th>Статус</th><th>Действия</th></tr></thead><tbody>'+
      (data.staff?.length?data.staff.map(s=>{
        const status=s.account_exists?(s.confirmed?'<span class="status-ok">Активен</span>':'<span class="status-wait">Не подтверждён email</span>'):'<span class="status-wait">Ждёт регистрации</span>';
@@ -250,7 +250,17 @@ async function openStaffAccess(){
    document.body.appendChild(modal);
    modal.querySelector('#staffClose').onclick=()=>modal.remove();
 
-   modal.querySelector('#staffAdd').onclick=async()=>{
+   modal.querySelector('#staffCreate').onclick=async()=>{
+     const email=modal.querySelector('#staffEmail').value.trim();
+     const role=modal.querySelector('#staffRole').value;
+     const password=modal.querySelector('#staffPassword').value;
+     const password2=modal.querySelector('#staffPassword2').value;
+     if(!email.includes('@'))return alert('Введите email сотрудника.');
+     if(password.length<8)return alert('Пароль должен быть не короче 8 символов.');
+     if(password!==password2)return alert('Пароли не совпадают.');
+     try{await staffAdmin('create_account',{email,role,password});modal.remove();alert('Аккаунт сотрудника создан.');openStaffAccess()}catch(e){alert(e.message)}
+   };
+   modal.querySelector('#staffInvite').onclick=async()=>{
      const email=modal.querySelector('#staffEmail').value.trim();
      const role=modal.querySelector('#staffRole').value;
      if(!email.includes('@'))return alert('Введите email сотрудника.');
