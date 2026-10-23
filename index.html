@@ -222,6 +222,7 @@ tr:hover td{background:#fbfdff}
       <button data-page="dashboard" class="active">Главная</button>
       <button data-page="deals">Сделки</button>
       <button data-page="map">Карта</button>
+      <button data-page="visit-route">К посещению</button>
       <button data-page="shops">Магазины</button>
       <button data-page="orders">Заказы</button>
       <button data-page="tasks">Задачи</button>
@@ -301,6 +302,43 @@ tr:hover td{background:#fbfdff}
           <div id="mapLocationBadge" class="mapLocateBadge">Ищу ваше местоположение…</div>
           <div id="mapShopCount" class="mapLocateBadge" style="top:auto;bottom:54px">Магазины GARANT: 0</div>
           <div id="legend" class="legend"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="page-visit-route" class="page hidden">
+      <div class="mapLayout">
+        <div class="card">
+          <h2 style="margin-top:0">Магазины к посещению</h2>
+          <p class="muted">Сюда автоматически попадают магазины, у которых наступила дата следующего визита. Эта карта отдельная и не смешивается с общей картой магазинов.</p>
+
+          <div id="visitRouteManagerFilters" class="hidden">
+            <label>Агент</label>
+            <select id="visitRouteAgentFilter"><option value="">Все агенты</option></select>
+          </div>
+
+          <label>Показывать</label>
+          <select id="visitRouteDueFilter">
+            <option value="due">Нужно посетить сейчас</option>
+            <option value="3days">Сегодня + ближайшие 3 дня</option>
+            <option value="all">Все запланированные визиты</option>
+          </select>
+
+          <div class="actions" style="margin:8px 0">
+            <button class="light" onclick="selectAllVisitRouteShops()">Выбрать все</button>
+            <button class="light" onclick="clearVisitRouteSelection()">Снять выбор</button>
+          </div>
+
+          <div id="visitRouteSummary" class="card" style="margin:8px 0"></div>
+          <div id="visitRouteList"></div>
+
+          <button class="primary" style="width:100%;margin-top:10px" onclick="buildVisitRoute()">🧭 Построить маршрут</button>
+          <p class="muted" style="margin-top:8px">Для надёжного открытия в Google Maps маршрут строится максимум по 8 выбранным точкам за один раз.</p>
+        </div>
+
+        <div class="card mapCard">
+          <div id="visitRouteMap" style="width:100%;height:70vh;min-height:520px"></div>
+          <div id="visitRouteMapBadge" class="mapLocateBadge">Отдельная карта визитов</div>
         </div>
       </div>
     </section>
@@ -838,6 +876,7 @@ const isOwner=()=>user?.id===OWNER_USER_ID;
 const ROMAN_S_USER_ID='f1ba2c98-124e-4b1e-8fe3-9f5b4aacecbb';
 const canViewJointExpenses=()=>[OWNER_USER_ID,ROMAN_S_USER_ID].includes(user?.id);
 let selectedShop=null,selectedEmployee=null,newCoords=null,picking=false,draftPin=null,infoWindow=null,googleStoreMarkers=[],nearbySearchTimer=null,lastNearbySearchKey='',myLocationMarker=null,myAccuracyCircle=null,myLocationWatchId=null,myLocationEnabled=false,pendingGeoPosition=null,pendingGeoError=null;
+let visitRouteMap=null,visitRouteMarkers=[],visitRouteSelected=new Set();
 
 function toast(s){$('toast').textContent=s;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3200)}
 function openModal(id){$(id).classList.add('open')} function closeModals(){document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'))}
@@ -1057,16 +1096,23 @@ function showPage(name){
        }
      }
    },500)
- }if(name==='catalog')setTimeout(renderCatalogQr,80)
+ }
+ if(name==='visit-route'){
+   setTimeout(async()=>{
+     await renderVisitRoutePage();
+     if(visitRouteMap&&window.google?.maps)google.maps.event.trigger(visitRouteMap,'resize');
+   },80);
+ }
+ if(name==='catalog')setTimeout(renderCatalogQr,80)
  if(name==='website-qr')setTimeout(renderWebsiteQr,80)
 }
 window.showPage=showPage;
 document.querySelectorAll('#tabs button[data-page]').forEach(b=>b.onclick=()=>{
-  if(b.dataset.page==='map')requestLocationFromUserGesture();
+  if(b.dataset.page==='map'||b.dataset.page==='visit-route')requestLocationFromUserGesture();
   showPage(b.dataset.page);
 });
 
-function renderAll(){fillSelects();renderDashboard();renderShops();renderDeals();renderOrders();renderProducts();renderStock();renderEmployees();renderTasks();renderReports();if(canViewJointExpenses())renderJointExpenses();if(map)drawMap()}
+function renderAll(){fillSelects();renderDashboard();renderShops();renderDeals();renderOrders();renderProducts();renderStock();renderEmployees();renderTasks();renderReports();if(canViewJointExpenses())renderJointExpenses();if(map)drawMap();if(visitRouteMap)renderVisitRoutePage()}
 function fillSelects(){
  const statusOptions=Object.keys(colors).map(x=>`<option>${esc(x)}</option>`).join('');
  $('mapStatus').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('shopStatusFilter').innerHTML='<option value="">Все статусы</option>'+statusOptions;$('nsStatus').innerHTML=statusOptions;$('esStatus').innerHTML=statusOptions;$('vStatus').innerHTML=Object.keys(colors).filter(x=>x!=='Не посещён').map(x=>`<option>${esc(x)}</option>`).join('');
@@ -1669,6 +1715,8 @@ window.showAllShopsOnMap=()=>{
 $('googleStoresToggle').addEventListener('change',()=>{lastNearbySearchKey='';searchGoogleStoresInView()});
 $('googleMapSearchInput').addEventListener('keydown',e=>{if(e.key==='Enter')goToGoogleMapLink()});
 window.resetMapFilters=()=>{['mapSearch','mapCity','mapStatus','mapAgent'].forEach(id=>$(id).value='');drawMap(true)};
+$('visitRouteDueFilter')?.addEventListener('change',()=>{visitRouteSelected.clear();renderVisitRoutePage()});
+$('visitRouteAgentFilter')?.addEventListener('change',()=>{visitRouteSelected.clear();renderVisitRoutePage()});
 
 function shopOpenedByName(s){
   return (s.opened_by_name||employeeName(s.created_by)||'').trim();
@@ -1699,6 +1747,141 @@ function shopFollowupLabel(s){
   if(diff<=3)return '<span><b>Скоро визит</b> · через '+diff+' дн.</span>';
   return formatShopDate(s.next_visit);
 }
+function visitRouteDaysUntil(s){
+  if(!s?.next_visit)return null;
+  const today=new Date();today.setHours(0,0,0,0);
+  const due=new Date(s.next_visit+'T00:00:00');
+  return Math.round((due-today)/86400000);
+}
+function getVisitRouteShops(){
+  const filter=$('visitRouteDueFilter')?.value||'due';
+  const agent=$('visitRouteAgentFilter')?.value||'';
+  return shops.filter(s=>{
+    if(!s.next_visit)return false;
+    if(!isManager()&&s.agent_id!==user.id)return false;
+    if(isManager()&&agent&&s.agent_id!==agent)return false;
+    const d=visitRouteDaysUntil(s);
+    if(d===null)return false;
+    if(filter==='due'&&d>0)return false;
+    if(filter==='3days'&&d>3)return false;
+    return true;
+  }).sort((a,b)=>(a.next_visit||'').localeCompare(b.next_visit||''));
+}
+async function initVisitRouteMap(){
+  if(visitRouteMap)return;
+  try{await loadGoogleMaps()}catch(e){toast(e.message);return}
+  const saved=getSavedLocation();
+  const center=saved?{lat:saved.coords.latitude,lng:saved.coords.longitude}:{lat:36.55,lng:-4.62};
+  visitRouteMap=new google.maps.Map($('visitRouteMap'),{
+    center,zoom:11,mapTypeId:google.maps.MapTypeId.ROADMAP,
+    mapTypeControl:true,streetViewControl:false,fullscreenControl:true,
+    zoomControl:true,gestureHandling:'greedy'
+  });
+}
+function visitRouteMarkerIcon(selected=false,overdue=false){
+  const color=overdue?'#d32f2f':selected?'#1375f2':'#fa7b21';
+  return {
+    path:google.maps.SymbolPath.CIRCLE,
+    fillColor:color,fillOpacity:1,strokeColor:'#fff',strokeWeight:3,scale:selected?11:9
+  };
+}
+async function renderVisitRoutePage(){
+  const holder=$('visitRouteList');if(!holder)return;
+  if($('visitRouteManagerFilters'))$('visitRouteManagerFilters').classList.toggle('hidden',!isManager());
+  if(isManager()&&$('visitRouteAgentFilter')){
+    const current=$('visitRouteAgentFilter').value;
+    const agents=profiles.filter(p=>p.active&&['agent','regional_manager','manager'].includes(p.role));
+    $('visitRouteAgentFilter').innerHTML='<option value="">Все агенты</option>'+agents.map(p=>`<option value="${p.id}">${esc(p.full_name||p.email||'Сотрудник')}</option>`).join('');
+    $('visitRouteAgentFilter').value=current;
+  }
+
+  const rows=getVisitRouteShops();
+  const ids=new Set(rows.map(s=>s.id));
+  [...visitRouteSelected].forEach(id=>{if(!ids.has(id))visitRouteSelected.delete(id)});
+
+  holder.innerHTML=rows.length?rows.map(s=>{
+    const d=visitRouteDaysUntil(s);
+    const dueText=d<0?'Просрочено '+Math.abs(d)+' дн.':d===0?'Сегодня':d===1?'Завтра':'Через '+d+' дн.';
+    const hasGeo=Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lng));
+    return `<label class="card" style="display:block;margin:7px 0;cursor:pointer">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <input type="checkbox" class="visitRouteCheck" value="${s.id}" ${visitRouteSelected.has(s.id)?'checked':''} ${hasGeo?'':'disabled'} style="width:auto;margin-top:3px">
+        <div style="flex:1">
+          <div><b>${esc(s.name)}</b> · <span class="${d<=0?'negative':''}">${dueText}</span></div>
+          <div class="muted">${esc([s.city,s.address].filter(Boolean).join(', '))}</div>
+          <div class="muted">Агент: ${esc(employeeName(s.agent_id))}${hasGeo?'':' · нет координат'}</div>
+        </div>
+      </div>
+    </label>`;
+  }).join(''):'<p class="muted">Сейчас магазинов к посещению нет.</p>';
+
+  holder.querySelectorAll('.visitRouteCheck').forEach(cb=>cb.addEventListener('change',()=>{
+    if(cb.checked)visitRouteSelected.add(cb.value);else visitRouteSelected.delete(cb.value);
+    renderVisitRouteMapMarkers();
+  }));
+
+  const dueNow=rows.filter(s=>(visitRouteDaysUntil(s)??1)<=0).length;
+  const withGeo=rows.filter(s=>Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lng))).length;
+  $('visitRouteSummary').innerHTML=`<b>К посещению: ${rows.length}</b><div class="muted">Срок уже наступил: ${dueNow} · с координатами: ${withGeo} · выбрано в маршрут: ${visitRouteSelected.size}</div>`;
+
+  await initVisitRouteMap();
+  renderVisitRouteMapMarkers();
+}
+function renderVisitRouteMapMarkers(){
+  if(!visitRouteMap)return;
+  visitRouteMarkers.forEach(m=>m.setMap(null));visitRouteMarkers=[];
+  const rows=getVisitRouteShops().filter(s=>Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lng)));
+  const bounds=new google.maps.LatLngBounds();
+  rows.forEach(s=>{
+    const pos={lat:Number(s.lat),lng:Number(s.lng)};
+    const d=visitRouteDaysUntil(s);
+    const selected=visitRouteSelected.has(s.id);
+    const marker=new google.maps.Marker({
+      position:pos,map:visitRouteMap,title:s.name,
+      icon:visitRouteMarkerIcon(selected,d<0),zIndex:selected?3000:2000
+    });
+    marker.addListener('click',()=>{
+      if(selected)visitRouteSelected.delete(s.id);else visitRouteSelected.add(s.id);
+      renderVisitRoutePage();
+    });
+    visitRouteMarkers.push(marker);bounds.extend(pos);
+  });
+  if(rows.length===1){visitRouteMap.setCenter(bounds.getCenter());visitRouteMap.setZoom(15)}
+  else if(rows.length>1){visitRouteMap.fitBounds(bounds,60)}
+  if($('visitRouteMapBadge'))$('visitRouteMapBadge').textContent='К посещению: '+rows.length+' · выбрано: '+visitRouteSelected.size;
+}
+window.selectAllVisitRouteShops=()=>{
+  visitRouteSelected.clear();
+  getVisitRouteShops().filter(s=>Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lng))).slice(0,8).forEach(s=>visitRouteSelected.add(s.id));
+  renderVisitRoutePage();
+};
+window.clearVisitRouteSelection=()=>{visitRouteSelected.clear();renderVisitRoutePage()};
+function routePointString(s){
+  if(s.lat!=null&&s.lng!=null)return Number(s.lat)+','+Number(s.lng);
+  return [s.address,s.city,'Spain'].filter(Boolean).join(', ');
+}
+function currentRouteOrigin(){
+  const p=myLocationMarker?.getPosition?.();
+  if(p)return p.lat()+','+p.lng();
+  if(pendingGeoPosition)return pendingGeoPosition.coords.latitude+','+pendingGeoPosition.coords.longitude;
+  const saved=getSavedLocation();
+  if(saved)return saved.coords.latitude+','+saved.coords.longitude;
+  return '';
+}
+window.buildVisitRoute=()=>{
+  const selected=getVisitRouteShops().filter(s=>visitRouteSelected.has(s.id)&&Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lng))).slice(0,8);
+  if(!selected.length)return toast('Выберите хотя бы один магазин');
+  const origin=currentRouteOrigin();
+  const destination=routePointString(selected[selected.length-1]);
+  const waypoints=selected.slice(0,-1).map(routePointString);
+  const u=new URL('https://www.google.com/maps/dir/');
+  u.searchParams.set('api','1');
+  if(origin)u.searchParams.set('origin',origin);
+  u.searchParams.set('destination',destination);
+  if(waypoints.length)u.searchParams.set('waypoints',waypoints.join('|'));
+  u.searchParams.set('travelmode','driving');
+  window.open(u.toString(),'_blank');
+};
 function shopSupplyTermsLabel(s){
   if(s.supply_terms==='supplied')return 'Поставлен / оплачен';
   if(s.supply_terms==='consignment')return 'Под реализацию';
