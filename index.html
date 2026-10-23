@@ -1806,6 +1806,7 @@ async function renderVisitRoutePage(){
     return `<label class="card" style="display:block;margin:7px 0;cursor:pointer">
       <div style="display:flex;gap:10px;align-items:flex-start">
         <input type="checkbox" class="visitRouteCheck" value="${s.id}" ${visitRouteSelected.has(s.id)?'checked':''} ${hasGeo?'':'disabled'} style="width:auto;margin-top:3px">
+
         <div style="flex:1">
           <div><b>${esc(s.name)}</b> · <span class="${d<=0?'negative':''}">${dueText}</span></div>
           <div class="muted">${esc([s.city,s.address].filter(Boolean).join(', '))}</div>
@@ -1869,18 +1870,38 @@ function currentRouteOrigin(){
   return '';
 }
 window.buildVisitRoute=()=>{
-  const selected=getVisitRouteShops().filter(s=>visitRouteSelected.has(s.id)&&Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lng))).slice(0,8);
+  const selected=getVisitRouteShops()
+    .filter(s=>visitRouteSelected.has(s.id)&&Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lng)))
+    .slice(0,8);
+
   if(!selected.length)return toast('Выберите хотя бы один магазин');
+
   const origin=currentRouteOrigin();
   const destination=routePointString(selected[selected.length-1]);
   const waypoints=selected.slice(0,-1).map(routePointString);
-  const u=new URL('https://www.google.com/maps/dir/');
-  u.searchParams.set('api','1');
-  if(origin)u.searchParams.set('origin',origin);
-  u.searchParams.set('destination',destination);
-  if(waypoints.length)u.searchParams.set('waypoints',waypoints.join('|'));
-  u.searchParams.set('travelmode','driving');
-  window.open(u.toString(),'_blank');
+
+  let url='https://www.google.com/maps/dir/?api=1';
+  if(origin)url+='&origin='+encodeURIComponent(origin);
+  url+='&destination='+encodeURIComponent(destination);
+  if(waypoints.length)url+='&waypoints='+waypoints.map(encodeURIComponent).join('%7C');
+  url+='&travelmode=driving';
+
+  if($('visitRouteSummary')){
+    $('visitRouteSummary').innerHTML+=`<div class="muted" style="margin-top:6px">Открываем Google Maps: ${selected.length} точек</div>`;
+  }
+
+  // На iPhone/iPad переход в той же вкладке надежнее, чем window.open(),
+  // который Safari/PWA иногда блокирует.
+  try{
+    window.location.href=url;
+  }catch(e){
+    const a=document.createElement('a');
+    a.href=url;
+    a.target='_self';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
 };
 function shopSupplyTermsLabel(s){
   if(s.supply_terms==='supplied')return 'Поставлен / оплачен';
