@@ -632,6 +632,26 @@ function dialogBox(title,body,onSave){
  d.querySelector('#cancelDlg').onclick=()=>d.remove();
  d.querySelector('#saveDlg').onclick=()=>onSave(d);
 }
+async function openQuickExpenseCategory(onSaved){
+ dialogBox('Новая категория расхода',
+   '<div class="field"><label>Название категории *</label><input id="newExpenseCategoryName" placeholder="Например, Страхование"></div>',
+   async d=>{
+     const name=d.querySelector('#newExpenseCategoryName').value.trim();
+     if(!name)return alert('Введите название категории.');
+     try{
+       const rows=await req('/rest/v1/acc_expense_categories',{
+         method:'POST',
+         headers:{Prefer:'return=representation'},
+         body:JSON.stringify({company_id:company.id,name})
+       });
+       const saved=rows&&rows[0];
+       d.remove();
+       if(saved&&typeof onSaved==='function')onSaved(saved);
+     }catch(e){alert('Не удалось сохранить категорию: '+e.message)}
+   }
+ );
+}
+
 async function openQuickSupplier(onSaved){
  const m=document.createElement('div');m.className='inv-modal';
  m.innerHTML='<div class="inv-panel" style="max-width:720px"><div class="top"><div><h2 style="margin:0">Новый поставщик</h2><div class="muted">Будет доступен в разделе расходов</div></div><button id="qsClose" class="btn">×</button></div>'+
@@ -683,7 +703,7 @@ async function openExpenseForm(){
      '<div class="expense-grid">'+
        '<div class="field"><label>Дата</label><input id="exDate" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
        '<div class="field"><label>Поставщик</label><div class="expense-supplier-row"><select id="exSupplier">'+suppOpts+'</select><button type="button" id="exAddSupplier" class="btn invoice-btn">+ Новый поставщик</button></div></div>'+
-       '<div class="field"><label>Категория</label><select id="exCategory">'+catOpts+'</select></div>'+
+       '<div class="field"><label>Категория</label><div class="expense-supplier-row"><select id="exCategory">'+catOpts+'</select><button type="button" id="exAddCategory" class="btn invoice-btn">+ Новая категория</button></div></div>'+
        '<div class="field"><label>Документ / чек №</label><input id="exDoc" placeholder="Например, INV-123"></div>'+
        '<div class="field"><label>Сумма без IVA</label><input id="exNet" type="number" min="0" step="0.01" value="0"></div>'+
        '<div class="field"><label>IVA %</label><input id="exVatRate" type="number" min="0" step="0.01" value="21"></div>'+
@@ -734,6 +754,13 @@ async function openExpenseForm(){
      const addSupplier=document.getElementById('exAddSupplier');
      if(addSupplier)addSupplier.onclick=()=>openQuickSupplier(saved=>{
        const sel=document.getElementById('exSupplier');
+       if(sel&&saved){
+         const o=document.createElement('option');o.value=saved.id;o.textContent=saved.name;sel.appendChild(o);sel.value=saved.id;
+       }
+     });
+     const addCategory=document.getElementById('exAddCategory');
+     if(addCategory)addCategory.onclick=()=>openQuickExpenseCategory(saved=>{
+       const sel=document.getElementById('exCategory');
        if(sel&&saved){
          const o=document.createElement('option');o.value=saved.id;o.textContent=saved.name;sel.appendChild(o);sel.value=saved.id;
        }
