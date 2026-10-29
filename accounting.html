@@ -154,7 +154,12 @@ async function openAlbaranes(){
    m.querySelectorAll('[data-alb-edit]').forEach(b=>b.onclick=()=>{m.remove();openAlbaranForm(b.dataset.albEdit)});
    m.querySelectorAll('[data-alb-del]').forEach(b=>b.onclick=async()=>{
      if(!confirm('Удалить этот Albarán?'))return;
-     try{await req('/rest/v1/albaran_items?albaran_id=eq.'+b.dataset.albDel,{method:'DELETE'});await req('/rest/v1/albaranes?id=eq.'+b.dataset.albDel,{method:'DELETE'});m.remove();openAlbaranes()}catch(e){alert(e.message)}
+     const id=b.dataset.albDel;
+     try{
+       const deleted=await req('/rest/v1/albaranes?id=eq.'+id,{method:'DELETE',headers:{Prefer:'return=representation'}});
+       if(!Array.isArray(deleted)||deleted.length===0)throw new Error('Документ не удалён. Проверьте права доступа.');
+       m.remove();openAlbaranes();
+     }catch(e){alert('Не удалось удалить Albarán: '+e.message)}
    });
  }catch(e){alert('Не удалось открыть Albaranes: '+e.message)}
 }
