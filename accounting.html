@@ -170,7 +170,7 @@ async function loadTab(){const c=document.getElementById('content');try{
    const [products,warehouses,moves]=await Promise.all([
      req('/rest/v1/acc_products?select=id,sku,name,flavor,purchase_price,unit_weight_g,landing_cost_net,pieces_per_can,piece_weight_g,nicotine_per_piece&company_id=eq.'+company.id+'&order=name'),
      req('/rest/v1/acc_warehouses?select=id,name,type&company_id=eq.'+company.id+'&order=name'),
-     req('/rest/v1/acc_stock_movements?select=product_id,warehouse_id,movement_type,quantity,movement_at,note&company_id=eq.'+company.id+'&order=movement_at.desc')
+     req('/rest/v1/acc_stock_movements?select=product_id,warehouse_id,movement_type,quantity,movement_at,note,reference_type&company_id=eq.'+company.id+'&order=movement_at.desc')
    ]);
    const balances={};
    for(const m of moves){
@@ -180,7 +180,12 @@ async function loadTab(){const c=document.getElementById('content');try{
    }
    const rows=[];
    for(const w of warehouses){for(const p of products){const q=balances[p.id+'|'+w.id]||0;if(q!==0){const grams=q*Number(p.unit_weight_g||0);rows.push([p.name,(p.flavor||'—').replace(/^Classic\s+/i,''),p.sku||'—',q,grams?grams.toLocaleString('ru-RU')+' г':'—',grams?(grams/1000).toLocaleString('ru-RU',{maximumFractionDigits:3})+' кг':'—',p.purchase_price?money(p.purchase_price):'—',p.landing_cost_net?money(p.landing_cost_net):'—',p.landing_cost_net?money(q*Number(p.landing_cost_net)):'—']);}}}
-   c.innerHTML='<div class="card"><div class="top"><div><b>Склад</b><div class="muted">Остатки по складам</div></div><div><button id="addwh" class="btn">+ Склад</button> <button id="addmove" class="btn primary">+ Движение</button></div></div>'+table(['Товар','Вкус','SKU','Банки','Вес, г','Вес, кг','Закупочная цена','Себестоимость/шт','Стоимость остатка'],rows)+'</div><div class="card" style="margin-top:12px"><b>Последние движения</b>'+table(['Дата','Тип','Количество','Комментарий'],moves.slice(0,5).map(x=>[x.movement_at||'—',x.movement_type,x.quantity,x.note||'—']))+'</div>';
+   const writeoffs=moves.filter(x=>x.reference_type==='writeoff');
+   c.innerHTML='<div class="grid" style="margin-bottom:12px"><button id="warehouseWriteoffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Складская операция</span><b style="font-size:22px;display:block;margin-top:8px">Списание</b><span class="muted">Уменьшить остаток общего склада</span></button></div>'+
+   '<div class="card"><div class="top"><div><b>Склад</b><div class="muted">Остатки по складам</div></div><div><button id="addwh" class="btn">+ Склад</button> <button id="addmove" class="btn primary">+ Движение</button></div></div>'+table(['Товар','Вкус','SKU','Банки','Вес, г','Вес, кг','Закупочная цена','Себестоимость/шт','Стоимость остатка'],rows)+'</div>'+
+   '<div class="card" style="margin-top:12px"><b>Последние списания</b>'+table(['Дата','Количество','Комментарий'],writeoffs.slice(0,5).map(x=>[x.movement_at||'—',x.quantity,x.note||'—']))+'</div>'+
+   '<div class="card" style="margin-top:12px"><b>Последние движения</b>'+table(['Дата','Тип','Количество','Комментарий'],moves.slice(0,5).map(x=>[x.movement_at||'—',x.movement_type,x.quantity,x.note||'—']))+'</div>';
+   document.getElementById('warehouseWriteoffTile').onclick=()=>openWriteOff();
    document.getElementById('addwh').onclick=()=>createWarehouse();
    document.getElementById('addmove').onclick=()=>createMovement(products,warehouses);
    return
@@ -871,18 +876,19 @@ async function openWriteOff(){
    ]);
    if(!products.length)return alert('Нет товаров для списания.');
    if(!warehouses.length)return alert('Нет склада.');
+   const mainWarehouse=warehouses.find(w=>w.type==='main')||warehouses[0];
+   if(!mainWarehouse)return alert('Общий склад не найден.');
    const balances={};
-   moves.forEach(m=>{const k=m.product_id+'|'+m.warehouse_id;const sign=(m.movement_type==='out'||m.movement_type==='transfer_out'||m.movement_type==='writeoff')?-1:1;balances[k]=(balances[k]||0)+sign*Number(m.quantity||0)});
+   moves.forEach(m=>{const k=m.product_id+'|'+m.warehouse_id;const sign=(m.movement_type==='out'||m.movement_type==='transfer_out')?-1:1;balances[k]=(balances[k]||0)+sign*Number(m.quantity||0)});
    const po=products.map(p=>'<option value="'+p.id+'">'+esc((p.flavor||p.name)+(p.sku?' — '+p.sku:''))+'</option>').join('');
-   const wo=warehouses.map(w=>'<option value="'+w.id+'">'+esc(w.name)+'</option>').join('');
    dialogBox('Списание товара',
      '<div class="field"><label>Товар</label><select id="woprod" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px">'+po+'</select></div>'+
-     '<div class="field"><label>Склад</label><select id="wowh" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px">'+wo+'</select></div>'+
+     '<div class="field"><label>Склад</label><input value="'+esc(mainWarehouse.name)+'" disabled><div class="muted">Списание всегда уменьшает остаток общего склада.</div></div>'+
      '<div id="wobal" class="muted" style="margin:-4px 0 8px"></div>'+
      '<div class="field"><label>Количество банок</label><input id="woqty" type="number" min="1" step="1"></div>'+
      '<div class="field"><label>Причина списания</label><input id="woreason" placeholder="Брак, образцы, повреждение, другое"></div>',
      async d=>{
-       const pid=d.querySelector('#woprod').value,wid=d.querySelector('#wowh').value,qty=Number(d.querySelector('#woqty').value||0),reason=d.querySelector('#woreason').value.trim();
+       const pid=d.querySelector('#woprod').value,wid=mainWarehouse.id,qty=Number(d.querySelector('#woqty').value||0),reason=d.querySelector('#woreason').value.trim();
        const available=balances[pid+'|'+wid]||0;
        if(qty<=0)return alert('Введите количество банок.');
        if(qty>available)return alert('Недостаточно товара. Остаток: '+available+' банок.');
@@ -899,9 +905,9 @@ async function openWriteOff(){
      }
    );
    setTimeout(()=>{
-     const ps=document.getElementById('woprod'),ws=document.getElementById('wowh'),out=document.getElementById('wobal');
-     const refresh=()=>{if(ps&&ws&&out)out.textContent='Доступно: '+(balances[ps.value+'|'+ws.value]||0)+' банок';};
-     if(ps)ps.onchange=refresh;if(ws)ws.onchange=refresh;refresh();
+     const ps=document.getElementById('woprod'),out=document.getElementById('wobal');
+     const refresh=()=>{if(ps&&out)out.textContent='Доступно на общем складе: '+(balances[ps.value+'|'+mainWarehouse.id]||0)+' банок';};
+     if(ps)ps.onchange=refresh;refresh();
    },0);
  }catch(e){alert(e.message)}
 }
