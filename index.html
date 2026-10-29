@@ -233,6 +233,7 @@ tr:hover td{background:#fbfdff}
       <button data-page="website-qr">QR сайт</button>
       <button data-page="employees">Команда</button>
       <button data-page="reports">Отчёты</button>
+      <button id="accountingTab" type="button" class="hidden">Бухгалтерия / склад</button>
       <button id="jointExpensesTab" data-page="joint-expenses" class="hidden">Совместные деньги</button>
       <button id="changePasswordBtn" type="button">Пароль</button>
     </div>
@@ -881,6 +882,8 @@ let visitRouteMap=null,visitRouteMarkers=[],visitRouteSelected=new Set();
 function toast(s){$('toast').textContent=s;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3200)}
 function openModal(id){$(id).classList.add('open')} function closeModals(){document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'))}
 document.querySelectorAll('.close').forEach(x=>x.onclick=closeModals);
+function canViewAccounting(){return ['ceae49cb-4385-4052-a022-6aa0cea662ef','e29cfd4a-42cb-4c2b-a46c-cb7124ba7119'].includes(user?.id)}
+$('accountingTab').onclick=()=>{if(canViewAccounting())location.assign('/accounting.html')};
 function isManager(){return ['manager','admin','regional_manager'].includes(profile?.role)}
 const PHOTO_BUCKET='Shop-photos';
 const PHOTO_MAX_BYTES=8*1024*1024;
@@ -980,11 +983,13 @@ async function boot(){
  const u=await db.auth.getUser();user=u.data.user;if(!user)return;
  const p=await db.from('profiles').select('*').eq('id',user.id).single();
  if(p.error||!p.data?.active){await db.auth.signOut();$('authMsg').textContent='Учётная запись не активирована';return}
+ $('accountingTab').classList.toggle('hidden',!canViewAccounting());
  profile=p.data;$('who').textContent=(profile.full_name||'Сотрудник')+' · '+(isManager()?'Руководитель':'Агент');
  $('auth').classList.add('hidden');$('mainApp').classList.remove('hidden');
  if(!isManager()){['addProductBtn','addWarehouseBtn','adjustStockBtn'].forEach(id=>$(id)?.classList.add('hidden'))}
  if(canViewJointExpenses())$('jointExpensesTab')?.classList.remove('hidden');
  if(isOwner())$('addEmployeeBtn')?.classList.remove('hidden');
+ if(new URLSearchParams(location.search).get('section')==='accounting'&&canViewAccounting()){location.replace('/accounting.html');return}
  await refreshAll();showPage('dashboard');
 }
 
