@@ -27,6 +27,8 @@ let token=localStorage.getItem('garant_accounting_token')||'';
 let user=null, company=null, tab='overview';
 const money=n=>new Intl.NumberFormat('ru-RU',{style:'currency',currency:'EUR'}).format(Number(n||0));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+const countryName=code=>({ES:'España',EE:'Estonia',LT:'Lituania',LV:'Letonia',PT:'Portugal',DE:'Alemania',FR:'Francia',IT:'Italia',GB:'Reino Unido',NO:'Noruega'})[(code||'').toUpperCase()]||code||'';
+const fullClientAddress=cl=>[cl.address,[cl.postal_code,cl.city].filter(Boolean).join(' '),countryName(cl.country_code)].filter(Boolean).join(', ');
 async function req(path,opt={}){
  const headers=Object.assign({'apikey':KEY,'Content-Type':'application/json'},opt.headers||{});
  if(token) headers.Authorization='Bearer '+token;
@@ -280,14 +282,12 @@ async function openSavedAlbaran(id){
    const m=document.createElement('div');m.className='inv-modal';
    m.innerHTML='<div class="inv-panel"><div class="top"><div><h2 style="margin:0">ALBARÁN</h2><div class="muted">'+esc(x.number)+'</div></div><div class="invoice-actions"><button id="albPrint" class="btn invoice-btn">Печать / PDF</button><button id="albViewClose" class="btn">×</button></div></div>'+
    '<div id="albPaper" class="invoice-paper"><div class="invoice-head"><div><b>PG Nord Garant S.L.</b><br>C/Mare Nostrum 42, Bahia de la Plata<br>Estepona (Malaga), 29680<br>NIF B26984146</div><div class="invoice-box"><div><span>Fecha</span><b>'+esc(x.albaran_date)+'</b></div><div><span>Nº Albarán</span><b>'+esc(x.number)+'</b></div></div></div>'+
-   '<div style="margin-top:18px"><span class="invoice-client-label">Cliente</span><div style="margin-top:10px"><b>'+esc(cl.name||'')+'</b>'+
-   (cl.address?'<br>'+esc(cl.address):'')+
-   ((cl.postal_code||cl.city)?'<br>'+esc([cl.postal_code,cl.city].filter(Boolean).join(' ')):'')+
-   (cl.country_code?'<br>'+esc(cl.country_code):'')+
-   (cl.tax_id?'<br>NIF/CIF '+esc(cl.tax_id):'')+
-   (cl.phone?'<br>Tel. '+esc(cl.phone):'')+
-   (cl.email?'<br>'+esc(cl.email):'')+
-   (inv?'<br>Factura relacionada: '+esc(inv.number):'')+
+   '<div style="margin-top:18px"><span class="invoice-client-label">Cliente</span><div style="margin-top:10px;max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.55"><b>'+esc(cl.name||'')+'</b>'+
+   (fullClientAddress(cl)?'<br><b>Dirección:</b> '+esc(fullClientAddress(cl)):'<br><span class="muted">Dirección no completada en la ficha del cliente</span>')+
+   (cl.tax_id?'<br><b>NIF/CIF:</b> '+esc(cl.tax_id):'')+
+   (cl.phone?'<br><b>Tel.:</b> '+esc(cl.phone):'')+
+   (cl.email?'<br><b>Email:</b> '+esc(cl.email):'')+
+   (inv?'<br><b>Factura relacionada:</b> '+esc(inv.number):'')+
    '</div></div>'+
    '<table class="invoice-table"><thead><tr><th>Mercancía</th><th>Cantidad</th><th>Precio unidad</th><th>Subtotal</th></tr></thead><tbody>'+items.map((i,n)=>'<tr><td>'+(n+1)+'- '+esc(i.description)+'</td><td class="amount">'+Number(i.quantity).toLocaleString('ru-RU')+'</td><td class="amount">'+Number(i.unit_price||0).toFixed(2).replace('.',',')+' €</td><td class="amount">'+Number(i.line_subtotal||0).toFixed(2).replace('.',',')+' €</td></tr>').join('')+'</tbody></table>'+
    '<div style="display:flex;justify-content:flex-end"><table class="invoice-total-box"><tr><td>Subtotal</td><td>'+Number(x.subtotal||0).toFixed(2).replace('.',',')+' €</td></tr><tr><td>IVA '+Number(x.vat_rate||0).toFixed(1).replace('.',',')+'%</td><td>'+Number(x.vat_total||0).toFixed(2).replace('.',',')+' €</td></tr>'+(Number(x.recargo_rate||0)>0?'<tr><td>Recargo '+Number(x.recargo_rate).toFixed(1).replace('.',',')+'%</td><td>'+Number(x.recargo_total||0).toFixed(2).replace('.',',')+' €</td></tr>':'')+'<tr><td><b>TOTAL</b></td><td><b>'+Number(x.total||0).toFixed(2).replace('.',',')+' €</b></td></tr></table></div>'+
