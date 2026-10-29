@@ -109,10 +109,11 @@ async function loadTab(){const c=document.getElementById('content');try{
  if(tab==='albaranes'){openAlbaranes();return}
  if(tab==='sales'){
    const d=await req('/rest/v1/acc_invoices?select=id,invoice_date,number,status,total,paid_total,counterparty_id&company_id=eq.'+company.id+'&direction=eq.sale&order=invoice_date.desc');const clients=await req('/rest/v1/acc_counterparties?select=id,name&company_id=eq.'+company.id);const clientMap=Object.fromEntries(clients.map(x=>[x.id,x.name]));
-   c.innerHTML='<div class="card"><div class="top"><div><b>Продажи / счета</b><div class="muted">Счета PG Nord Garant S.L.</div></div><div class="invoice-actions"><button id="newinvoice" class="btn invoice-btn">+ Factura</button><button id="newprivateinvoice" class="btn">+ Recargo</button></div></div><div style="overflow:auto"><table class="table"><thead><tr><th>Дата</th><th>№</th><th>Клиент</th><th>Статус</th><th>Сумма</th><th>Оплачено</th><th></th></tr></thead><tbody>'+(d.length?d.map(x=>'<tr><td>'+esc(x.invoice_date||'—')+'</td><td>'+esc(x.number||'—')+'</td><td>'+esc(clientMap[x.counterparty_id]||'—')+'</td><td>'+esc(x.status||'—')+'</td><td>'+esc(money(x.total))+'</td><td>'+esc(money(x.paid_total))+'</td><td><div class="invoice-actions"><button class="btn" data-invoice="'+x.id+'">Открыть</button><button class="btn" data-edit-invoice="'+x.id+'">Редактировать</button><button class="btn danger-btn" data-delete-invoice="'+x.id+'" data-number="'+esc(x.number||'')+'">Удалить</button></div></td></tr>').join(''):'<tr><td colspan="7" class="muted">Пока нет счетов</td></tr>')+'</tbody></table></div></div>';
+   c.innerHTML='<div class="card"><div class="top"><div><b>Продажи / счета</b><div class="muted">Счета PG Nord Garant S.L.</div></div><div class="invoice-actions"><button id="newinvoice" class="btn invoice-btn">+ Factura</button><button id="newprivateinvoice" class="btn">+ Recargo</button></div></div><div style="overflow:auto"><table class="table"><thead><tr><th>Дата</th><th>№</th><th>Клиент</th><th>Статус</th><th>Сумма</th><th>Оплачено</th><th></th></tr></thead><tbody>'+(d.length?d.map(x=>{const isPaid=Number(x.paid_total||0)>=Number(x.total||0)&&Number(x.total||0)>0;return '<tr><td>'+esc(x.invoice_date||'—')+'</td><td>'+esc(x.number||'—')+'</td><td>'+esc(clientMap[x.counterparty_id]||'—')+'</td><td>'+(isPaid?'<span class="status-ok">Оплачен</span>':'<span class="status-wait">Не оплачен</span>')+'</td><td>'+esc(money(x.total))+'</td><td>'+esc(money(x.paid_total))+'</td><td><div class="invoice-actions"><button class="btn" data-invoice="'+x.id+'">Открыть</button><button class="btn" data-edit-invoice="'+x.id+'">Редактировать</button>'+(!isPaid?'<button class="btn invoice-btn" data-cash-paid="'+x.id+'" data-number="'+esc(x.number||'')+'">Оплачено наличными</button>':'')+'<button class="btn danger-btn" data-delete-invoice="'+x.id+'" data-number="'+esc(x.number||'')+'">Удалить</button></div></td></tr>'}).join(''):'<tr><td colspan="7" class="muted">Пока нет счетов</td></tr>')+'</tbody></table></div></div>';
    document.getElementById('newinvoice').onclick=()=>openInvoiceForm(false);document.getElementById('newprivateinvoice').onclick=()=>openInvoiceForm(true);
    document.querySelectorAll('[data-invoice]').forEach(b=>b.onclick=()=>openSavedInvoice(b.dataset.invoice));
    document.querySelectorAll('[data-edit-invoice]').forEach(b=>b.onclick=()=>openInvoiceForm(false,b.dataset.editInvoice));
+   document.querySelectorAll('[data-cash-paid]').forEach(b=>b.onclick=()=>markInvoiceCashPaid(b.dataset.cashPaid,b.dataset.number));
    document.querySelectorAll('[data-delete-invoice]').forEach(b=>b.onclick=()=>deleteInvoice(b.dataset.deleteInvoice,b.dataset.number));
    return
  }
@@ -467,6 +468,42 @@ async function openInvoiceForm(withRecargo=false,editId=null){
      return {client,number:modal.querySelector('#invnumber').value.trim(),date:modal.querySelector('#invdate').value,payment:modal.querySelector('#invpay').value,items,totals:recalc()};
    }
  }catch(e){alert(e.message)}
+}
+
+async function markInvoiceCashPaid(id,number){
+ try{
+   const inv=(await req('/rest/v1/acc_invoices?select=*&id=eq.'+encodeURIComponent(id)+'&limit=1'))[0];
+   if(!inv)return alert('Счёт не найден.');
+   const total=Number(inv.total||0),paid=Number(inv.paid_total||0),remaining=Math.max(0,total-paid);
+   if(remaining<=0)return alert('Этот счёт уже полностью оплачен.');
+   if(!confirm('Отметить счёт '+(number||inv.number||'')+' как оплаченный наличными?\n\nСумма наличными: '+money(remaining)))return;
+   await req('/rest/v1/acc_payments',{
+     method:'POST',
+     headers:{Prefer:'return=representation'},
+     body:JSON.stringify({
+       company_id:company.id,
+       invoice_id:inv.id,
+       counterparty_id:inv.counterparty_id,
+       direction:'in',
+       method:'cash',
+       amount:remaining,
+       payment_date:new Date().toISOString().slice(0,10),
+       reference:'Factura '+(inv.number||'')+' — efectivo',
+       notes:'Оплата счёта наличными',
+       created_by:user.id
+     })
+   });
+   await req('/rest/v1/acc_invoices?id=eq.'+encodeURIComponent(inv.id),{
+     method:'PATCH',
+     body:JSON.stringify({
+       paid_total:total,
+       status:'paid',
+       payment_method:'cash'
+     })
+   });
+   alert('Счёт '+(number||inv.number||'')+' отмечен как оплаченный наличными.');
+   await loadTab();
+ }catch(e){alert('Не удалось провести оплату наличными: '+e.message)}
 }
 
 async function deleteInvoice(id,number){
