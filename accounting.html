@@ -181,11 +181,12 @@ async function loadTab(){const c=document.getElementById('content');try{
    const rows=[];
    for(const w of warehouses){for(const p of products){const q=balances[p.id+'|'+w.id]||0;if(q!==0){const grams=q*Number(p.unit_weight_g||0);rows.push([p.name,(p.flavor||'—').replace(/^Classic\s+/i,''),p.sku||'—',q,grams?grams.toLocaleString('ru-RU')+' г':'—',grams?(grams/1000).toLocaleString('ru-RU',{maximumFractionDigits:3})+' кг':'—',p.purchase_price?money(p.purchase_price):'—',p.landing_cost_net?money(p.landing_cost_net):'—',p.landing_cost_net?money(q*Number(p.landing_cost_net)):'—']);}}}
    const writeoffs=moves.filter(x=>x.reference_type==='writeoff');
-   c.innerHTML='<div class="grid" style="margin-bottom:12px"><button id="warehouseWriteoffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Складская операция</span><b style="font-size:22px;display:block;margin-top:8px">Списание</b><span class="muted">Уменьшить остаток общего склада</span></button></div>'+
+   c.innerHTML='<div class="grid" style="margin-bottom:12px"><button id="warehouseWriteoffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Складская операция</span><b style="font-size:22px;display:block;margin-top:8px">Списание</b><span class="muted">Уменьшить остаток общего склада</span></button><button id="inventoryCountTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Фактический контроль</span><b style="font-size:22px;display:block;margin-top:8px">Инвентаризация</b><span class="muted">Сверить программу с реальным остатком</span></button></div>'+
    '<div class="card"><div class="top"><div><b>Склад</b><div class="muted">Остатки по складам</div></div><div><button id="addwh" class="btn">+ Склад</button> <button id="addmove" class="btn primary">+ Движение</button></div></div>'+table(['Товар','Вкус','SKU','Банки','Вес, г','Вес, кг','Закупочная цена','Себестоимость/шт','Стоимость остатка'],rows)+'</div>'+
    '<div class="card" style="margin-top:12px"><b>Последние списания</b>'+table(['Дата','Количество','Комментарий'],writeoffs.slice(0,5).map(x=>[x.movement_at||'—',x.quantity,x.note||'—']))+'</div>'+
    '<div class="card" style="margin-top:12px"><b>Последние движения</b>'+table(['Дата','Тип','Количество','Комментарий'],moves.slice(0,5).map(x=>[x.movement_at||'—',x.movement_type,x.quantity,x.note||'—']))+'</div>';
    document.getElementById('warehouseWriteoffTile').onclick=()=>openWriteOff();
+   document.getElementById('inventoryCountTile').onclick=()=>openInventoryCount();
    document.getElementById('addwh').onclick=()=>createWarehouse();
    document.getElementById('addmove').onclick=()=>createMovement(products,warehouses);
    return
@@ -867,6 +868,59 @@ function createWarehouse(){
 
 
 function openStaffAccess(){alert('Доступ к бухгалтерии и складу: Роман (roman@pgnord.eu) и Катерина (katerina@pgnord.eu). Другие сотрудники доступа не имеют.');}
+async function openInventoryCount(){
+ try{
+   const [products,warehouses,moves]=await Promise.all([
+     req('/rest/v1/acc_products?select=id,sku,name,flavor&company_id=eq.'+company.id+'&active=eq.true&order=flavor'),
+     req('/rest/v1/acc_warehouses?select=id,name,type&company_id=eq.'+company.id+'&order=name'),
+     req('/rest/v1/acc_stock_movements?select=product_id,warehouse_id,movement_type,quantity&company_id=eq.'+company.id)
+   ]);
+   const mainWarehouse=warehouses.find(w=>w.type==='main')||warehouses[0];
+   if(!mainWarehouse)return alert('Общий склад не найден.');
+   const balances={};
+   moves.forEach(m=>{
+     if(m.warehouse_id!==mainWarehouse.id)return;
+     const sign=(m.movement_type==='out'||m.movement_type==='transfer_out')?-1:1;
+     balances[m.product_id]=(balances[m.product_id]||0)+sign*Number(m.quantity||0);
+   });
+   const d=document.createElement('div');d.className='inv-modal';
+   d.innerHTML='<div class="inv-panel" style="max-width:900px"><div class="top"><div><h2 style="margin:0">Инвентаризация общего склада</h2><div class="muted">Введите фактическое количество. Система скорректирует только разницу.</div></div><button id="icClose" class="btn">×</button></div>'+
+   '<div style="overflow:auto;margin-top:14px"><table class="table"><thead><tr><th>Товар</th><th>SKU</th><th>По программе</th><th>Фактически</th><th>Разница</th></tr></thead><tbody>'+
+   products.map(p=>{const cur=Number(balances[p.id]||0);return '<tr data-ic-row="'+p.id+'"><td>'+esc((p.flavor||p.name||'').replace(/^Classic\s+/i,''))+'</td><td>'+esc(p.sku||'—')+'</td><td class="ic-current" data-current="'+cur+'">'+cur+'</td><td><input class="ic-actual" type="number" min="0" step="1" value="'+cur+'" style="width:110px;padding:8px;border:1px solid #d1d5db;border-radius:9px"></td><td class="ic-diff">0</td></tr>'}).join('')+
+   '</tbody></table></div><div class="invoice-actions" style="justify-content:flex-end;margin-top:16px"><button id="icSave" class="btn invoice-btn">Сохранить фактический остаток</button></div></div>';
+   document.body.appendChild(d);
+   const refresh=()=>d.querySelectorAll('[data-ic-row]').forEach(r=>{const cur=Number(r.querySelector('.ic-current').dataset.current||0),act=Number(r.querySelector('.ic-actual').value||0),diff=act-cur;r.querySelector('.ic-diff').textContent=(diff>0?'+':'')+diff});
+   d.querySelectorAll('.ic-actual').forEach(i=>i.oninput=refresh);refresh();
+   d.querySelector('#icClose').onclick=()=>d.remove();
+   d.querySelector('#icSave').onclick=async()=>{
+     const corrections=[];
+     d.querySelectorAll('[data-ic-row]').forEach(r=>{
+       const product_id=r.dataset.icRow,cur=Number(r.querySelector('.ic-current').dataset.current||0),actual=Number(r.querySelector('.ic-actual').value||0),diff=actual-cur;
+       if(actual<0)return;
+       if(diff!==0)corrections.push({product_id,diff,actual,cur});
+     });
+     if(!corrections.length){alert('Расхождений нет. Остатки уже совпадают.');return}
+     if(!confirm('Сохранить инвентаризацию?\n\nБудет скорректировано позиций: '+corrections.length))return;
+     try{
+       const rows=corrections.map(x=>({
+         company_id:company.id,
+         product_id:x.product_id,
+         warehouse_id:mainWarehouse.id,
+         movement_type:x.diff>0?'in':'out',
+         quantity:Math.abs(x.diff),
+         reference_type:'physical_inventory',
+         note:'Инвентаризация: было '+x.cur+', фактически '+x.actual,
+         created_by:user.id
+       }));
+       await req('/rest/v1/acc_stock_movements',{method:'POST',body:JSON.stringify(rows)});
+       d.remove();
+       alert('Инвентаризация сохранена. Общий склад приведён к фактическому остатку.');
+       await loadTab();
+     }catch(e){alert('Не удалось сохранить инвентаризацию: '+e.message)}
+   };
+ }catch(e){alert('Не удалось открыть инвентаризацию: '+e.message)}
+}
+
 async function openWriteOff(){
  try{
    const [products,warehouses,moves]=await Promise.all([
