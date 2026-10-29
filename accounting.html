@@ -17,13 +17,18 @@ h1{font-size:22px;margin:0}.muted{font-size:13px;color:#6b7280}.field{display:gr
 @media(max-width:760px){.inv-grid{grid-template-columns:1fr}.inv-line{grid-template-columns:1fr .7fr .8fr 42px}.invoice-head{grid-template-columns:1fr}.invoice-paper{padding:14px;font-size:12px}}
 @media(max-width:760px){.grid{grid-template-columns:1fr 1fr}.catalog-grid{grid-template-columns:1fr}.wrap{padding:12px}.product-card{min-height:210px}}
 </style></head><body><div id="app"><div class="wrap"><div class="card login"><div class="brand"><img class="main-brand-logo" src="/assets/garant-pg-nord-selected.svg" alt="GARANT PG NORD"><div><h1>Бухгалтерия</h1><div class="muted">Загрузка…</div></div></div></div></div></div>
-<script>
+<script type="module">
+let createClient;
+try{({createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/+esm'))}
+catch{({createClient}=await import('https://esm.sh/@supabase/supabase-js@2.57.0'))}
 (function(){
-const URL='https://ohifwlyioempwulgtaqq.supabase.co';
-const KEY='sb_publishable_w7udKh87hKvHxbIbQl3LxA_oCd5TKvd';
+const URL='https://bxibrptyonhxcdnizacp.supabase.co';
+const KEY='sb_publishable_0bGaJhD7GxVh_UqaPAUFmA_PhR3ISMP';
 const LOGO_DATA=location.origin+'/assets/garant-pg-nord-selected.svg';
 const app=document.getElementById('app');
-let token=localStorage.getItem('garant_accounting_token')||'';
+const db=createClient(URL,KEY);
+const ALLOWED_IDS=['ceae49cb-4385-4052-a022-6aa0cea662ef','e29cfd4a-42cb-4c2b-a46c-cb7124ba7119'];
+let token='';
 let user=null, company=null, tab='overview';
 const money=n=>new Intl.NumberFormat('ru-RU',{style:'currency',currency:'EUR'}).format(Number(n||0));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
@@ -31,49 +36,31 @@ const formatDateDMY=s=>{if(!s)return '—';const p=String(s).slice(0,10).split('
 const countryName=code=>({ES:'España',EE:'Estonia',LT:'Lituania',LV:'Letonia',PT:'Portugal',DE:'Alemania',FR:'Francia',IT:'Italia',GB:'Reino Unido',NO:'Noruega'})[(code||'').toUpperCase()]||code||'';
 const fullClientAddress=cl=>[cl.address,[cl.postal_code,cl.city].filter(Boolean).join(' '),countryName(cl.country_code)].filter(Boolean).join(', ');
 async function req(path,opt={}){
+ const {data,error}=await db.auth.getSession();
+ if(error)throw error;token=data.session?.access_token||'';
  const headers=Object.assign({'apikey':KEY,'Content-Type':'application/json'},opt.headers||{});
  if(token) headers.Authorization='Bearer '+token;
  const r=await fetch(URL+path,Object.assign({},opt,{headers}));
- const text=await r.text(); let data=null; try{data=text?JSON.parse(text):null}catch{data=text}
- if(!r.ok) throw new Error((data&&data.msg)||(data&&data.message)||(data&&data.error_description)||('HTTP '+r.status));
- return data;
+ const text=await r.text(); let result=null; try{result=text?JSON.parse(text):null}catch{result=text}
+ if(!r.ok) throw new Error((result&&result.msg)||(result&&result.message)||(result&&result.error_description)||('HTTP '+r.status));
+ return result;
 }
-function login(msg=''){app.innerHTML='<div class="wrap"><div class="card login"><div class="brand"><img class="main-brand-logo" src="'+LOGO_DATA+'" alt="GARANT PG NORD"><div><h1>Бухгалтерия</h1><div class="muted">PG Nord Garant S.L.</div></div></div>'+(msg?'<div class="notice">'+esc(msg)+'</div>':'')+'<div class="field"><label>Email</label><input id="email" type="email" autocomplete="email"></div><div class="field"><label>Пароль</label><input id="pass" type="password" autocomplete="current-password"></div><button id="signin" class="btn primary full">Войти</button><button id="reg" class="btn full">Создать аккаунт</button></div></div>';document.getElementById('signin').onclick=signin;document.getElementById('reg').onclick=register}
-async function signin(){
- const email=document.getElementById('email').value.trim(), password=document.getElementById('pass').value;
- if(!email||!password)return login('Введите email и пароль.');
- const btn=document.getElementById('signin');
- if(btn){btn.disabled=true;btn.textContent='Входим…';}
- const controller=new AbortController();
- const timer=setTimeout(()=>controller.abort(),45000);
- try{
-   const headers={'apikey':KEY,'Content-Type':'application/json'};
-   const r=await fetch(URL+'/auth/v1/token?grant_type=password',{method:'POST',headers,body:JSON.stringify({email,password}),signal:controller.signal});
-   const text=await r.text();let d=null;try{d=text?JSON.parse(text):null}catch{d={}}
-   if(!r.ok)throw new Error((d&&d.msg)||(d&&d.error_description)||(d&&d.message)||('HTTP '+r.status));
-   token=d.access_token;
-   localStorage.setItem('garant_accounting_token',token);
-   await boot();
- }catch(e){
-   if(e.name==='AbortError')login('Сервер входа отвечает слишком долго. Попробуйте ещё раз через несколько секунд.');
-   else login('Ошибка входа: '+e.message);
- }finally{clearTimeout(timer)}
+function login(msg=''){
+ app.innerHTML='<div class="wrap"><div class="card login"><h1>Бухгалтерия GARANT</h1><p>'+esc(msg||'Войдите через общий проект Garant. Доступ открыт только Роману и Катерине.')+'</p><a class="btn primary" href="/?section=accounting">Войти в Garant</a></div></div>';
 }
-function register(){app.innerHTML='<div class="wrap"><div class="card login"><h1>Регистрация</h1><div class="field"><label>Email</label><input id="re" type="email"></div><div class="field"><label>Пароль</label><input id="rp" type="password"></div><div class="field"><label>Повторите пароль</label><input id="rp2" type="password"></div><button id="do" class="btn primary full">Зарегистрироваться</button><button id="back" class="btn full">Назад</button></div></div>';document.getElementById('back').onclick=()=>login();document.getElementById('do').onclick=signup}
-async function signup(){const email=document.getElementById('re').value.trim(),p=document.getElementById('rp').value,p2=document.getElementById('rp2').value;if(!email.includes('@'))return alert('Введите корректный email');if(p.length<6)return alert('Пароль минимум 6 символов');if(p!==p2)return alert('Пароли не совпадают');try{await req('/auth/v1/signup',{method:'POST',body:JSON.stringify({email,password:p,data:{},gotrue_meta_security:{captcha_token:''}})});login('Аккаунт создан. Если email уже подтверждён — просто войдите. Если придёт письмо, подтвердите адрес.')}catch(e){login('Ошибка регистрации: '+e.message)}}
 async function boot(){
- if(!token)return login();
- try{user=await req('/auth/v1/user');}
- catch(e){localStorage.removeItem('garant_accounting_token');token='';return login('Сессия истекла. Войдите снова.')}
+ const {data,error}=await db.auth.getSession();
+ if(error||!data.session)return login();
+ token=data.session.access_token;
+ const verified=await db.auth.getUser();user=verified.data.user;
+ if(verified.error||!user)return login('Сессия истекла. Войдите снова.');
+ if(!ALLOWED_IDS.includes(user.id))return login('Доступ к бухгалтерии открыт только Роману и Катерине.');
  try{
-   const cs=await req('/rest/v1/companies?select=*&limit=1');
-   company=cs&&cs[0];
-   if(!company)return setup();
+   const cs=await req('/rest/v1/acc_companies?select=*&limit=1');company=cs?.[0];
+   if(!company)throw new Error('Компания недоступна');
    render();
- }catch(e){login('Ошибка загрузки данных: '+e.message)}
+ }catch(e){login('Ошибка загрузки: '+e.message)}
 }
-function setup(){app.innerHTML='<div class="wrap"><div class="card login"><h1>Первичная настройка</h1><div class="field"><label>Компания</label><input id="cn" value="PG Nord Garant S.L."></div><div class="field"><label>NIF</label><input id="tx" value="B26984146"></div><button id="create" class="btn primary full">Создать компанию</button></div></div>';document.getElementById('create').onclick=createCompany}
-async function createCompany(){try{const rows=await req('/rest/v1/companies',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({name:'GARANT',legal_name:document.getElementById('cn').value,tax_id:document.getElementById('tx').value,created_by:user.id})});company=rows[0];await req('/rest/v1/memberships',{method:'POST',body:JSON.stringify({company_id:company.id,user_id:user.id,role:'owner'})});await req('/rest/v1/warehouses',{method:'POST',body:JSON.stringify({company_id:company.id,name:'Главный склад',type:'main'})});render()}catch(e){alert(e.message)}}
 
 async function openQuickClient(onSaved){
  const m=document.createElement('div');m.className='inv-modal';
@@ -106,7 +93,7 @@ async function openQuickClient(onSaved){
      notes:m.querySelector('#qcNotes').value.trim()||null
    };
    try{
-     const rows=await req('/rest/v1/counterparties',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(payload)});
+     const rows=await req('/rest/v1/acc_counterparties',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(payload)});
      const saved=rows&&rows[0];
      m.remove();
      if(saved&&typeof onSaved==='function')onSaved(saved);
@@ -115,13 +102,13 @@ async function openQuickClient(onSaved){
  };
 }
 function nav(){return [['overview','Обзор'],['sales','Продажи'],['albaranes','Albaranes'],['expenses','Расходы'],['payments','Оплаты'],['clients','Клиенты'],['products','Товары'],['warehouse','Склад'],['catalog','Каталог']].map(x=>'<button class="btn '+(tab===x[0]?'active':'')+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join('')}
-function render(){app.innerHTML='<div class="wrap"><div class="top"><div class="brand"><img class="main-brand-logo" src="'+LOGO_DATA+'" alt="GARANT PG NORD"><div><h1>Бухгалтерия</h1><div class="muted">'+esc(company.legal_name||company.name)+'</div></div></div><div class="invoice-actions"><button id="selfPassword" class="btn">Сменить свой пароль</button><button id="logout" class="btn">Выйти</button></div></div><div class="nav">'+nav()+'</div><div id="content"></div></div>';document.getElementById('logout').onclick=()=>{localStorage.removeItem('garant_accounting_token');token='';login()};document.getElementById('selfPassword').onclick=()=>changeOwnPassword();document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});loadTab()}
+function render(){app.innerHTML='<div class="wrap"><div class="top"><div class="brand"><img class="main-brand-logo" src="'+LOGO_DATA+'" alt="GARANT PG NORD"><div><h1>Бухгалтерия</h1><div class="muted">'+esc(company.legal_name||company.name)+'</div></div></div><div class="invoice-actions"><a class="btn" href="/">← Garant</a><button id="selfPassword" class="btn">Сменить свой пароль</button><button id="logout" class="btn">Выйти</button></div></div><div class="nav">'+nav()+'</div><div id="content"></div></div>';document.getElementById('logout').onclick=()=>{db.auth.signOut().then(()=>location.assign('/'))};document.getElementById('selfPassword').onclick=()=>changeOwnPassword();document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});loadTab()}
 function table(h,rows){return '<div style="overflow:auto"><table class="table"><thead><tr>'+h.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(r=>'<tr>'+r.map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+h.length+'" class="muted">Пока нет записей</td></tr>')+'</tbody></table></div>'}
 async function loadTab(){const c=document.getElementById('content');try{
- if(tab==='overview'){const [s,e,p]=await Promise.all([req('/rest/v1/invoices?select=total,paid_total&company_id=eq.'+company.id+'&direction=eq.sale'),req('/rest/v1/expenses?select=total_amount&company_id=eq.'+company.id),req('/rest/v1/payments?select=amount,direction&company_id=eq.'+company.id)]);const sales=s.reduce((a,x)=>a+Number(x.total||0),0),paid=s.reduce((a,x)=>a+Number(x.paid_total||0),0),cost=e.reduce((a,x)=>a+Number(x.total_amount||0),0),cash=p.reduce((a,x)=>a+(x.direction==='in'?1:-1)*Number(x.amount||0),0);c.innerHTML='<div class="grid"><div class="card kpi"><span class="muted">Продажи</span><b>'+money(sales)+'</b></div><div class="card kpi"><span class="muted">Оплачено</span><b>'+money(paid)+'</b></div><div class="card kpi"><span class="muted">Расходы</span><b>'+money(cost)+'</b></div><div class="card kpi"><span class="muted">Денежный поток</span><b>'+money(cash)+'</b></div><button id="albaranTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Документы</span><b style="font-size:22px;display:block;margin-top:8px">Albaranes</b><span class="muted">Отгрузки по датам, отдельно от Factura</span></button><button id="writeoffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Склад</span><b style="font-size:22px;display:block;margin-top:8px">Списание</b><span class="muted">Уменьшить остаток товара</span></button><button id="staffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Управление</span><b style="font-size:22px;display:block;margin-top:8px">Доступ сотрудников</b><span class="muted">Роли и пароли сотрудников</span></button></div>';document.getElementById('writeoffTile').onclick=()=>openWriteOff();document.getElementById('staffTile').onclick=()=>openStaffAccess();document.getElementById('albaranTile').onclick=()=>openAlbaranes();return}
+ if(tab==='overview'){const [s,e,p]=await Promise.all([req('/rest/v1/acc_invoices?select=total,paid_total&company_id=eq.'+company.id+'&direction=eq.sale'),req('/rest/v1/acc_expenses?select=total_amount&company_id=eq.'+company.id),req('/rest/v1/acc_payments?select=amount,direction&company_id=eq.'+company.id)]);const sales=s.reduce((a,x)=>a+Number(x.total||0),0),paid=s.reduce((a,x)=>a+Number(x.paid_total||0),0),cost=e.reduce((a,x)=>a+Number(x.total_amount||0),0),cash=p.reduce((a,x)=>a+(x.direction==='in'?1:-1)*Number(x.amount||0),0);c.innerHTML='<div class="grid"><div class="card kpi"><span class="muted">Продажи</span><b>'+money(sales)+'</b></div><div class="card kpi"><span class="muted">Оплачено</span><b>'+money(paid)+'</b></div><div class="card kpi"><span class="muted">Расходы</span><b>'+money(cost)+'</b></div><div class="card kpi"><span class="muted">Денежный поток</span><b>'+money(cash)+'</b></div><button id="albaranTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Документы</span><b style="font-size:22px;display:block;margin-top:8px">Albaranes</b><span class="muted">Отгрузки по датам, отдельно от Factura</span></button><button id="writeoffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Склад</span><b style="font-size:22px;display:block;margin-top:8px">Списание</b><span class="muted">Уменьшить остаток товара</span></button><button id="staffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Управление</span><b style="font-size:22px;display:block;margin-top:8px">Доступ сотрудников</b><span class="muted">Роли и пароли сотрудников</span></button></div>';document.getElementById('writeoffTile').onclick=()=>openWriteOff();document.getElementById('staffTile').onclick=()=>openStaffAccess();document.getElementById('albaranTile').onclick=()=>openAlbaranes();return}
  if(tab==='albaranes'){openAlbaranes();return}
  if(tab==='sales'){
-   const d=await req('/rest/v1/invoices?select=id,invoice_date,number,status,total,paid_total,counterparty_id&company_id=eq.'+company.id+'&direction=eq.sale&order=invoice_date.desc');const clients=await req('/rest/v1/counterparties?select=id,name&company_id=eq.'+company.id);const clientMap=Object.fromEntries(clients.map(x=>[x.id,x.name]));
+   const d=await req('/rest/v1/acc_invoices?select=id,invoice_date,number,status,total,paid_total,counterparty_id&company_id=eq.'+company.id+'&direction=eq.sale&order=invoice_date.desc');const clients=await req('/rest/v1/acc_counterparties?select=id,name&company_id=eq.'+company.id);const clientMap=Object.fromEntries(clients.map(x=>[x.id,x.name]));
    c.innerHTML='<div class="card"><div class="top"><div><b>Продажи / счета</b><div class="muted">Счета PG Nord Garant S.L.</div></div><div class="invoice-actions"><button id="newinvoice" class="btn invoice-btn">+ Factura</button><button id="newprivateinvoice" class="btn">+ Recargo</button></div></div><div style="overflow:auto"><table class="table"><thead><tr><th>Дата</th><th>№</th><th>Клиент</th><th>Статус</th><th>Сумма</th><th>Оплачено</th><th></th></tr></thead><tbody>'+(d.length?d.map(x=>'<tr><td>'+esc(x.invoice_date||'—')+'</td><td>'+esc(x.number||'—')+'</td><td>'+esc(clientMap[x.counterparty_id]||'—')+'</td><td>'+esc(x.status||'—')+'</td><td>'+esc(money(x.total))+'</td><td>'+esc(money(x.paid_total))+'</td><td><div class="invoice-actions"><button class="btn" data-invoice="'+x.id+'">Открыть</button><button class="btn" data-edit-invoice="'+x.id+'">Редактировать</button><button class="btn danger-btn" data-delete-invoice="'+x.id+'" data-number="'+esc(x.number||'')+'">Удалить</button></div></td></tr>').join(''):'<tr><td colspan="7" class="muted">Пока нет счетов</td></tr>')+'</tbody></table></div></div>';
    document.getElementById('newinvoice').onclick=()=>openInvoiceForm(false);document.getElementById('newprivateinvoice').onclick=()=>openInvoiceForm(true);
    document.querySelectorAll('[data-invoice]').forEach(b=>b.onclick=()=>openSavedInvoice(b.dataset.invoice));
@@ -129,9 +116,9 @@ async function loadTab(){const c=document.getElementById('content');try{
    document.querySelectorAll('[data-delete-invoice]').forEach(b=>b.onclick=()=>deleteInvoice(b.dataset.deleteInvoice,b.dataset.number));
    return
  }
- if(tab==='expenses'){const d=await req('/rest/v1/expenses?select=expense_date,description,total_amount,vat_amount,document_number&company_id=eq.'+company.id+'&order=expense_date.desc');c.innerHTML='<div class="card"><b>Расходы</b>'+table(['Дата','Описание','Документ','IVA','Всего'],d.map(x=>[x.expense_date||'—',x.description,x.document_number||'—',money(x.vat_amount),money(x.total_amount)]))+'</div>';return}
- if(tab==='payments'){const d=await req('/rest/v1/payments?select=payment_date,direction,method,amount,reference&company_id=eq.'+company.id+'&order=payment_date.desc');c.innerHTML='<div class="card"><b>Оплаты</b>'+table(['Дата','Тип','Способ','Сумма','Комментарий'],d.map(x=>[x.payment_date||'—',x.direction==='in'?'Входящая':'Исходящая',x.method,money(x.amount),x.reference||'—']))+'</div>';return}
- if(tab==='clients'){const d=await req('/rest/v1/counterparties?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><div class="top"><div><b>Клиенты и поставщики</b></div><button id="addClient" class="btn invoice-btn">+ Новый клиент</button></div>'+table(['Название','Тип','NIF/CIF','Телефон','Город'],d.map(x=>[x.name,x.type,x.tax_id||'—',x.phone||'—',x.city||'—']))+'</div>';document.getElementById('addClient').onclick=()=>openQuickClient();return}
+ if(tab==='expenses'){const d=await req('/rest/v1/acc_expenses?select=expense_date,description,total_amount,vat_amount,document_number&company_id=eq.'+company.id+'&order=expense_date.desc');c.innerHTML='<div class="card"><b>Расходы</b>'+table(['Дата','Описание','Документ','IVA','Всего'],d.map(x=>[x.expense_date||'—',x.description,x.document_number||'—',money(x.vat_amount),money(x.total_amount)]))+'</div>';return}
+ if(tab==='payments'){const d=await req('/rest/v1/acc_payments?select=payment_date,direction,method,amount,reference&company_id=eq.'+company.id+'&order=payment_date.desc');c.innerHTML='<div class="card"><b>Оплаты</b>'+table(['Дата','Тип','Способ','Сумма','Комментарий'],d.map(x=>[x.payment_date||'—',x.direction==='in'?'Входящая':'Исходящая',x.method,money(x.amount),x.reference||'—']))+'</div>';return}
+ if(tab==='clients'){const d=await req('/rest/v1/acc_counterparties?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><div class="top"><div><b>Клиенты и поставщики</b></div><button id="addClient" class="btn invoice-btn">+ Новый клиент</button></div>'+table(['Название','Тип','NIF/CIF','Телефон','Город'],d.map(x=>[x.name,x.type,x.tax_id||'—',x.phone||'—',x.city||'—']))+'</div>';document.getElementById('addClient').onclick=()=>openQuickClient();return}
  if(tab==='catalog'){
    c.innerHTML='<div class="card"><b>Каталог GARANT</b><div class="muted">Загружаю актуальные товары и изображения с сайта…</div></div>';
    try{
@@ -150,9 +137,9 @@ async function loadTab(){const c=document.getElementById('content');try{
  }
  if(tab==='warehouse'){
    const [products,warehouses,moves]=await Promise.all([
-     req('/rest/v1/products?select=id,sku,name,flavor,purchase_price,unit_weight_g,landing_cost_net,pieces_per_can,piece_weight_g,nicotine_per_piece&company_id=eq.'+company.id+'&order=name'),
-     req('/rest/v1/warehouses?select=id,name,type&company_id=eq.'+company.id+'&order=name'),
-     req('/rest/v1/stock_movements?select=product_id,warehouse_id,movement_type,quantity,movement_at,note&company_id=eq.'+company.id+'&order=movement_at.desc')
+     req('/rest/v1/acc_products?select=id,sku,name,flavor,purchase_price,unit_weight_g,landing_cost_net,pieces_per_can,piece_weight_g,nicotine_per_piece&company_id=eq.'+company.id+'&order=name'),
+     req('/rest/v1/acc_warehouses?select=id,name,type&company_id=eq.'+company.id+'&order=name'),
+     req('/rest/v1/acc_stock_movements?select=product_id,warehouse_id,movement_type,quantity,movement_at,note&company_id=eq.'+company.id+'&order=movement_at.desc')
    ]);
    const balances={};
    for(const m of moves){
@@ -167,7 +154,7 @@ async function loadTab(){const c=document.getElementById('content');try{
    document.getElementById('addmove').onclick=()=>createMovement(products,warehouses);
    return
  }
- if(tab==='products'){const d=await req('/rest/v1/products?select=*&company_id=eq.'+company.id+'&order=flavor');c.innerHTML='<div class="card"><div><b>Товары / калькуляция</b><div class="muted">Структура как в GARANT 2026 España</div></div>'+table(['Товар','Крепость','Никотин / порция','Вес банки, г','Вес порции, г','Порций','Закупка','Склад','Транспорт','Резерв','Акциз','Себестоимость без IVA','IVA','Себестоимость с IVA'],d.map(x=>[x.flavor||x.name||'—',x.nicotine_mg_g?Number(x.nicotine_mg_g).toLocaleString('ru-RU')+' mg/g':'—',x.nicotine_per_piece||'—',x.unit_weight_g?Number(x.unit_weight_g).toLocaleString('ru-RU'):'—',x.piece_weight_g?Number(x.piece_weight_g).toLocaleString('ru-RU'):'—',x.pieces_per_can||'—',money(x.purchase_price),money(x.warehouse_cost||0),money(x.transportation_cost||0),money(x.contingency_cost||0),x.excise_per_unit?money(x.excise_per_unit):'—',x.landing_cost_net?money(x.landing_cost_net):'—',(x.vat_rate||0)+'%',x.landing_cost_vat?money(x.landing_cost_vat):'—']))+'</div>';return}
+ if(tab==='products'){const d=await req('/rest/v1/acc_products?select=*&company_id=eq.'+company.id+'&order=flavor');c.innerHTML='<div class="card"><div><b>Товары / калькуляция</b><div class="muted">Структура как в GARANT 2026 España</div></div>'+table(['Товар','Крепость','Никотин / порция','Вес банки, г','Вес порции, г','Порций','Закупка','Склад','Транспорт','Резерв','Акциз','Себестоимость без IVA','IVA','Себестоимость с IVA'],d.map(x=>[x.flavor||x.name||'—',x.nicotine_mg_g?Number(x.nicotine_mg_g).toLocaleString('ru-RU')+' mg/g':'—',x.nicotine_per_piece||'—',x.unit_weight_g?Number(x.unit_weight_g).toLocaleString('ru-RU'):'—',x.piece_weight_g?Number(x.piece_weight_g).toLocaleString('ru-RU'):'—',x.pieces_per_can||'—',money(x.purchase_price),money(x.warehouse_cost||0),money(x.transportation_cost||0),money(x.contingency_cost||0),x.excise_per_unit?money(x.excise_per_unit):'—',x.landing_cost_net?money(x.landing_cost_net):'—',(x.vat_rate||0)+'%',x.landing_cost_vat?money(x.landing_cost_vat):'—']))+'</div>';return}
 }catch(e){c.innerHTML='<div class="notice">Ошибка загрузки: '+esc(e.message)+'</div>'}}
 
 
@@ -181,8 +168,8 @@ function nextAlbaranNumber(date,existing){
 async function openAlbaranes(){
  try{
    const [docs,clients]=await Promise.all([
-     req('/rest/v1/albaranes?select=id,number,albaran_date,status,counterparty_id,invoice_id&company_id=eq.'+company.id+'&order=albaran_date.desc,created_at.desc'),
-     req('/rest/v1/counterparties?select=id,name&company_id=eq.'+company.id)
+     req('/rest/v1/acc_albaranes?select=id,number,albaran_date,status,counterparty_id,invoice_id&company_id=eq.'+company.id+'&order=albaran_date.desc,created_at.desc'),
+     req('/rest/v1/acc_counterparties?select=id,name&company_id=eq.'+company.id)
    ]);
    const cm=Object.fromEntries(clients.map(x=>[x.id,x.name]));
    const m=document.createElement('div');m.className='inv-modal';
@@ -199,7 +186,7 @@ async function openAlbaranes(){
      if(!confirm('Удалить этот Albarán?'))return;
      const id=b.dataset.albDel;
      try{
-       const deleted=await req('/rest/v1/albaranes?id=eq.'+id,{method:'DELETE',headers:{Prefer:'return=representation'}});
+       const deleted=await req('/rest/v1/acc_albaranes?id=eq.'+id,{method:'DELETE',headers:{Prefer:'return=representation'}});
        if(!Array.isArray(deleted)||deleted.length===0)throw new Error('Документ не удалён. Проверьте права доступа.');
        m.remove();openAlbaranes();
      }catch(e){alert('Не удалось удалить Albarán: '+e.message)}
@@ -209,12 +196,12 @@ async function openAlbaranes(){
 async function openAlbaranForm(editId=null){
  try{
    const [clients,products,invoices,existing,currentRows,currentItems]=await Promise.all([
-     req('/rest/v1/counterparties?select=*&company_id=eq.'+company.id+'&type=in.(customer,both)&order=name'),
-     req('/rest/v1/products?select=id,name,flavor,sku,sale_price&company_id=eq.'+company.id+'&active=eq.true&order=flavor'),
-     req('/rest/v1/invoices?select=id,number,invoice_date,counterparty_id,subtotal,vat_total,recargo_rate,recargo_total,total&company_id=eq.'+company.id+'&direction=eq.sale&order=invoice_date.desc'),
-     req('/rest/v1/albaranes?select=id,number,albaran_date&company_id=eq.'+company.id),
-     editId?req('/rest/v1/albaranes?select=*&id=eq.'+editId+'&limit=1'):Promise.resolve([]),
-     editId?req('/rest/v1/albaran_items?select=*&albaran_id=eq.'+editId+'&order=id.asc'):Promise.resolve([])
+     req('/rest/v1/acc_counterparties?select=*&company_id=eq.'+company.id+'&type=in.(customer,both)&order=name'),
+     req('/rest/v1/acc_products?select=id,name,flavor,sku,sale_price&company_id=eq.'+company.id+'&active=eq.true&order=flavor'),
+     req('/rest/v1/acc_invoices?select=id,number,invoice_date,counterparty_id,subtotal,vat_total,recargo_rate,recargo_total,total&company_id=eq.'+company.id+'&direction=eq.sale&order=invoice_date.desc'),
+     req('/rest/v1/acc_albaranes?select=id,number,albaran_date&company_id=eq.'+company.id),
+     editId?req('/rest/v1/acc_albaranes?select=*&id=eq.'+editId+'&limit=1'):Promise.resolve([]),
+     editId?req('/rest/v1/acc_albaran_items?select=*&albaran_id=eq.'+editId+'&order=id.asc'):Promise.resolve([])
    ]);
    const current=currentRows[0]||null;
    const today=current?.albaran_date||new Date().toISOString().slice(0,10);
@@ -279,7 +266,7 @@ async function openAlbaranForm(editId=null){
      const iid=m.querySelector('#albInvoice').value;if(!iid)return alert('Сначала выберите Factura.');
      try{
        const inv=invoices.find(x=>x.id===iid);
-       const its=await req('/rest/v1/invoice_items?select=product_id,description,quantity,unit_price&invoice_id=eq.'+iid+'&order=id.asc');
+       const its=await req('/rest/v1/acc_invoice_items?select=product_id,description,quantity,unit_price&invoice_id=eq.'+iid+'&order=id.asc');
        lines.innerHTML='';
        its.filter(x=>x.product_id).forEach(x=>addLine({product_id:x.product_id,quantity:x.quantity,unit_price:x.unit_price}));
        if(inv){
@@ -303,12 +290,12 @@ async function openAlbaranForm(editId=null){
      try{
        let id=editId;
        if(editId){
-         await req('/rest/v1/albaran_items?albaran_id=eq.'+editId,{method:'DELETE'});
-         await req('/rest/v1/albaranes?id=eq.'+editId,{method:'PATCH',body:JSON.stringify(payload)});
+         await req('/rest/v1/acc_albaran_items?albaran_id=eq.'+editId,{method:'DELETE'});
+         await req('/rest/v1/acc_albaranes?id=eq.'+editId,{method:'PATCH',body:JSON.stringify(payload)});
        }else{
-         const rows=await req('/rest/v1/albaranes',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(payload)});id=rows[0].id;
+         const rows=await req('/rest/v1/acc_albaranes',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(payload)});id=rows[0].id;
        }
-       await req('/rest/v1/albaran_items',{method:'POST',body:JSON.stringify(items.map(x=>({company_id:company.id,albaran_id:id,...x})))});
+       await req('/rest/v1/acc_albaran_items',{method:'POST',body:JSON.stringify(items.map(x=>({company_id:company.id,albaran_id:id,...x})))});
        m.remove();openAlbaranes();
      }catch(e){alert('Не удалось сохранить Albarán: '+e.message)}
    };
@@ -319,10 +306,10 @@ async function openAlbaranForm(editId=null){
 async function openSavedAlbaran(id){
  try{
    const [a,items,clients,invs]=await Promise.all([
-     req('/rest/v1/albaranes?select=*&id=eq.'+id+'&limit=1'),
-     req('/rest/v1/albaran_items?select=*&albaran_id=eq.'+id+'&order=id.asc'),
-     req('/rest/v1/counterparties?select=id,name,address,city,postal_code,country_code,tax_id,email,phone&company_id=eq.'+company.id),
-     req('/rest/v1/invoices?select=id,number&company_id=eq.'+company.id)
+     req('/rest/v1/acc_albaranes?select=*&id=eq.'+id+'&limit=1'),
+     req('/rest/v1/acc_albaran_items?select=*&albaran_id=eq.'+id+'&order=id.asc'),
+     req('/rest/v1/acc_counterparties?select=id,name,address,city,postal_code,country_code,tax_id,email,phone&company_id=eq.'+company.id),
+     req('/rest/v1/acc_invoices?select=id,number&company_id=eq.'+company.id)
    ]);
    const x=a[0];if(!x)return alert('Albarán не найден.');
    const cl=clients.find(c=>c.id===x.counterparty_id)||{},inv=invs.find(i=>i.id===x.invoice_id);
@@ -353,14 +340,14 @@ function nextInvoiceNumber(existing){
 async function openInvoiceForm(withRecargo=false,editId=null){
  try{
    const baseReqs=[
-     req('/rest/v1/counterparties?select=*&company_id=eq.'+company.id+'&type=in.(customer,both)&order=name'),
-     req('/rest/v1/products?select=id,name,flavor,sale_price,vat_rate&company_id=eq.'+company.id+'&active=eq.true&order=flavor'),
-     req('/rest/v1/invoices?select=number&company_id=eq.'+company.id+'&direction=eq.sale'),
-     req('/rest/v1/warehouses?select=id,name,type&company_id=eq.'+company.id+'&order=created_at.asc')
+     req('/rest/v1/acc_counterparties?select=*&company_id=eq.'+company.id+'&type=in.(customer,both)&order=name'),
+     req('/rest/v1/acc_products?select=id,name,flavor,sale_price,vat_rate&company_id=eq.'+company.id+'&active=eq.true&order=flavor'),
+     req('/rest/v1/acc_invoices?select=number&company_id=eq.'+company.id+'&direction=eq.sale'),
+     req('/rest/v1/acc_warehouses?select=id,name,type&company_id=eq.'+company.id+'&order=created_at.asc')
    ];
    if(editId){
-     baseReqs.push(req('/rest/v1/invoices?select=*&id=eq.'+editId+'&limit=1'));
-     baseReqs.push(req('/rest/v1/invoice_items?select=*&invoice_id=eq.'+editId+'&order=id.asc'));
+     baseReqs.push(req('/rest/v1/acc_invoices?select=*&id=eq.'+editId+'&limit=1'));
+     baseReqs.push(req('/rest/v1/acc_invoice_items?select=*&invoice_id=eq.'+editId+'&order=id.asc'));
    }
    const data=await Promise.all(baseReqs);
    const clients=data[0],products=data[1],existing=data[2],warehouses=data[3];
@@ -423,9 +410,9 @@ async function openInvoiceForm(withRecargo=false,editId=null){
      try{
        let invId=editId;
        if(editId){
-         await req('/rest/v1/stock_movements?reference_id=eq.'+encodeURIComponent(editId),{method:'DELETE'});
-         await req('/rest/v1/invoice_items?invoice_id=eq.'+encodeURIComponent(editId),{method:'DELETE'});
-         await req('/rest/v1/invoices?id=eq.'+encodeURIComponent(editId),{
+         await req('/rest/v1/acc_stock_movements?reference_id=eq.'+encodeURIComponent(editId),{method:'DELETE'});
+         await req('/rest/v1/acc_invoice_items?invoice_id=eq.'+encodeURIComponent(editId),{method:'DELETE'});
+         await req('/rest/v1/acc_invoices?id=eq.'+encodeURIComponent(editId),{
            method:'PATCH',
            headers:{Prefer:'return=representation'},
            body:JSON.stringify({
@@ -437,7 +424,7 @@ async function openInvoiceForm(withRecargo=false,editId=null){
            })
          });
        }else{
-         const invRows=await req('/rest/v1/invoices',{
+         const invRows=await req('/rest/v1/acc_invoices',{
            method:'POST',headers:{Prefer:'return=representation'},
            body:JSON.stringify({
              company_id:company.id,counterparty_id:pack.client.id,direction:'sale',number:pack.number,
@@ -449,7 +436,7 @@ async function openInvoiceForm(withRecargo=false,editId=null){
          invId=invRows[0].id;
        }
 
-       await req('/rest/v1/invoice_items',{
+       await req('/rest/v1/acc_invoice_items',{
          method:'POST',
          body:JSON.stringify(pack.items.map(i=>({
            company_id:company.id,invoice_id:invId,product_id:i.product_id,description:i.description,
@@ -459,7 +446,7 @@ async function openInvoiceForm(withRecargo=false,editId=null){
          })))
        });
 
-       await req('/rest/v1/stock_movements',{
+       await req('/rest/v1/acc_stock_movements',{
          method:'POST',
          body:JSON.stringify(pack.items.map(i=>({
            company_id:company.id,product_id:i.product_id,warehouse_id:mainWarehouse.id,
@@ -486,10 +473,10 @@ async function deleteInvoice(id,number){
  const label=number||'без номера';
  if(!confirm('Удалить фактуру '+label+'?\n\nБудут удалены позиции счёта, связанная оплата и складские списания. Товар вернётся в остаток.'))return;
  try{
-   await req('/rest/v1/stock_movements?reference_id=eq.'+encodeURIComponent(id),{method:'DELETE'});
-   await req('/rest/v1/payments?invoice_id=eq.'+encodeURIComponent(id),{method:'DELETE'});
-   await req('/rest/v1/invoice_items?invoice_id=eq.'+encodeURIComponent(id),{method:'DELETE'});
-   await req('/rest/v1/invoices?id=eq.'+encodeURIComponent(id),{method:'DELETE'});
+   await req('/rest/v1/acc_stock_movements?reference_id=eq.'+encodeURIComponent(id),{method:'DELETE'});
+   await req('/rest/v1/acc_payments?invoice_id=eq.'+encodeURIComponent(id),{method:'DELETE'});
+   await req('/rest/v1/acc_invoice_items?invoice_id=eq.'+encodeURIComponent(id),{method:'DELETE'});
+   await req('/rest/v1/acc_invoices?id=eq.'+encodeURIComponent(id),{method:'DELETE'});
    await loadTab();
  }catch(e){
    alert('Не удалось удалить фактуру: '+e.message);
@@ -498,8 +485,8 @@ async function deleteInvoice(id,number){
 
 async function openSavedInvoice(id){
  try{
-   const inv=(await req('/rest/v1/invoices?select=*&id=eq.'+id+'&limit=1'))[0];if(!inv)return;
-   const [cl,items]=await Promise.all([req('/rest/v1/counterparties?select=*&id=eq.'+inv.counterparty_id+'&limit=1'),req('/rest/v1/invoice_items?select=*&invoice_id=eq.'+id+'&order=id')]);
+   const inv=(await req('/rest/v1/acc_invoices?select=*&id=eq.'+id+'&limit=1'))[0];if(!inv)return;
+   const [cl,items]=await Promise.all([req('/rest/v1/acc_counterparties?select=*&id=eq.'+inv.counterparty_id+'&limit=1'),req('/rest/v1/acc_invoice_items?select=*&invoice_id=eq.'+id+'&order=id')]);
    showInvoicePaper({id:inv.id,client:cl[0]||{},number:inv.number,date:inv.invoice_date,payment:inv.payment_method||'cash',items:items.map(i=>({description:i.description,quantity:Number(i.quantity),unit_price:Number(i.unit_price),subtotal:Number(i.line_subtotal)})),totals:{sub:Number(inv.subtotal),vr:items[0]?Number(items[0].vat_rate):21,rr:Number(inv.recargo_rate||0),iva:Number(inv.vat_total),rec:Number(inv.recargo_total||0),total:Number(inv.total)}},true);
  }catch(e){alert(e.message)}
 }
@@ -564,86 +551,18 @@ function dialogBox(title,body,onSave){
 function createWarehouse(){
  dialogBox('Новый склад','<div class="field"><label>Название</label><input id="whname" placeholder="Например, Главный склад"></div>',async d=>{
    const name=d.querySelector('#whname').value.trim(); if(!name)return alert('Введите название склада');
-   try{await req('/rest/v1/warehouses',{method:'POST',body:JSON.stringify({company_id:company.id,name,type:'main'})});d.remove();loadTab()}catch(e){alert(e.message)}
+   try{await req('/rest/v1/acc_warehouses',{method:'POST',body:JSON.stringify({company_id:company.id,name,type:'main'})});d.remove();loadTab()}catch(e){alert(e.message)}
  });
 }
 
 
-async function staffAdmin(action,payload={}){
- const r=await fetch(URL+'/functions/v1/accounting-staff-admin',{
-   method:'POST',
-   headers:{'apikey':KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-   body:JSON.stringify(Object.assign({action},payload))
- });
- const text=await r.text();let data={};try{data=text?JSON.parse(text):{}}catch{data={error:text}}
- if(!r.ok)throw new Error(data.error||('HTTP '+r.status));
- return data;
-}
-async function openStaffAccess(){
- try{
-   const data=await staffAdmin('list');
-   const modal=document.createElement('div');modal.className='inv-modal';
-   const roleLabel={owner:'Владелец',manager:'Руководитель',accountant:'Бухгалтер',viewer:'Просмотр'};
-   modal.innerHTML='<div class="inv-panel"><div class="top"><div><h2 style="margin:0">Доступ сотрудников</h2><div class="muted">Роли, статус аккаунта и смена пароля</div></div><button id="staffClose" class="btn">×</button></div>'+
-     '<div class="card" style="margin-top:14px;background:#f9fafb"><b>Добавить сотрудника</b><div class="inv-grid"><div class="field"><label>Email</label><input id="staffEmail" type="email" placeholder="name@pgnord.eu"></div><div class="field"><label>Роль</label><select id="staffRole" class="staff-role"><option value="viewer">Просмотр</option><option value="accountant">Бухгалтер</option>'+(data.caller_role==='owner'?'<option value="manager">Руководитель</option>':'')+'</select></div><div class="field"><label>Пароль</label><input id="staffPassword" type="password" minlength="8" placeholder="Минимум 8 символов"></div><div class="field"><label>Повторите пароль</label><input id="staffPassword2" type="password" minlength="8"></div></div><div class="staff-actions"><button id="staffCreate" class="btn primary">Создать аккаунт</button><button id="staffInvite" class="btn">Только дать доступ</button></div><div class="muted" style="margin-top:8px">«Создать аккаунт» сразу создаёт сотрудника с указанным email и паролем. Подтверждение email не требуется.</div></div>'+
-     '<div style="margin-top:14px;overflow:auto"><table class="table"><thead><tr><th>Email</th><th>Роль</th><th>Статус</th><th>Действия</th></tr></thead><tbody>'+
-     (data.staff?.length?data.staff.map(s=>{
-       const status=s.account_exists?(s.confirmed?'<span class="status-ok">Активен</span>':'<span class="status-wait">Не подтверждён email</span>'):'<span class="status-wait">Ждёт регистрации</span>';
-       const roleOptions=s.role==='owner'
-         ? '<option value="owner" selected>Владелец</option>'
-         : '<option value="viewer" '+(s.role==='viewer'?'selected':'')+'>Просмотр</option><option value="accountant" '+(s.role==='accountant'?'selected':'')+'>Бухгалтер</option>'+(data.caller_role==='owner'?'<option value="manager" '+(s.role==='manager'?'selected':'')+'>Руководитель</option>':'');
-       return '<tr><td>'+esc(s.email)+'</td><td><select class="staff-role" data-role-email="'+esc(s.email)+'" '+(s.role==='owner'?'disabled':'')+'>'+roleOptions+'</select></td><td>'+status+'</td><td><div class="staff-actions">'+(s.role!=='owner'?'<button class="btn" data-pass-email="'+esc(s.email)+'" '+(!s.account_exists?'disabled':'')+'>Сменить пароль</button>':'')+'</div></td></tr>';
-     }).join(''):'<tr><td colspan="4" class="muted">Сотрудников пока нет</td></tr>')+
-     '</tbody></table></div></div>';
-   document.body.appendChild(modal);
-   modal.querySelector('#staffClose').onclick=()=>modal.remove();
-
-   modal.querySelector('#staffCreate').onclick=async()=>{
-     const email=modal.querySelector('#staffEmail').value.trim();
-     const role=modal.querySelector('#staffRole').value;
-     const password=modal.querySelector('#staffPassword').value;
-     const password2=modal.querySelector('#staffPassword2').value;
-     if(!email.includes('@'))return alert('Введите email сотрудника.');
-     if(password.length<8)return alert('Пароль должен быть не короче 8 символов.');
-     if(password!==password2)return alert('Пароли не совпадают.');
-     try{await staffAdmin('create_account',{email,role,password});modal.remove();alert('Аккаунт сотрудника создан.');openStaffAccess()}catch(e){alert(e.message)}
-   };
-   modal.querySelector('#staffInvite').onclick=async()=>{
-     const email=modal.querySelector('#staffEmail').value.trim();
-     const role=modal.querySelector('#staffRole').value;
-     if(!email.includes('@'))return alert('Введите email сотрудника.');
-     try{await staffAdmin('invite',{email,role});modal.remove();alert('Доступ сохранён.');openStaffAccess()}catch(e){alert(e.message)}
-   };
-
-   modal.querySelectorAll('[data-role-email]').forEach(sel=>{
-     sel.onchange=async()=>{
-       try{await staffAdmin('set_role',{email:sel.dataset.roleEmail,role:sel.value});alert('Роль изменена.')}catch(e){alert(e.message);modal.remove();openStaffAccess()}
-     };
-   });
-
-   modal.querySelectorAll('[data-pass-email]').forEach(btn=>{
-     btn.onclick=()=>{
-       const email=btn.dataset.passEmail;
-       dialogBox('Новый пароль для '+email,
-         '<div class="field"><label>Новый пароль</label><input id="newStaffPass" type="password" minlength="8" placeholder="Минимум 8 символов"></div><div class="field"><label>Повторите пароль</label><input id="newStaffPass2" type="password" minlength="8"></div><div class="muted">Старый пароль не показывается и не хранится в приложении.</div>',
-         async d=>{
-           const p1=d.querySelector('#newStaffPass').value,p2=d.querySelector('#newStaffPass2').value;
-           if(p1.length<8)return alert('Пароль должен быть не короче 8 символов.');
-           if(p1!==p2)return alert('Пароли не совпадают.');
-           try{await staffAdmin('set_password',{email,password:p1});d.remove();alert('Пароль сотрудника изменён.')}catch(e){alert(e.message)}
-         }
-       );
-     };
-   });
- }catch(e){alert('Не удалось открыть доступ сотрудников: '+e.message)}
-}
-
+function openStaffAccess(){alert('Доступ к бухгалтерии и складу: Роман (roman@pgnord.eu) и Катерина (katerina@pgnord.eu). Другие сотрудники доступа не имеют.');}
 async function openWriteOff(){
  try{
    const [products,warehouses,moves]=await Promise.all([
-     req('/rest/v1/products?select=id,sku,name,flavor,unit_weight_g&company_id=eq.'+company.id+'&active=eq.true&order=flavor'),
-     req('/rest/v1/warehouses?select=id,name,type&company_id=eq.'+company.id+'&order=name'),
-     req('/rest/v1/stock_movements?select=product_id,warehouse_id,movement_type,quantity&company_id=eq.'+company.id)
+     req('/rest/v1/acc_products?select=id,sku,name,flavor,unit_weight_g&company_id=eq.'+company.id+'&active=eq.true&order=flavor'),
+     req('/rest/v1/acc_warehouses?select=id,name,type&company_id=eq.'+company.id+'&order=name'),
+     req('/rest/v1/acc_stock_movements?select=product_id,warehouse_id,movement_type,quantity&company_id=eq.'+company.id)
    ]);
    if(!products.length)return alert('Нет товаров для списания.');
    if(!warehouses.length)return alert('Нет склада.');
@@ -664,7 +583,7 @@ async function openWriteOff(){
        if(qty>available)return alert('Недостаточно товара. Остаток: '+available+' банок.');
        if(!reason)return alert('Укажите причину списания.');
        try{
-         await req('/rest/v1/stock_movements',{method:'POST',body:JSON.stringify({
+         await req('/rest/v1/acc_stock_movements',{method:'POST',body:JSON.stringify({
            company_id:company.id,product_id:pid,warehouse_id:wid,movement_type:'out',quantity:qty,
            reference_type:'writeoff',note:'Списание: '+reason,created_by:user.id
          })});
@@ -697,7 +616,7 @@ function createMovement(products,warehouses){
    const qty=Number(d.querySelector('#mvqty').value||0); if(qty<=0)return alert('Введите количество');
    const prod=products.find(p=>p.id===d.querySelector('#mvprod').value);
    try{
-     await req('/rest/v1/stock_movements',{method:'POST',body:JSON.stringify({
+     await req('/rest/v1/acc_stock_movements',{method:'POST',body:JSON.stringify({
        company_id:company.id,
        product_id:d.querySelector('#mvprod').value,
        warehouse_id:d.querySelector('#mvwh').value,
