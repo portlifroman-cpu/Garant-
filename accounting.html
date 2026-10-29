@@ -110,11 +110,31 @@ async function openQuickClient(onSaved){
    }catch(e){alert('Не удалось сохранить клиента: '+e.message)}
  };
 }
-function nav(){return [['overview','Обзор'],['sales','Продажи'],['albaranes','Albaranes'],['expenses','Расходы'],['payments','Оплаты'],['clients','Клиенты'],['products','Товары'],['warehouse','Склад'],['catalog','Каталог']].map(x=>'<button class="btn '+(tab===x[0]?'active':'')+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join('')}
+function nav(){return [['overview','Обзор'],['sales','Продажи'],['incoming','Входящие счета'],['albaranes','Albaranes'],['expenses','Расходы'],['payments','Оплаты'],['clients','Клиенты'],['products','Товары'],['warehouse','Склад'],['catalog','Каталог']].map(x=>'<button class="btn '+(tab===x[0]?'active':'')+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join('')}
 function render(){app.innerHTML='<div class="wrap"><div class="top"><div class="brand"><img class="main-brand-logo" src="'+LOGO_DATA+'" alt="GARANT PG NORD"><div><h1>Бухгалтерия</h1><div class="muted">'+esc(company.legal_name||company.name)+'</div></div></div><div class="invoice-actions"><a class="btn" href="/">← Garant</a><button id="selfPassword" class="btn">Сменить свой пароль</button><button id="logout" class="btn">Выйти</button></div></div><div class="nav">'+nav()+'</div><div id="content"></div></div>';document.getElementById('logout').onclick=()=>{db.auth.signOut().then(()=>location.assign('/'))};document.getElementById('selfPassword').onclick=()=>changeOwnPassword();document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});loadTab()}
 function table(h,rows){return '<div style="overflow:auto"><table class="table"><thead><tr>'+h.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(r=>'<tr>'+r.map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+h.length+'" class="muted">Пока нет записей</td></tr>')+'</tbody></table></div>'}
 async function loadTab(){const c=document.getElementById('content');try{
- if(tab==='overview'){const [s,e,p]=await Promise.all([req('/rest/v1/acc_invoices?select=total,paid_total&company_id=eq.'+company.id+'&direction=eq.sale'),req('/rest/v1/acc_expenses?select=total_amount&company_id=eq.'+company.id),req('/rest/v1/acc_payments?select=amount,direction&company_id=eq.'+company.id)]);const sales=s.reduce((a,x)=>a+Number(x.total||0),0),paid=s.reduce((a,x)=>a+Number(x.paid_total||0),0),cost=e.reduce((a,x)=>a+Number(x.total_amount||0),0),cash=p.reduce((a,x)=>a+(x.direction==='in'?1:-1)*Number(x.amount||0),0);c.innerHTML='<div class="grid"><div class="card kpi"><span class="muted">Продажи</span><b>'+money(sales)+'</b></div><div class="card kpi"><span class="muted">Оплачено</span><b>'+money(paid)+'</b></div><div class="card kpi"><span class="muted">Расходы</span><b>'+money(cost)+'</b></div><div class="card kpi"><span class="muted">Денежный поток</span><b>'+money(cash)+'</b></div><button id="albaranTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Документы</span><b style="font-size:22px;display:block;margin-top:8px">Albaranes</b><span class="muted">Отгрузки по датам, отдельно от Factura</span></button><button id="writeoffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Склад</span><b style="font-size:22px;display:block;margin-top:8px">Списание</b><span class="muted">Уменьшить остаток товара</span></button><button id="staffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Управление</span><b style="font-size:22px;display:block;margin-top:8px">Доступ сотрудников</b><span class="muted">Роли и пароли сотрудников</span></button></div>';document.getElementById('writeoffTile').onclick=()=>openWriteOff();document.getElementById('staffTile').onclick=()=>openStaffAccess();document.getElementById('albaranTile').onclick=()=>openAlbaranes();return}
+ if(tab==='overview'){const [s,e,p]=await Promise.all([req('/rest/v1/acc_invoices?select=total,paid_total&company_id=eq.'+company.id+'&direction=eq.sale'),req('/rest/v1/acc_expenses?select=total_amount&company_id=eq.'+company.id),req('/rest/v1/acc_payments?select=amount,direction&company_id=eq.'+company.id)]);const sales=s.reduce((a,x)=>a+Number(x.total||0),0),paid=s.reduce((a,x)=>a+Number(x.paid_total||0),0),cost=e.reduce((a,x)=>a+Number(x.total_amount||0),0),cash=p.reduce((a,x)=>a+(x.direction==='in'?1:-1)*Number(x.amount||0),0);c.innerHTML='<div class="grid"><div class="card kpi"><span class="muted">Продажи</span><b>'+money(sales)+'</b></div><div class="card kpi"><span class="muted">Оплачено</span><b>'+money(paid)+'</b></div><div class="card kpi"><span class="muted">Расходы</span><b>'+money(cost)+'</b></div><div class="card kpi"><span class="muted">Денежный поток</span><b>'+money(cash)+'</b></div><button id="incomingTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Бухгалтерия</span><b style="font-size:22px;display:block;margin-top:8px">Входящие счета</b><span class="muted">Загрузить PDF/фото и передать главному бухгалтеру</span></button><button id="albaranTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Документы</span><b style="font-size:22px;display:block;margin-top:8px">Albaranes</b><span class="muted">Отгрузки по датам, отдельно от Factura</span></button><button id="writeoffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Склад</span><b style="font-size:22px;display:block;margin-top:8px">Списание</b><span class="muted">Уменьшить остаток товара</span></button><button id="staffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Управление</span><b style="font-size:22px;display:block;margin-top:8px">Доступ сотрудников</b><span class="muted">Роли и пароли сотрудников</span></button></div>';document.getElementById('incomingTile').onclick=()=>{tab='incoming';render()};document.getElementById('writeoffTile').onclick=()=>openWriteOff();document.getElementById('staffTile').onclick=()=>openStaffAccess();document.getElementById('albaranTile').onclick=()=>openAlbaranes();return}
+
+ if(tab==='incoming'){
+   const [rows,suppliers]=await Promise.all([
+     req('/rest/v1/acc_incoming_invoices?select=*&company_id=eq.'+company.id+'&order=created_at.desc'),
+     req('/rest/v1/acc_counterparties?select=id,name&company_id=eq.'+company.id+'&order=name')
+   ]);
+   const sm=Object.fromEntries(suppliers.map(x=>[x.id,x.name]));
+   const statusLabel={pending_review:'На проверке',approved:'Подтверждён',paid:'Оплачен',rejected:'Отклонён'};
+   c.innerHTML='<div class="card"><div class="top"><div><b>Входящие счета</b><div class="muted">PDF/фото для общей бухгалтерии и проверки главным бухгалтером</div></div><button id="newIncomingInvoice" class="btn invoice-btn">+ Загрузить входящий счёт</button></div><div style="overflow:auto"><table class="table"><thead><tr><th>Дата</th><th>Поставщик</th><th>№</th><th>Сумма</th><th>Срок оплаты</th><th>Статус</th><th>Файл</th><th></th></tr></thead><tbody>'+
+   (rows.length?rows.map(x=>'<tr><td>'+esc(formatDateDMY(x.invoice_date))+'</td><td>'+esc(sm[x.supplier_id]||'—')+'</td><td>'+esc(x.invoice_number||'—')+'</td><td>'+esc(money(x.total_amount))+'</td><td>'+esc(formatDateDMY(x.due_date))+'</td><td>'+(x.status==='paid'?'<span class="status-ok">Оплачен</span>':x.status==='approved'?'<span class="status-ok">Подтверждён</span>':x.status==='rejected'?'<span class="status-wait">Отклонён</span>':'<span class="status-wait">На проверке</span>')+'</td><td>'+(x.file_path?'<button class="btn" data-open-incoming-file="'+x.id+'" data-path="'+esc(x.file_path)+'">Открыть</button>':'—')+'</td><td><div class="invoice-actions">'+
+   (x.status==='pending_review'?'<button class="btn invoice-btn" data-incoming-status="'+x.id+'" data-status="approved">Подтвердить</button><button class="btn danger-btn" data-incoming-status="'+x.id+'" data-status="rejected">Отклонить</button>':'')+
+   (x.status==='approved'?'<button class="btn invoice-btn" data-incoming-status="'+x.id+'" data-status="paid">Оплачен</button>':'')+
+   '<button class="btn danger-btn" data-delete-incoming="'+x.id+'" data-path="'+esc(x.file_path||'')+'">Удалить</button></div></td></tr>').join(''):'<tr><td colspan="8" class="muted">Пока нет входящих счетов</td></tr>')+
+   '</tbody></table></div></div>';
+   document.getElementById('newIncomingInvoice').onclick=()=>openIncomingInvoiceForm();
+   document.querySelectorAll('[data-open-incoming-file]').forEach(b=>b.onclick=()=>openIncomingInvoiceFile(b.dataset.path));
+   document.querySelectorAll('[data-incoming-status]').forEach(b=>b.onclick=()=>setIncomingInvoiceStatus(b.dataset.incomingStatus,b.dataset.status));
+   document.querySelectorAll('[data-delete-incoming]').forEach(b=>b.onclick=()=>deleteIncomingInvoice(b.dataset.deleteIncoming,b.dataset.path));
+   return
+ }
  if(tab==='albaranes'){openAlbaranes();return}
  if(tab==='sales'){
    const d=await req('/rest/v1/acc_invoices?select=id,invoice_date,number,status,total,paid_total,counterparty_id&company_id=eq.'+company.id+'&direction=eq.sale&order=invoice_date.desc');const clients=await req('/rest/v1/acc_counterparties?select=id,name&company_id=eq.'+company.id);const clientMap=Object.fromEntries(clients.map(x=>[x.id,x.name]));
@@ -689,6 +709,70 @@ async function openQuickSupplier(onSaved){
      if(saved&&typeof onSaved==='function')onSaved(saved);
    }catch(e){alert('Не удалось сохранить поставщика: '+e.message)}
  };
+}
+
+
+async function openIncomingInvoiceForm(){
+ try{
+   const suppliers=await req('/rest/v1/acc_counterparties?select=id,name,type&company_id=eq.'+company.id+'&order=name');
+   const opts='<option value="">— Выберите поставщика —</option>'+suppliers.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('');
+   const d=document.createElement('div');d.className='inv-modal';
+   d.innerHTML='<div class="inv-panel" style="max-width:760px"><div class="top"><div><h2 style="margin:0">Новый входящий счёт</h2><div class="muted">Загрузите PDF или фото счёта для главного бухгалтера</div></div><button id="incClose" class="btn">×</button></div>'+
+   '<div class="expense-grid" style="margin-top:14px">'+
+   '<div class="field"><label>Поставщик *</label><div class="expense-supplier-row"><select id="incSupplier">'+opts+'</select><button type="button" id="incAddSupplier" class="btn invoice-btn">+ Новый поставщик</button></div></div>'+
+   '<div class="field"><label>№ счёта</label><input id="incNumber"></div>'+
+   '<div class="field"><label>Дата счёта</label><input id="incDate" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
+   '<div class="field"><label>Срок оплаты</label><input id="incDue" type="date"></div>'+
+   '<div class="field"><label>Сумма без IVA</label><input id="incNet" type="number" min="0" step="0.01" value="0"></div>'+
+   '<div class="field"><label>IVA</label><input id="incVat" type="number" min="0" step="0.01" value="0"></div>'+
+   '<div class="field"><label>Всего *</label><input id="incTotal" type="number" min="0" step="0.01" value="0"></div>'+
+   '<div class="field"><label>Способ оплаты</label><select id="incMethod"><option value="">— Не указан —</option><option value="bank">Банк</option><option value="cash">Наличные</option><option value="card">Карта</option><option value="other">Другое</option></select></div>'+
+   '<div class="field field-full"><label>Файл счёта *</label><input id="incFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"></div>'+
+   '<div class="field field-full"><label>Комментарий</label><input id="incNotes" placeholder="Например, передать главному бухгалтеру на проверку"></div>'+
+   '</div><div class="invoice-actions" style="justify-content:flex-end;margin-top:18px"><button id="incSave" class="btn invoice-btn">Загрузить и передать бухгалтеру</button></div></div>';
+   document.body.appendChild(d);
+   d.querySelector('#incClose').onclick=()=>d.remove();
+   d.querySelector('#incAddSupplier').onclick=()=>openQuickSupplier(saved=>{const s=d.querySelector('#incSupplier');if(saved&&s){const o=document.createElement('option');o.value=saved.id;o.textContent=saved.name;s.appendChild(o);s.value=saved.id}});
+   d.querySelector('#incSave').onclick=async()=>{
+     const supplierId=d.querySelector('#incSupplier').value,file=d.querySelector('#incFile').files?.[0],total=Number(d.querySelector('#incTotal').value||0);
+     if(!supplierId)return alert('Выберите поставщика.');
+     if(!file)return alert('Выберите PDF или фото счёта.');
+     if(total<=0)return alert('Введите общую сумму счёта.');
+     if(file.size>20*1024*1024)return alert('Файл больше 20 МБ.');
+     const safeName=file.name.replace(/[^a-zA-Z0-9._-]+/g,'_');
+     const path=company.id+'/'+new Date().toISOString().slice(0,10)+'/'+crypto.randomUUID()+'-'+safeName;
+     try{
+       const up=await db.storage.from('acc-incoming-invoices').upload(path,file,{contentType:file.type||'application/octet-stream',upsert:false});
+       if(up.error)throw up.error;
+       try{
+         await req('/rest/v1/acc_incoming_invoices',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({
+           company_id:company.id,supplier_id:supplierId,invoice_number:d.querySelector('#incNumber').value.trim()||null,
+           invoice_date:d.querySelector('#incDate').value,due_date:d.querySelector('#incDue').value||null,
+           net_amount:Number(d.querySelector('#incNet').value||0),vat_amount:Number(d.querySelector('#incVat').value||0),
+           total_amount:total,currency:'EUR',payment_method:d.querySelector('#incMethod').value||null,status:'pending_review',
+           file_path:path,file_name:file.name,mime_type:file.type||null,notes:d.querySelector('#incNotes').value.trim()||null,created_by:user.id
+         })});
+       }catch(e){await db.storage.from('acc-incoming-invoices').remove([path]);throw e}
+       d.remove();await loadTab();
+     }catch(e){alert('Не удалось загрузить входящий счёт: '+e.message)}
+   };
+ }catch(e){alert('Не удалось открыть форму: '+e.message)}
+}
+
+async function openIncomingInvoiceFile(path){
+ try{const {data,error}=await db.storage.from('acc-incoming-invoices').createSignedUrl(path,300);if(error)throw error;window.open(data.signedUrl,'_blank')}
+ catch(e){alert('Не удалось открыть файл: '+e.message)}
+}
+async function setIncomingInvoiceStatus(id,status){
+ const label={approved:'подтвердить',paid:'отметить как оплаченный',rejected:'отклонить'}[status]||status;
+ if(!confirm('Действительно '+label+' этот входящий счёт?'))return;
+ try{await req('/rest/v1/acc_incoming_invoices?id=eq.'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status,reviewed_by:user.id,reviewed_at:new Date().toISOString()})});await loadTab()}
+ catch(e){alert('Не удалось изменить статус: '+e.message)}
+}
+async function deleteIncomingInvoice(id,path){
+ if(!confirm('Удалить этот входящий счёт и прикреплённый файл?'))return;
+ try{await req('/rest/v1/acc_incoming_invoices?id=eq.'+encodeURIComponent(id),{method:'DELETE'});if(path)await db.storage.from('acc-incoming-invoices').remove([path]);await loadTab()}
+ catch(e){alert('Не удалось удалить входящий счёт: '+e.message)}
 }
 
 async function openExpenseForm(){
