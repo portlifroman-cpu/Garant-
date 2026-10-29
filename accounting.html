@@ -162,8 +162,8 @@ async function openAlbaranForm(editId=null){
  try{
    const [clients,products,invoices,existing,currentRows,currentItems]=await Promise.all([
      req('/rest/v1/counterparties?select=*&company_id=eq.'+company.id+'&type=in.(customer,both)&order=name'),
-     req('/rest/v1/products?select=id,name,flavor,sku&company_id=eq.'+company.id+'&active=eq.true&order=flavor'),
-     req('/rest/v1/invoices?select=id,number,invoice_date,counterparty_id&company_id=eq.'+company.id+'&direction=eq.sale&order=invoice_date.desc'),
+     req('/rest/v1/products?select=id,name,flavor,sku,sale_price&company_id=eq.'+company.id+'&active=eq.true&order=flavor'),
+     req('/rest/v1/invoices?select=id,number,invoice_date,counterparty_id,subtotal,vat_total,recargo_rate,recargo_total,total&company_id=eq.'+company.id+'&direction=eq.sale&order=invoice_date.desc'),
      req('/rest/v1/albaranes?select=id,number,albaran_date&company_id=eq.'+company.id),
      editId?req('/rest/v1/albaranes?select=*&id=eq.'+editId+'&limit=1'):Promise.resolve([]),
      editId?req('/rest/v1/albaran_items?select=*&albaran_id=eq.'+editId+'&order=id.asc'):Promise.resolve([])
@@ -172,27 +172,51 @@ async function openAlbaranForm(editId=null){
    const today=current?.albaran_date||new Date().toISOString().slice(0,10);
    const number=current?.number||nextAlbaranNumber(today,existing);
    const m=document.createElement('div');m.className='inv-modal';
-   m.innerHTML='<div class="inv-panel"><div class="top"><div><h2 style="margin:0">'+(editId?'Редактировать Albarán':'Новый Albarán')+'</h2><div class="muted">Номер формируется по дате и не зависит от Factura</div></div><button id="albFormClose" class="btn">×</button></div>'+
+   m.innerHTML='<div class="inv-panel"><div class="top"><div><h2 style="margin:0">'+(editId?'Редактировать Albarán':'Новый Albarán')+'</h2><div class="muted">Дата и номер Albarán не зависят от Factura</div></div><button id="albFormClose" class="btn">×</button></div>'+
    '<div class="inv-grid"><div class="field"><label>Дата Albarán</label><input id="albDate" type="date" value="'+today+'"></div><div class="field"><label>№ Albarán</label><input id="albNumber" value="'+esc(number)+'" '+(editId?'':'readonly')+'></div>'+
    '<div class="field"><label>Клиент</label><select id="albClient">'+clients.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')+'</select></div>'+
-   '<div class="field"><label>Factura (необязательно)</label><select id="albInvoice"><option value="">Без привязки к Factura</option>'+invoices.map(x=>'<option value="'+x.id+'">'+esc(x.invoice_date+' — '+x.number)+'</option>').join('')+'</select></div></div>'+
-   '<div class="invoice-actions" style="margin:8px 0 12px"><button id="loadFactItems" class="btn">Загрузить товары из Factura</button></div>'+
+   '<div class="field"><label>Factura (необязательно)</label><select id="albInvoice"><option value="">Без привязки к Factura</option>'+invoices.map(x=>'<option value="'+x.id+'">'+esc(x.invoice_date+' — '+x.number)+'</option>').join('')+'</select></div>'+
+   '<div class="field"><label>IVA</label><input id="albVat" type="number" step="0.1" value="'+Number(current?.vat_rate??21)+'"></div>'+
+   '<div class="field"><label>Recargo</label><input id="albRec" type="number" step="0.1" value="'+Number(current?.recargo_rate??0)+'"></div></div>'+
+   '<div class="invoice-actions" style="margin:8px 0 12px"><button id="loadFactItems" class="btn">Загрузить товары и суммы из Factura</button></div>'+
    '<div><b>Mercancía</b><div id="albLines"></div><button id="addAlbLine" class="btn">+ Добавить позицию</button></div>'+
+   '<div class="inv-summary"><span>Subtotal</span><b id="albSub">0,00 €</b><span>IVA</span><b id="albVatTotal">0,00 €</b><span>Recargo</span><b id="albRecTotal">0,00 €</b><span class="grand">TOTAL</span><b class="grand" id="albTotal">0,00 €</b></div>'+
    '<div class="field"><label>Комментарий</label><input id="albNotes" value="'+esc(current?.notes||'')+'"></div>'+
    '<div class="invoice-actions" style="justify-content:flex-end;margin-top:16px"><button id="saveAlb" class="btn invoice-btn">Сохранить Albarán</button></div></div>';
    document.body.appendChild(m);
    if(current){m.querySelector('#albClient').value=current.counterparty_id;m.querySelector('#albInvoice').value=current.invoice_id||''}
    const lines=m.querySelector('#albLines');
+
+   function recalc(){
+     let sub=0;
+     m.querySelectorAll('.inv-line').forEach(r=>sub+=Number(r.querySelector('.aq').value||0)*Number(r.querySelector('.aprice').value||0));
+     const vr=Number(m.querySelector('#albVat').value||0), rr=Number(m.querySelector('#albRec').value||0);
+     const iva=sub*vr/100, rec=sub*rr/100, total=sub+iva+rec;
+     m.querySelector('#albSub').textContent=money(sub);
+     m.querySelector('#albVatTotal').textContent=money(iva);
+     m.querySelector('#albRecTotal').textContent=money(rec);
+     m.querySelector('#albTotal').textContent=money(total);
+     return {sub,vr,rr,iva,rec,total};
+   }
    function addLine(item=null){
      const r=document.createElement('div');r.className='inv-line';
-     r.innerHTML='<div class="field"><label>Товар</label><select class="ap">'+products.map(p=>'<option value="'+p.id+'">'+esc((p.flavor||p.name)+(p.sku?' — '+p.sku:''))+'</option>').join('')+'</select></div><div class="field"><label>Cantidad</label><input class="aq" type="number" min="0.001" step="1" value="'+Number(item?.quantity||1)+'"></div><div class="field"><label>Unidad</label><input class="au" value="'+esc(item?.unit||'lata')+'"></div><button class="btn ar">×</button>';
+     r.innerHTML='<div class="field"><label>Товар</label><select class="ap">'+products.map(p=>'<option value="'+p.id+'" data-price="'+Number(p.sale_price||0)+'">'+esc((p.flavor||p.name)+(p.sku?' — '+p.sku:''))+'</option>').join('')+'</select></div>'+
+       '<div class="field"><label>Cantidad</label><input class="aq" type="number" min="0.001" step="1" value="'+Number(item?.quantity||1)+'"></div>'+
+       '<div class="field"><label>Precio</label><input class="aprice" type="number" min="0" step="0.01" value="'+Number(item?.unit_price??0).toFixed(2)+'"></div>'+
+       '<button class="btn ar">×</button>';
      lines.appendChild(r);
      if(item?.product_id&&products.some(p=>p.id===item.product_id))r.querySelector('.ap').value=item.product_id;
-     r.querySelector('.ar').onclick=()=>r.remove();
+     if(!item?.unit_price){
+       const sel=r.querySelector('.ap');r.querySelector('.aprice').value=Number(sel.selectedOptions[0]?.dataset.price||0).toFixed(2);
+     }
+     r.querySelector('.ap').onchange=()=>{r.querySelector('.aprice').value=Number(r.querySelector('.ap').selectedOptions[0]?.dataset.price||0).toFixed(2);recalc()};
+     r.querySelector('.aq').oninput=recalc;r.querySelector('.aprice').oninput=recalc;r.querySelector('.ar').onclick=()=>{r.remove();recalc()};recalc();
    }
    if(currentItems.length)currentItems.forEach(addLine);else addLine();
+
    m.querySelector('#albFormClose').onclick=()=>m.remove();
    m.querySelector('#addAlbLine').onclick=()=>addLine();
+   m.querySelector('#albVat').oninput=recalc;m.querySelector('#albRec').oninput=recalc;
    m.querySelector('#albDate').onchange=()=>{if(!editId)m.querySelector('#albNumber').value=nextAlbaranNumber(m.querySelector('#albDate').value,existing)};
    m.querySelector('#albInvoice').onchange=()=>{
      const inv=invoices.find(x=>x.id===m.querySelector('#albInvoice').value);
@@ -201,16 +225,27 @@ async function openAlbaranForm(editId=null){
    m.querySelector('#loadFactItems').onclick=async()=>{
      const iid=m.querySelector('#albInvoice').value;if(!iid)return alert('Сначала выберите Factura.');
      try{
-       const its=await req('/rest/v1/invoice_items?select=product_id,description,quantity&invoice_id=eq.'+iid+'&order=id.asc');
+       const inv=invoices.find(x=>x.id===iid);
+       const its=await req('/rest/v1/invoice_items?select=product_id,description,quantity,unit_price&invoice_id=eq.'+iid+'&order=id.asc');
        lines.innerHTML='';
-       its.filter(x=>x.product_id).forEach(x=>addLine({product_id:x.product_id,quantity:x.quantity,unit:'lata'}));
+       its.filter(x=>x.product_id).forEach(x=>addLine({product_id:x.product_id,quantity:x.quantity,unit_price:x.unit_price}));
+       if(inv){
+         m.querySelector('#albClient').value=inv.counterparty_id;
+         m.querySelector('#albRec').value=Number(inv.recargo_rate||0);
+       }
        if(!lines.children.length)addLine();
+       recalc();
      }catch(e){alert(e.message)}
    };
+
    m.querySelector('#saveAlb').onclick=async()=>{
-     const items=[];m.querySelectorAll('.inv-line').forEach(r=>{const p=products.find(x=>x.id===r.querySelector('.ap').value),q=Number(r.querySelector('.aq').value||0),unit=r.querySelector('.au').value.trim()||'lata';if(p&&q>0)items.push({product_id:p.id,description:p.flavor||p.name,quantity:q,unit})});
+     const totals=recalc(),items=[];
+     m.querySelectorAll('.inv-line').forEach(r=>{
+       const p=products.find(x=>x.id===r.querySelector('.ap').value),q=Number(r.querySelector('.aq').value||0),price=Number(r.querySelector('.aprice').value||0);
+       if(p&&q>0)items.push({product_id:p.id,description:p.flavor||p.name,quantity:q,unit:'lata',unit_price:price,vat_rate:totals.vr,line_subtotal:q*price,line_vat:q*price*totals.vr/100,line_total:q*price*(1+totals.vr/100)});
+     });
      if(!items.length)return alert('Добавьте хотя бы одну позицию.');
-     const payload={company_id:company.id,counterparty_id:m.querySelector('#albClient').value,invoice_id:m.querySelector('#albInvoice').value||null,number:m.querySelector('#albNumber').value.trim(),albaran_date:m.querySelector('#albDate').value,status:'issued',notes:m.querySelector('#albNotes').value.trim()||null,created_by:user.id};
+     const payload={company_id:company.id,counterparty_id:m.querySelector('#albClient').value,invoice_id:m.querySelector('#albInvoice').value||null,number:m.querySelector('#albNumber').value.trim(),albaran_date:m.querySelector('#albDate').value,status:'issued',notes:m.querySelector('#albNotes').value.trim()||null,subtotal:totals.sub,vat_rate:totals.vr,vat_total:totals.iva,recargo_rate:totals.rr,recargo_total:totals.rec,total:totals.total,created_by:user.id};
      try{
        let id=editId;
        if(editId){
@@ -223,8 +258,10 @@ async function openAlbaranForm(editId=null){
        m.remove();openAlbaranes();
      }catch(e){alert('Не удалось сохранить Albarán: '+e.message)}
    };
+   recalc();
  }catch(e){alert(e.message)}
 }
+
 async function openSavedAlbaran(id){
  try{
    const [a,items,clients,invs]=await Promise.all([
@@ -239,7 +276,8 @@ async function openSavedAlbaran(id){
    m.innerHTML='<div class="inv-panel"><div class="top"><div><h2 style="margin:0">ALBARÁN</h2><div class="muted">'+esc(x.number)+'</div></div><div class="invoice-actions"><button id="albPrint" class="btn invoice-btn">Печать / PDF</button><button id="albViewClose" class="btn">×</button></div></div>'+
    '<div id="albPaper" class="invoice-paper"><div class="invoice-head"><div><b>PG Nord Garant S.L.</b><br>C/Mare Nostrum 42, Bahia de la Plata<br>Estepona (Malaga), 29680<br>NIF B26984146</div><div class="invoice-box"><div><span>Fecha</span><b>'+esc(x.albaran_date)+'</b></div><div><span>Nº Albarán</span><b>'+esc(x.number)+'</b></div></div></div>'+
    '<div style="margin-top:18px"><span class="invoice-client-label">Cliente</span><div style="margin-top:10px"><b>'+esc(cl.name||'')+'</b><br>'+esc(cl.address||'')+'<br>'+esc(cl.city||'')+' '+esc(cl.postal_code||'')+'<br>NIF/CIF '+esc(cl.tax_id||'')+(inv?'<br>Factura relacionada: '+esc(inv.number):'')+'</div></div>'+
-   '<table class="invoice-table"><thead><tr><th>Mercancía</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>'+items.map((i,n)=>'<tr><td>'+(n+1)+'- '+esc(i.description)+'</td><td class="amount">'+Number(i.quantity).toLocaleString('ru-RU')+'</td><td>'+esc(i.unit||'lata')+'</td></tr>').join('')+'</tbody></table>'+
+   '<table class="invoice-table"><thead><tr><th>Mercancía</th><th>Cantidad</th><th>Precio unidad</th><th>Subtotal</th></tr></thead><tbody>'+items.map((i,n)=>'<tr><td>'+(n+1)+'- '+esc(i.description)+'</td><td class="amount">'+Number(i.quantity).toLocaleString('ru-RU')+'</td><td class="amount">'+Number(i.unit_price||0).toFixed(2).replace('.',',')+' €</td><td class="amount">'+Number(i.line_subtotal||0).toFixed(2).replace('.',',')+' €</td></tr>').join('')+'</tbody></table>'+
+   '<div style="display:flex;justify-content:flex-end"><table class="invoice-total-box"><tr><td>Subtotal</td><td>'+Number(x.subtotal||0).toFixed(2).replace('.',',')+' €</td></tr><tr><td>IVA '+Number(x.vat_rate||0).toFixed(1).replace('.',',')+'%</td><td>'+Number(x.vat_total||0).toFixed(2).replace('.',',')+' €</td></tr>'+(Number(x.recargo_rate||0)>0?'<tr><td>Recargo '+Number(x.recargo_rate).toFixed(1).replace('.',',')+'%</td><td>'+Number(x.recargo_total||0).toFixed(2).replace('.',',')+' €</td></tr>':'')+'<tr><td><b>TOTAL</b></td><td><b>'+Number(x.total||0).toFixed(2).replace('.',',')+' €</b></td></tr></table></div>'+
    (x.notes?'<div style="margin-top:14px"><b>Notas:</b> '+esc(x.notes)+'</div>':'')+
    '</div></div>';
    document.body.appendChild(m);m.querySelector('#albViewClose').onclick=()=>m.remove();m.querySelector('#albPrint').onclick=()=>printInvoicePaper(m.querySelector('#albPaper').outerHTML);
