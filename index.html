@@ -882,7 +882,7 @@ let visitRouteMap=null,visitRouteMarkers=[],visitRouteSelected=new Set();
 function toast(s){$('toast').textContent=s;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3200)}
 function openModal(id){$(id).classList.add('open')} function closeModals(){document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'))}
 document.querySelectorAll('.close').forEach(x=>x.onclick=closeModals);
-function canViewAccounting(){return ['ceae49cb-4385-4052-a022-6aa0cea662ef','e29cfd4a-42cb-4c2b-a46c-cb7124ba7119'].includes(user?.id)}
+function canViewAccounting(){return ['ceae49cb-4385-4052-a022-6aa0cea662ef','e29cfd4a-42cb-4c2b-a46c-cb7124ba7119','abdc2bea-ca10-44bc-ba47-fee7e280dcbe'].includes(user?.id)}
 $('accountingTab').onclick=()=>{if(canViewAccounting())location.assign('/accounting.html')};
 function isManager(){return ['manager','admin','regional_manager'].includes(profile?.role)}
 const PHOTO_BUCKET='Shop-photos';
