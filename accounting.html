@@ -118,7 +118,7 @@ async function loadTab(){const c=document.getElementById('content');try{
    document.querySelectorAll('[data-delete-invoice]').forEach(b=>b.onclick=()=>deleteInvoice(b.dataset.deleteInvoice,b.dataset.number));
    return
  }
- if(tab==='expenses'){const d=await req('/rest/v1/acc_expenses?select=expense_date,description,total_amount,vat_amount,document_number&company_id=eq.'+company.id+'&order=expense_date.desc');c.innerHTML='<div class="card"><b>Расходы</b>'+table(['Дата','Описание','Документ','IVA','Всего'],d.map(x=>[x.expense_date||'—',x.description,x.document_number||'—',money(x.vat_amount),money(x.total_amount)]))+'</div>';return}
+ if(tab==='expenses'){const d=await req('/rest/v1/acc_expenses?select=expense_date,description,total_amount,vat_amount,document_number,payment_method&company_id=eq.'+company.id+'&order=expense_date.desc');c.innerHTML='<div class="card"><div class="top"><div><b>Расходы</b><div class="muted">Расходы компании и способ оплаты</div></div><button id="newExpense" class="btn invoice-btn">+ Новый расход</button></div>'+table(['Дата','Описание','Документ','IVA','Всего','Оплата'],d.map(x=>[x.expense_date||'—',x.description,x.document_number||'—',money(x.vat_amount),money(x.total_amount),({bank:'Банк',cash:'Наличные',card:'Карта',other:'Другое'}[x.payment_method]||x.payment_method||'—')]))+'</div>';document.getElementById('newExpense').onclick=()=>openExpenseForm();return}
  if(tab==='payments'){const d=await req('/rest/v1/acc_payments?select=payment_date,direction,method,amount,reference&company_id=eq.'+company.id+'&order=payment_date.desc');c.innerHTML='<div class="card"><b>Оплаты</b>'+table(['Дата','Тип','Способ','Сумма','Комментарий'],d.map(x=>[x.payment_date||'—',x.direction==='in'?'Входящая':'Исходящая',x.method,money(x.amount),x.reference||'—']))+'</div>';return}
  if(tab==='clients'){const d=await req('/rest/v1/acc_counterparties?select=*&company_id=eq.'+company.id+'&order=name');c.innerHTML='<div class="card"><div class="top"><div><b>Клиенты и поставщики</b></div><button id="addClient" class="btn invoice-btn">+ Новый клиент</button></div>'+table(['Название','Тип','NIF/CIF','Телефон','Город'],d.map(x=>[x.name,x.type,x.tax_id||'—',x.phone||'—',x.city||'—']))+'</div>';document.getElementById('addClient').onclick=()=>openQuickClient();return}
  if(tab==='catalog'){
@@ -622,6 +622,70 @@ function dialogBox(title,body,onSave){
  d.querySelector('#cancelDlg').onclick=()=>d.remove();
  d.querySelector('#saveDlg').onclick=()=>onSave(d);
 }
+async function openExpenseForm(){
+ try{
+   const [suppliers,categories]=await Promise.all([
+     req('/rest/v1/acc_counterparties?select=id,name,type&company_id=eq.'+company.id+'&order=name'),
+     req('/rest/v1/acc_expense_categories?select=id,name&company_id=eq.'+company.id+'&order=name')
+   ]);
+   const suppOpts='<option value="">— Без поставщика —</option>'+suppliers.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('');
+   const catOpts='<option value="">— Без категории —</option>'+categories.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('');
+   dialogBox('Новый расход',
+     '<div class="inv-grid">'+
+       '<div class="field"><label>Дата</label><input id="exDate" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
+       '<div class="field"><label>Поставщик</label><select id="exSupplier" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px">'+suppOpts+'</select></div>'+
+       '<div class="field"><label>Категория</label><select id="exCategory" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px">'+catOpts+'</select></div>'+
+       '<div class="field"><label>Документ / чек №</label><input id="exDoc" placeholder="Например, INV-123"></div>'+
+       '<div class="field"><label>Сумма без IVA</label><input id="exNet" type="number" min="0" step="0.01" value="0"></div>'+
+       '<div class="field"><label>IVA %</label><input id="exVatRate" type="number" min="0" step="0.01" value="21"></div>'+
+       '<div class="field"><label>IVA</label><input id="exVat" type="number" min="0" step="0.01" value="0"></div>'+
+       '<div class="field"><label>Всего</label><input id="exTotal" type="number" min="0" step="0.01" value="0"></div>'+
+       '<div class="field"><label>Способ оплаты</label><select id="exMethod" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px"><option value="bank">Банк</option><option value="cash">Наличные</option><option value="card">Карта</option><option value="other">Другое</option></select></div>'+
+     '</div>'+
+     '<div class="field"><label>Описание *</label><input id="exDesc" placeholder="Например, топливо, аренда, курьер"></div>'+
+     '<div class="field"><label>Комментарий</label><input id="exNotes"></div>',
+     async d=>{
+       const net=Number(d.querySelector('#exNet').value||0);
+       const vatRate=Number(d.querySelector('#exVatRate').value||0);
+       let vat=Number(d.querySelector('#exVat').value||0);
+       let total=Number(d.querySelector('#exTotal').value||0);
+       const desc=d.querySelector('#exDesc').value.trim();
+       if(!desc)return alert('Введите описание расхода.');
+       if(vat===0&&net>0&&vatRate>0)vat=net*vatRate/100;
+       if(total===0)total=net+vat;
+       try{
+         await req('/rest/v1/acc_expenses',{
+           method:'POST',
+           headers:{Prefer:'return=representation'},
+           body:JSON.stringify({
+             company_id:company.id,
+             category_id:d.querySelector('#exCategory').value||null,
+             supplier_id:d.querySelector('#exSupplier').value||null,
+             expense_date:d.querySelector('#exDate').value,
+             description:desc,
+             net_amount:net,
+             vat_rate:vatRate,
+             vat_amount:vat,
+             total_amount:total,
+             payment_method:d.querySelector('#exMethod').value,
+             document_number:d.querySelector('#exDoc').value.trim()||null,
+             notes:d.querySelector('#exNotes').value.trim()||null,
+             created_by:user.id
+           })
+         });
+         d.remove();
+         await loadTab();
+       }catch(e){alert('Не удалось сохранить расход: '+e.message)}
+     }
+   );
+   setTimeout(()=>{
+     const net=document.getElementById('exNet'),vr=document.getElementById('exVatRate'),vat=document.getElementById('exVat'),tot=document.getElementById('exTotal');
+     const recalc=()=>{const n=Number(net?.value||0),r=Number(vr?.value||0),v=n*r/100;if(vat)vat.value=v.toFixed(2);if(tot)tot.value=(n+v).toFixed(2)};
+     if(net)net.oninput=recalc;if(vr)vr.oninput=recalc;
+   },0);
+ }catch(e){alert('Не удалось открыть форму расхода: '+e.message)}
+}
+
 function createWarehouse(){
  dialogBox('Новый склад','<div class="field"><label>Название</label><input id="whname" placeholder="Например, Главный склад"></div>',async d=>{
    const name=d.querySelector('#whname').value.trim(); if(!name)return alert('Введите название склада');
