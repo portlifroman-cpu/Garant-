@@ -170,7 +170,7 @@ async function loadTab(){const c=document.getElementById('content');try{
    const [products,warehouses,moves]=await Promise.all([
      req('/rest/v1/acc_products?select=id,sku,name,flavor,purchase_price,unit_weight_g,landing_cost_net,pieces_per_can,piece_weight_g,nicotine_per_piece&company_id=eq.'+company.id+'&order=name'),
      req('/rest/v1/acc_warehouses?select=id,name,type&company_id=eq.'+company.id+'&order=name'),
-     req('/rest/v1/acc_stock_movements?select=product_id,warehouse_id,movement_type,quantity,movement_at,note,reference_type&company_id=eq.'+company.id+'&order=movement_at.desc')
+     req('/rest/v1/acc_stock_movements?select=id,product_id,warehouse_id,movement_type,quantity,movement_at,note,reference_type,created_by&company_id=eq.'+company.id+'&order=movement_at.desc')
    ]);
    const balances={};
    for(const m of moves){
@@ -181,12 +181,28 @@ async function loadTab(){const c=document.getElementById('content');try{
    const rows=[];
    for(const w of warehouses){for(const p of products){const q=balances[p.id+'|'+w.id]||0;if(q!==0){const grams=q*Number(p.unit_weight_g||0);rows.push([p.name,(p.flavor||'—').replace(/^Classic\s+/i,''),p.sku||'—',q,grams?grams.toLocaleString('ru-RU')+' г':'—',grams?(grams/1000).toLocaleString('ru-RU',{maximumFractionDigits:3})+' кг':'—',p.purchase_price?money(p.purchase_price):'—',p.landing_cost_net?money(p.landing_cost_net):'—',p.landing_cost_net?money(q*Number(p.landing_cost_net)):'—']);}}}
    const writeoffs=moves.filter(x=>x.reference_type==='writeoff');
+   const productMap=Object.fromEntries(products.map(p=>[p.id,((p.flavor||p.name||'').replace(/^Classic\s+/i,''))]));
+   const userIds=[...new Set(writeoffs.map(x=>x.created_by).filter(Boolean))];
+   let staffMap={};
+   if(userIds.length){
+     try{
+       const prof=await req('/rest/v1/profiles?select=id,full_name,email&id=in.('+userIds.join(',')+')');
+       staffMap=Object.fromEntries((prof||[]).map(x=>[x.id,x.full_name||x.email||x.id]));
+     }catch{}
+   }
    c.innerHTML='<div class="grid" style="margin-bottom:12px"><button id="warehouseWriteoffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Складская операция</span><b style="font-size:22px;display:block;margin-top:8px">Списание</b><span class="muted">Уменьшить остаток общего склада</span></button><button id="inventoryCountTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Фактический контроль</span><b style="font-size:22px;display:block;margin-top:8px">Инвентаризация</b><span class="muted">Сверить программу с реальным остатком</span></button></div>'+
    '<div class="card"><div class="top"><div><b>Склад</b><div class="muted">Остатки по складам</div></div><div><button id="addwh" class="btn">+ Склад</button> <button id="addmove" class="btn primary">+ Движение</button></div></div>'+table(['Товар','Вкус','SKU','Банки','Вес, г','Вес, кг','Закупочная цена','Себестоимость/шт','Стоимость остатка'],rows)+'</div>'+
-   '<div class="card" style="margin-top:12px"><b>Последние списания</b>'+table(['Дата','Количество','Комментарий'],writeoffs.slice(0,5).map(x=>[x.movement_at||'—',x.quantity,x.note||'—']))+'</div>'+
+   '<div class="card" style="margin-top:12px"><div class="top"><div><b>Журнал списаний</b><div class="muted">Кто, когда, какой товар и сколько списал</div></div><button id="openWriteoffLog" class="btn">Показать все</button></div>'+table(['Дата/время','Сотрудник','Товар','Количество','Причина'],writeoffs.slice(0,10).map(x=>[
+      x.movement_at?new Date(x.movement_at).toLocaleString('ru-RU'):'—',
+      staffMap[x.created_by]||'—',
+      productMap[x.product_id]||'—',
+      x.quantity,
+      (x.note||'—').replace(/^Списание:\s*/,'')
+   ]))+'</div>'+
    '<div class="card" style="margin-top:12px"><b>Последние движения</b>'+table(['Дата','Тип','Количество','Комментарий'],moves.slice(0,5).map(x=>[x.movement_at||'—',x.movement_type,x.quantity,x.note||'—']))+'</div>';
    document.getElementById('warehouseWriteoffTile').onclick=()=>openWriteOff();
    document.getElementById('inventoryCountTile').onclick=()=>openInventoryCount();
+   document.getElementById('openWriteoffLog').onclick=()=>openWriteoffLog();
    document.getElementById('addwh').onclick=()=>createWarehouse();
    document.getElementById('addmove').onclick=()=>createMovement(products,warehouses);
    return
@@ -868,6 +884,31 @@ function createWarehouse(){
 
 
 function openStaffAccess(){alert('Доступ к бухгалтерии и складу: Роман (roman@pgnord.eu) и Катерина (katerina@pgnord.eu). Другие сотрудники доступа не имеют.');}
+async function openWriteoffLog(){
+ try{
+   const [products,moves]=await Promise.all([
+     req('/rest/v1/acc_products?select=id,name,flavor,sku&company_id=eq.'+company.id+'&order=flavor'),
+     req('/rest/v1/acc_stock_movements?select=id,product_id,quantity,movement_at,note,created_by&company_id=eq.'+company.id+'&reference_type=eq.writeoff&order=movement_at.desc')
+   ]);
+   const productMap=Object.fromEntries(products.map(p=>[p.id,((p.flavor||p.name||'').replace(/^Classic\s+/i,''))]));
+   const userIds=[...new Set(moves.map(x=>x.created_by).filter(Boolean))];
+   let staffMap={};
+   if(userIds.length){
+     try{
+       const prof=await req('/rest/v1/profiles?select=id,full_name,email&id=in.('+userIds.join(',')+')');
+       staffMap=Object.fromEntries((prof||[]).map(x=>[x.id,x.full_name||x.email||x.id]));
+     }catch{}
+   }
+   const d=document.createElement('div');d.className='inv-modal';
+   d.innerHTML='<div class="inv-panel" style="max-width:980px"><div class="top"><div><h2 style="margin:0">Журнал списаний</h2><div class="muted">Полная история складских списаний</div></div><button id="woLogClose" class="btn">×</button></div>'+
+   '<div style="overflow:auto;margin-top:14px"><table class="table"><thead><tr><th>Дата/время</th><th>Сотрудник</th><th>Товар</th><th>Количество</th><th>Причина</th></tr></thead><tbody>'+
+   (moves.length?moves.map(x=>'<tr><td>'+esc(x.movement_at?new Date(x.movement_at).toLocaleString('ru-RU'):'—')+'</td><td>'+esc(staffMap[x.created_by]||'—')+'</td><td>'+esc(productMap[x.product_id]||'—')+'</td><td>'+esc(x.quantity)+'</td><td>'+esc((x.note||'—').replace(/^Списание:\s*/,''))+'</td></tr>').join(''):'<tr><td colspan="5" class="muted">Списаний пока нет</td></tr>')+
+   '</tbody></table></div></div>';
+   document.body.appendChild(d);
+   d.querySelector('#woLogClose').onclick=()=>d.remove();
+ }catch(e){alert('Не удалось открыть журнал списаний: '+e.message)}
+}
+
 async function openInventoryCount(){
  try{
    const [products,warehouses,moves]=await Promise.all([
