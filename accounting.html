@@ -622,6 +622,45 @@ function dialogBox(title,body,onSave){
  d.querySelector('#cancelDlg').onclick=()=>d.remove();
  d.querySelector('#saveDlg').onclick=()=>onSave(d);
 }
+async function openQuickSupplier(onSaved){
+ const m=document.createElement('div');m.className='inv-modal';
+ m.innerHTML='<div class="inv-panel" style="max-width:720px"><div class="top"><div><h2 style="margin:0">Новый поставщик</h2><div class="muted">Будет доступен в разделе расходов</div></div><button id="qsClose" class="btn">×</button></div>'+
+ '<div class="inv-grid">'+
+ '<div class="field"><label>Название / Имя *</label><input id="qsName"></div>'+
+ '<div class="field"><label>NIF/CIF</label><input id="qsTax"></div>'+
+ '<div class="field"><label>Адрес</label><input id="qsAddress"></div>'+
+ '<div class="field"><label>Почтовый индекс</label><input id="qsPostal"></div>'+
+ '<div class="field"><label>Город / провинция</label><input id="qsCity"></div>'+
+ '<div class="field"><label>Страна</label><select id="qsCountry"><option value="ES">España</option><option value="PT">Portugal</option><option value="EE">Estonia</option><option value="FR">Francia</option><option value="DE">Alemania</option><option value="IT">Italia</option><option value="GB">Reino Unido</option><option value="NO">Noruega</option></select></div>'+
+ '<div class="field"><label>Телефон</label><input id="qsPhone"></div>'+
+ '<div class="field"><label>Email</label><input id="qsEmail" type="email"></div>'+
+ '</div><div class="field"><label>Комментарий</label><input id="qsNotes"></div>'+
+ '<div class="invoice-actions" style="justify-content:flex-end;margin-top:16px"><button id="qsSave" class="btn invoice-btn">Сохранить поставщика</button></div></div>';
+ document.body.appendChild(m);
+ m.querySelector('#qsClose').onclick=()=>m.remove();
+ m.querySelector('#qsSave').onclick=async()=>{
+   const name=m.querySelector('#qsName').value.trim();
+   if(!name)return alert('Введите название или имя поставщика.');
+   const payload={
+     company_id:company.id,type:'supplier',name,
+     tax_id:m.querySelector('#qsTax').value.trim()||null,
+     address:m.querySelector('#qsAddress').value.trim()||null,
+     postal_code:m.querySelector('#qsPostal').value.trim()||null,
+     city:m.querySelector('#qsCity').value.trim()||null,
+     country_code:m.querySelector('#qsCountry').value||'ES',
+     phone:m.querySelector('#qsPhone').value.trim()||null,
+     email:m.querySelector('#qsEmail').value.trim()||null,
+     notes:m.querySelector('#qsNotes').value.trim()||null
+   };
+   try{
+     const rows=await req('/rest/v1/acc_counterparties',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(payload)});
+     const saved=rows&&rows[0];
+     m.remove();
+     if(saved&&typeof onSaved==='function')onSaved(saved);
+   }catch(e){alert('Не удалось сохранить поставщика: '+e.message)}
+ };
+}
+
 async function openExpenseForm(){
  try{
    const [suppliers,categories]=await Promise.all([
@@ -633,7 +672,7 @@ async function openExpenseForm(){
    dialogBox('Новый расход',
      '<div class="inv-grid">'+
        '<div class="field"><label>Дата</label><input id="exDate" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
-       '<div class="field"><label>Поставщик</label><select id="exSupplier" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px">'+suppOpts+'</select></div>'+
+       '<div class="field"><label>Поставщик</label><div style="display:flex;gap:8px;align-items:center"><select id="exSupplier" style="flex:1;padding:12px;border:1px solid #d1d5db;border-radius:12px">'+suppOpts+'</select><button type="button" id="exAddSupplier" class="btn invoice-btn" style="white-space:nowrap">+ Новый поставщик</button></div></div>'+
        '<div class="field"><label>Категория</label><select id="exCategory" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:12px">'+catOpts+'</select></div>'+
        '<div class="field"><label>Документ / чек №</label><input id="exDoc" placeholder="Например, INV-123"></div>'+
        '<div class="field"><label>Сумма без IVA</label><input id="exNet" type="number" min="0" step="0.01" value="0"></div>'+
@@ -682,6 +721,13 @@ async function openExpenseForm(){
      const net=document.getElementById('exNet'),vr=document.getElementById('exVatRate'),vat=document.getElementById('exVat'),tot=document.getElementById('exTotal');
      const recalc=()=>{const n=Number(net?.value||0),r=Number(vr?.value||0),v=n*r/100;if(vat)vat.value=v.toFixed(2);if(tot)tot.value=(n+v).toFixed(2)};
      if(net)net.oninput=recalc;if(vr)vr.oninput=recalc;
+     const addSupplier=document.getElementById('exAddSupplier');
+     if(addSupplier)addSupplier.onclick=()=>openQuickSupplier(saved=>{
+       const sel=document.getElementById('exSupplier');
+       if(sel&&saved){
+         const o=document.createElement('option');o.value=saved.id;o.textContent=saved.name;sel.appendChild(o);sel.value=saved.id;
+       }
+     });
    },0);
  }catch(e){alert('Не удалось открыть форму расхода: '+e.message)}
 }
