@@ -870,7 +870,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const money=n=>(Number(n)||0).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
 const colors={'Клиент Garant':'#17a34a','Заинтересован':'#edc200','Оставили образцы':'#1375f2','Повторный визит':'#fa7b21','Отказ':'#db3434','Не посещён':'#98a4b1'};
 const orderStatusNames={draft:'Черновик',confirmed:'Подтверждён',processing:'В обработке',reserved:'Зарезервирован',ready:'Готов к отгрузке',shipped:'Отгружен',delivered:'Доставлен',paid:'Оплачен',cancelled:'Отменён'};
-let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],agentStockBalances=[],agentStockMovements=[],orders=[],orderItems=[],tasks=[],bonusRules=[],employeeDocuments=[],dealStages=[],deals=[],jointExpenses=[];let editingDealId=null,editingProductId=null,editingJointExpenseId=null;
+let user=null,profile=null,map=null,markers=[],shops=[],visits=[],profiles=[],products=[],warehouses=[],balances=[],movements=[],agentStockBalances=[],agentStockMovements=[],orders=[],orderItems=[],tasks=[],bonusRules=[],employeeDocuments=[],dealStages=[],deals=[],jointExpenses=[],realStockProducts=[],realStockWarehouses=[],realStockMovements=[];let editingDealId=null,editingProductId=null,editingJointExpenseId=null;
 const OWNER_USER_ID='ceae49cb-4385-4052-a022-6aa0cea662ef';
 const TEMP_EMPLOYEE_PASSWORD=['12','34','56','78'].join('');
 const isOwner=()=>user?.id===OWNER_USER_ID;
@@ -1013,10 +1013,13 @@ async function refreshAll(){
   db.from('deals').select('*').order('updated_at',{ascending:false}).limit(2000),
   canViewJointExpenses()
     ? db.from('joint_expenses').select('*').order('expense_date',{ascending:false}).order('created_at',{ascending:false}).limit(5000)
-    : Promise.resolve({data:[],error:null})
+    : Promise.resolve({data:[],error:null}),
+  db.from('acc_products').select('id,name,flavor,sku,active').eq('active',true).order('flavor'),
+  db.from('acc_warehouses').select('id,name,type').order('name'),
+  db.from('acc_stock_movements').select('product_id,warehouse_id,movement_type,quantity,movement_at,reference_type,note').order('movement_at',{ascending:false}).limit(5000)
  ];
  const r=await Promise.all(qs.map(q=>q.then(x=>x).catch(e=>({error:e}))));
- shops=safeData(r[0],'shops');visits=safeData(r[1],'visits');profiles=safeData(r[2],'profiles');products=safeData(r[3],'products');warehouses=safeData(r[4],'warehouses');balances=safeData(r[5],'inventory_balances');movements=safeData(r[6],'inventory_movements');agentStockBalances=safeData(r[7],'agent_stock_balances');agentStockMovements=safeData(r[8],'agent_stock_movements');orders=safeData(r[9],'sales_orders');orderItems=safeData(r[10],'sales_order_items');tasks=safeData(r[11],'tasks');bonusRules=safeData(r[12],'bonus_rules');employeeDocuments=safeData(r[13],'employee_documents');dealStages=safeData(r[14],'pipeline_stages');deals=safeData(r[15],'deals');jointExpenses=safeData(r[16],'joint_expenses');
+ shops=safeData(r[0],'shops');visits=safeData(r[1],'visits');profiles=safeData(r[2],'profiles');products=safeData(r[3],'products');warehouses=safeData(r[4],'warehouses');balances=safeData(r[5],'inventory_balances');movements=safeData(r[6],'inventory_movements');agentStockBalances=safeData(r[7],'agent_stock_balances');agentStockMovements=safeData(r[8],'agent_stock_movements');orders=safeData(r[9],'sales_orders');orderItems=safeData(r[10],'sales_order_items');tasks=safeData(r[11],'tasks');bonusRules=safeData(r[12],'bonus_rules');employeeDocuments=safeData(r[13],'employee_documents');dealStages=safeData(r[14],'pipeline_stages');deals=safeData(r[15],'deals');jointExpenses=safeData(r[16],'joint_expenses');realStockProducts=safeData(r[17],'acc_products');realStockWarehouses=safeData(r[18],'acc_warehouses');realStockMovements=safeData(r[19],'acc_stock_movements');
  renderAll();
 }
 
@@ -1145,8 +1148,7 @@ function renderDashboard(){
  if($('dFollowups'))$('dFollowups').textContent=shops.filter(isShopFollowupDue).length;
  $('dOverdue').textContent=tasks.filter(t=>t.status==='planned'&&t.due_at&&new Date(t.due_at)<new Date()).length;
  const openDeals=deals.filter(d=>d.status==='open');$('dOpenDeals').textContent=openDeals.length;$('dPipelineValue').textContent=money(openDeals.reduce((a,d)=>a+Number(d.value||0),0));$('dOrders2').textContent=orders.length;
- $('dSku').textContent=products.length;const av=balances.reduce((a,b)=>a+Math.max(0,(b.physical_qty||0)-(b.reserved_qty||0)),0);$('dAvailable').textContent=av;
- $('dLow').textContent=balances.filter(b=>{const p=products.find(x=>x.id===b.product_id);return p&&((b.physical_qty||0)-(b.reserved_qty||0))<Number(p.min_stock||0)}).length;
+ $('dSku').textContent=realStockProducts.length;const mainWh=realStockWarehouses.find(w=>w.type==='main')||realStockWarehouses[0],realSums={};realStockMovements.forEach(m=>{if(mainWh&&m.warehouse_id!==mainWh.id)return;const sign=(m.movement_type==='out'||m.movement_type==='transfer_out')?-1:1;realSums[m.product_id]=(realSums[m.product_id]||0)+sign*Number(m.quantity||0)});const av=Object.values(realSums).reduce((a,n)=>a+Number(n||0),0);$('dAvailable').textContent=av;$('dLow').textContent='—';
 }
 
 function requestLocationFromUserGesture(){
@@ -2857,9 +2859,31 @@ window.saveProduct=async()=>{
  await refreshAll();
 };
 function renderStock(){
- const wid=$('stockWarehouse').value,q=$('stockSearch').value.toLowerCase();let rows=balances.filter(b=>(!wid||b.warehouse_id===wid));rows=rows.filter(b=>{const p=products.find(x=>x.id===b.product_id);return !q||((p?.name||'')+' '+(p?.sku||'')).toLowerCase().includes(q)});const phys=rows.reduce((a,b)=>a+Number(b.physical_qty||0),0),res=rows.reduce((a,b)=>a+Number(b.reserved_qty||0),0),tr=rows.reduce((a,b)=>a+Number(b.in_transit_qty||0),0);$('sPhysical').textContent=phys;$('sReserved').textContent=res;$('sAvailable').textContent=phys-res;$('sTransit').textContent=tr;
- $('stockTable').innerHTML=`<table><thead><tr><th>Склад</th><th>Товар</th><th>SKU</th><th>Физически</th><th>Резерв</th><th>Доступно</th><th>В пути</th><th>Мин.</th></tr></thead><tbody>${rows.map(b=>{const p=products.find(x=>x.id===b.product_id),w=warehouses.find(x=>x.id===b.warehouse_id),av=Number(b.physical_qty||0)-Number(b.reserved_qty||0),low=p&&av<Number(p.min_stock||0);return `<tr class="${low?'low':''}"><td>${esc(w?.name||'—')}</td><td><b>${esc(p?.name||'—')}</b></td><td>${esc(p?.sku||'')}</td><td>${b.physical_qty||0}</td><td>${b.reserved_qty||0}</td><td><b>${av}</b></td><td>${b.in_transit_qty||0}</td><td>${p?.min_stock||0}</td></tr>`}).join('')}</tbody></table>`;
- $('movementsTable').innerHTML=`<table><thead><tr><th>Дата</th><th>Склад</th><th>Товар</th><th>Операция</th><th>Кол-во</th><th>Комментарий</th></tr></thead><tbody>${movements.slice(0,100).map(m=>`<tr><td>${new Date(m.created_at).toLocaleString('ru-RU')}</td><td>${esc(warehouses.find(w=>w.id===m.warehouse_id)?.name||'')}</td><td>${esc(products.find(p=>p.id===m.product_id)?.name||'')}</td><td>${esc(m.movement_type)}</td><td>${m.quantity}</td><td>${esc(m.comment||'')}</td></tr>`).join('')}</tbody></table>`;
+ const main=realStockWarehouses.find(w=>w.type==='main')||realStockWarehouses[0];
+ const q=$('stockSearch').value.toLowerCase();
+ const sums={};
+ for(const m of realStockMovements){
+   if(main&&m.warehouse_id!==main.id)continue;
+   const sign=(m.movement_type==='out'||m.movement_type==='transfer_out')?-1:1;
+   sums[m.product_id]=(sums[m.product_id]||0)+sign*Number(m.quantity||0);
+ }
+ const rows=realStockProducts.map(p=>({p,qty:Number(sums[p.id]||0)})).filter(x=>!q||(((x.p.flavor||x.p.name||'')+' '+(x.p.sku||'')).toLowerCase().includes(q)));
+ const physical=rows.reduce((a,x)=>a+x.qty,0);
+ $('sPhysical').textContent=physical;
+ $('sReserved').textContent='—';
+ $('sAvailable').textContent=physical;
+ $('sTransit').textContent='—';
+ const whSel=$('stockWarehouse');
+ if(whSel){whSel.innerHTML='<option value="'+(main?.id||'')+'">'+esc(main?.name||'Общий склад')+'</option>';whSel.disabled=true}
+ $('stockTable').innerHTML='<div class="card" style="margin-bottom:10px"><b>Реальный общий склад</b><div class="muted">Остатки синхронизированы с бухгалтерией. Для сотрудников режим только просмотра.</div></div>'+
+ '<table><thead><tr><th>Товар</th><th>SKU</th><th>Фактический остаток</th></tr></thead><tbody>'+
+ rows.map(x=>'<tr><td><b>'+esc((x.p.flavor||x.p.name||'').replace(/^Classic\\s+/i,''))+'</b></td><td>'+esc(x.p.sku||'')+'</td><td><b>'+x.qty+'</b></td></tr>').join('')+
+ '</tbody></table>';
+ const recent=realStockMovements.filter(m=>!main||m.warehouse_id===main.id).slice(0,100);
+ $('movementsTable').innerHTML='<table><thead><tr><th>Дата</th><th>Товар</th><th>Операция</th><th>Кол-во</th><th>Комментарий</th></tr></thead><tbody>'+
+ recent.map(m=>{const p=realStockProducts.find(x=>x.id===m.product_id);return '<tr><td>'+(m.movement_at?new Date(m.movement_at).toLocaleString('ru-RU'):'—')+'</td><td>'+esc((p?.flavor||p?.name||'').replace(/^Classic\\s+/i,''))+'</td><td>'+esc(m.reference_type||m.movement_type)+'</td><td>'+m.quantity+'</td><td>'+esc(m.note||'')+'</td></tr>'}).join('')+
+ '</tbody></table>';
+ if(!isManager()){[$('addWarehouseBtn'),$('adjustStockBtn')].forEach(b=>{if(b)b.classList.add('hidden')})}
 }
 $('stockWarehouse').addEventListener('change',renderStock);$('stockSearch').addEventListener('input',renderStock);
 window.openWarehouse=()=>openModal('warehouseModal');
