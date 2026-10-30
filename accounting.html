@@ -649,23 +649,37 @@ function loadPdfLibrary(){
 }
 async function downloadAlbaranPdf(paper,number,button){
  const label=button.textContent;button.disabled=true;button.textContent='Создаём PDF…';
- let host;
+ let frame;
  try{
-   const html2pdf=await loadPdfLibrary();
-   host=document.createElement('div');
-   host.style.cssText='position:fixed;left:0;top:0;width:794px;z-index:-1;pointer-events:none;background:white';
+   // Render in a separate desktop-sized document so mobile styles, modal
+   // scrolling and the position of the main page cannot shift the PDF.
+   frame=document.createElement('iframe');
+   frame.setAttribute('aria-hidden','true');
+   frame.style.cssText='position:fixed;left:0;top:0;width:1024px;height:1000px;border:0;z-index:-100;pointer-events:none';
+   document.body.appendChild(frame);
+   const doc=frame.contentDocument;
+   doc.open();
+   doc.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=1024"></head><body></body></html>');
+   doc.close();
+   document.querySelectorAll('head style').forEach(style=>doc.head.appendChild(style.cloneNode(true)));
+   const style=doc.createElement('style');
+   style.textContent='html,body{margin:0!important;padding:0!important;background:#fff!important;width:1024px;overflow:visible!important}*{box-sizing:border-box}.pdf-paper{width:733px!important;max-width:733px!important;margin:0!important;padding:18px!important;background:#fff;color:#111;font:12px Arial,sans-serif}.pdf-paper .invoice-head{display:grid;grid-template-columns:1.4fr .8fr;gap:26px}.pdf-paper .invoice-table{table-layout:fixed;width:100%}.pdf-paper .invoice-table th:first-child{width:46%}.pdf-paper .invoice-table td,.pdf-paper .invoice-table th{overflow-wrap:anywhere}.pdf-paper tr,.pdf-paper .invoice-total-box,.pdf-paper .invoice-footer{break-inside:avoid;page-break-inside:avoid}';
+   doc.head.appendChild(style);
    const clone=paper.cloneNode(true);clone.removeAttribute('id');
-   clone.style.cssText='width:794px;max-width:none;margin:0;padding:26px;background:white;color:#111;font:12px Arial,sans-serif';
-   host.appendChild(clone);
-   const style=document.createElement('style');
-   style.textContent='.pdf-albaran .invoice-head{grid-template-columns:1.4fr .8fr}.pdf-albaran tr,.pdf-albaran .invoice-total-box,.pdf-albaran .invoice-footer{break-inside:avoid}';
-   host.className='pdf-albaran';host.appendChild(style);document.body.appendChild(host);
+   clone.classList.add('pdf-paper');doc.body.appendChild(clone);
+   await new Promise((resolve,reject)=>{
+     const script=doc.createElement('script');
+     script.src='https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js';
+     script.onload=resolve;script.onerror=()=>reject(new Error('Не удалось загрузить библиотеку PDF. Проверьте интернет и повторите.'));
+     doc.head.appendChild(script);
+   });
    await Promise.all(Array.from(clone.querySelectorAll('img')).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve})));
-   if(document.fonts?.ready)await document.fonts.ready;
+   if(doc.fonts?.ready)await doc.fonts.ready;
+   frame.contentWindow.scrollTo(0,0);
    const filename='Albaran_'+String(number||'documento').replace(/[^a-zA-Z0-9_-]/g,'_')+'.pdf';
-   await html2pdf().set({margin:8,filename,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',windowWidth:1024},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy']}}).from(clone).save();
+   await frame.contentWindow.html2pdf().set({margin:8,filename,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',scrollX:0,scrollY:0,windowWidth:1024,windowHeight:1000},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy']}}).from(clone).save();
  }catch(e){alert('Не удалось скачать PDF: '+e.message+' Можно воспользоваться кнопкой «Печать».')}
- finally{host?.remove();button.disabled=false;button.textContent=label}
+ finally{frame?.remove();button.disabled=false;button.textContent=label}
 }
 
 function printInvoicePaper(html){
