@@ -270,7 +270,7 @@ async function openAlbaranForm(editId=null){
    '<div class="field"><label>IVA</label><input id="albVat" type="number" step="0.1" value="'+Number(current?.vat_rate??21)+'"></div>'+
    '<div class="field"><label>Recargo</label><input id="albRec" type="number" step="0.1" value="'+Number(current?.recargo_rate??0)+'"></div></div>'+
    '<div class="invoice-actions" style="margin:8px 0 12px"><button id="loadFactItems" class="btn">Загрузить товары и суммы из Factura</button></div>'+
-   '<div><b>Mercancía</b><div id="albLines"></div><button id="addAlbLine" class="btn">+ Добавить позицию</button></div>'+
+   '<div><b>Mercancía</b><div id="albLines"></div><div style="display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid #d1d5db"><b>Всего банок</b><b id="albQuantity">0</b></div><button id="addAlbLine" class="btn">+ Добавить позицию</button></div>'+
    '<div class="inv-summary"><span>Subtotal</span><b id="albSub">0,00 €</b><span>IVA</span><b id="albVatTotal">0,00 €</b><span>Recargo</span><b id="albRecTotal">0,00 €</b><span class="grand">TOTAL</span><b class="grand" id="albTotal">0,00 €</b></div>'+
    '<div class="field"><label>Комментарий</label><input id="albNotes" value="'+esc(current?.notes||'')+'"></div>'+
    '<div class="invoice-actions" style="justify-content:flex-end;margin-top:16px"><button id="saveAlb" class="btn invoice-btn">Сохранить Albarán</button></div></div>';
@@ -279,8 +279,9 @@ async function openAlbaranForm(editId=null){
    const lines=m.querySelector('#albLines');
 
    function recalc(){
-     let sub=0;
-     m.querySelectorAll('.inv-line').forEach(r=>sub+=Number(r.querySelector('.aq').value||0)*Number(r.querySelector('.aprice').value||0));
+     let sub=0,quantity=0;
+     m.querySelectorAll('.inv-line').forEach(r=>{const q=Number(r.querySelector('.aq').value||0);quantity+=q;sub+=q*Number(r.querySelector('.aprice').value||0)});
+     m.querySelector('#albQuantity').textContent=quantity.toLocaleString('ru-RU');
      const vr=Number(m.querySelector('#albVat').value||0), rr=Number(m.querySelector('#albRec').value||0);
      const iva=sub*vr/100, rec=sub*rr/100, total=sub+iva+rec;
      m.querySelector('#albSub').textContent=money(sub);
@@ -379,7 +380,7 @@ async function openSavedAlbaran(id){
    (cl.email?'<br><b>Email:</b> '+esc(cl.email):'')+
    (inv?'<br><b>Factura relacionada:</b> '+esc(inv.number):'')+
    '</div></div>'+
-   '<table class="invoice-table"><thead><tr><th>Mercancía</th><th>Cantidad</th><th>Precio unidad</th><th>Subtotal</th></tr></thead><tbody>'+items.map((i,n)=>'<tr><td>'+(n+1)+'- '+esc(i.description)+'</td><td class="amount">'+Number(i.quantity).toLocaleString('ru-RU')+'</td><td class="amount">'+Number(i.unit_price||0).toFixed(2).replace('.',',')+' €</td><td class="amount">'+Number(i.line_subtotal||0).toFixed(2).replace('.',',')+' €</td></tr>').join('')+'</tbody></table>'+
+   '<table class="invoice-table"><thead><tr><th>Mercancía</th><th>Cantidad</th><th>Precio unidad</th><th>Subtotal</th></tr></thead><tbody>'+items.map((i,n)=>'<tr><td>'+(n+1)+'- '+esc(i.description)+'</td><td class="amount">'+Number(i.quantity).toLocaleString('ru-RU')+'</td><td class="amount">'+Number(i.unit_price||0).toFixed(2).replace('.',',')+' €</td><td class="amount">'+Number(i.line_subtotal||0).toFixed(2).replace('.',',')+' €</td></tr>').join('')+'<tr><td><b>TOTAL UNIDADES</b></td><td class="amount"><b>'+items.reduce((sum,i)=>sum+Number(i.quantity||0),0).toLocaleString('ru-RU')+'</b></td><td></td><td></td></tr></tbody></table>'+
    '<div style="display:flex;justify-content:flex-end"><table class="invoice-total-box"><tr><td>Subtotal</td><td>'+Number(x.subtotal||0).toFixed(2).replace('.',',')+' €</td></tr><tr><td>IVA '+Number(x.vat_rate||0).toFixed(1).replace('.',',')+'%</td><td>'+Number(x.vat_total||0).toFixed(2).replace('.',',')+' €</td></tr>'+(Number(x.recargo_rate||0)>0?'<tr><td>Recargo '+Number(x.recargo_rate).toFixed(1).replace('.',',')+'%</td><td>'+Number(x.recargo_total||0).toFixed(2).replace('.',',')+' €</td></tr>':'')+'<tr><td><b>TOTAL</b></td><td><b>'+Number(x.total||0).toFixed(2).replace('.',',')+' €</b></td></tr></table></div>'+
    (x.notes?'<div style="margin-top:14px"><b>Notas:</b> '+esc(x.notes)+'</div>':'')+
    '</div></div>';
