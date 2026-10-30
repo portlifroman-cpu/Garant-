@@ -36,7 +36,9 @@ const KEY='sb_publishable_0bGaJhD7GxVh_UqaPAUFmA_PhR3ISMP';
 const LOGO_DATA=location.origin+'/assets/garant-pg-nord-selected.svg';
 const app=document.getElementById('app');
 const db=createClient(URL,KEY);
-const ALLOWED_IDS=['ceae49cb-4385-4052-a022-6aa0cea662ef','e29cfd4a-42cb-4c2b-a46c-cb7124ba7119','abdc2bea-ca10-44bc-ba47-fee7e280dcbe'];
+const ALLOWED_IDS=['ceae49cb-4385-4052-a022-6aa0cea662ef','e29cfd4a-42cb-4c2b-a46c-cb7124ba7119','abdc2bea-ca10-44bc-ba47-fee7e280dcbe','f1ba2c98-124e-4b1e-8fe3-9f5b4aacecbb'];
+const ALBARAN_ONLY_IDS=['f1ba2c98-124e-4b1e-8fe3-9f5b4aacecbb'];
+const isAlbaranOnly=()=>ALBARAN_ONLY_IDS.includes(user?.id);
 let token='';
 let user=null, company=null, tab='overview';
 const money=n=>new Intl.NumberFormat('ru-RU',{style:'currency',currency:'EUR'}).format(Number(n||0));
@@ -63,7 +65,8 @@ async function boot(){
  token=data.session.access_token;
  const verified=await db.auth.getUser();user=verified.data.user;
  if(verified.error||!user)return login('Сессия истекла. Войдите снова.');
- if(!ALLOWED_IDS.includes(user.id))return login('Доступ к бухгалтерии открыт только Роману и Катерине.');
+ if(!ALLOWED_IDS.includes(user.id))return login('Нет доступа к этому разделу.');
+ if(isAlbaranOnly())tab='albaranes';else{const requested=new URLSearchParams(location.search).get('tab');if(requested)tab=requested}
  try{
    const cs=await req('/rest/v1/acc_companies?select=*&limit=1');company=cs?.[0];
    if(!company)throw new Error('Компания недоступна');
@@ -110,7 +113,7 @@ async function openQuickClient(onSaved){
    }catch(e){alert('Не удалось сохранить клиента: '+e.message)}
  };
 }
-function nav(){return [['overview','Обзор'],['sales','Продажи'],['incoming','Входящие счета'],['albaranes','Albaranes'],['expenses','Расходы'],['payments','Оплаты'],['clients','Клиенты'],['products','Товары'],['warehouse','Склад'],['catalog','Каталог']].map(x=>'<button class="btn '+(tab===x[0]?'active':'')+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join('')}
+function nav(){const items=isAlbaranOnly()?[['albaranes','Albaranes']]:[['overview','Обзор'],['sales','Продажи'],['incoming','Входящие счета'],['albaranes','Albaranes'],['expenses','Расходы'],['payments','Оплаты'],['clients','Клиенты'],['products','Товары'],['warehouse','Склад'],['catalog','Каталог']];return items.map(x=>'<button class="btn '+(tab===x[0]?'active':'')+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join('')}
 function render(){app.innerHTML='<div class="wrap"><div class="top"><div class="brand"><img class="main-brand-logo" src="'+LOGO_DATA+'" alt="GARANT PG NORD"><div><h1>Бухгалтерия</h1><div class="muted">'+esc(company.legal_name||company.name)+'</div></div></div><div class="invoice-actions"><a class="btn" href="/">← Garant</a><button id="selfPassword" class="btn">Сменить свой пароль</button><button id="logout" class="btn">Выйти</button></div></div><div class="nav">'+nav()+'</div><div id="content"></div></div>';document.getElementById('logout').onclick=()=>{db.auth.signOut().then(()=>location.assign('/'))};document.getElementById('selfPassword').onclick=()=>changeOwnPassword();document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});loadTab()}
 function table(h,rows){return '<div style="overflow:auto"><table class="table"><thead><tr>'+h.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(r=>'<tr>'+r.map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+h.length+'" class="muted">Пока нет записей</td></tr>')+'</tbody></table></div>'}
 async function loadTab(){const c=document.getElementById('content');try{
