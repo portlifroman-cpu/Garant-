@@ -667,17 +667,56 @@ async function downloadAlbaranPdf(paper,number,button){
    doc.head.appendChild(style);
    const clone=paper.cloneNode(true);clone.removeAttribute('id');
    clone.classList.add('pdf-paper');doc.body.appendChild(clone);
-   await new Promise((resolve,reject)=>{
-     const script=doc.createElement('script');
-     script.src='https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js';
+   await Promise.all([
+     'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+     'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js'
+   ].map(src=>new Promise((resolve,reject)=>{
+     const script=doc.createElement('script');script.src=src;
      script.onload=resolve;script.onerror=()=>reject(new Error('Не удалось загрузить библиотеку PDF. Проверьте интернет и повторите.'));
      doc.head.appendChild(script);
-   });
+   })));
    await Promise.all(Array.from(clone.querySelectorAll('img')).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve})));
    if(doc.fonts?.ready)await doc.fonts.ready;
    frame.contentWindow.scrollTo(0,0);
    const filename='Albaran_'+String(number||'documento').replace(/[^a-zA-Z0-9_-]/g,'_')+'.pdf';
-   await frame.contentWindow.html2pdf().set({margin:8,filename,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',scrollX:0,scrollY:0,windowWidth:1024,windowHeight:1000},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy']}}).from(clone).outputPdf('blob').then(blob=>{
+   // Capture the whole document directly. html2pdf's intermediate wrapper
+   // resized the page and could clip it in tablet browsers.
+   const width=Math.ceil(Math.max(clone.scrollWidth,clone.getBoundingClientRect().width));
+   const height=Math.ceil(Math.max(clone.scrollHeight,clone.getBoundingClientRect().height));
+   // Keep the canvas below Safari's memory limits for long delivery notes.
+   const scale=Math.min(2,Math.sqrt(12000000/(width*height)));
+   const canvas=await frame.contentWindow.html2canvas(clone,{
+     scale,useCORS:true,backgroundColor:'#ffffff',scrollX:0,scrollY:0,
+     windowWidth:1024,windowHeight:Math.max(1000,height),width,height
+   });
+   if(!canvas.width||!canvas.height)throw new Error('Не удалось сформировать изображение документа');
+   const pdf=new frame.contentWindow.jspdf.jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
+   const margin=8,printWidth=pdf.internal.pageSize.getWidth()-margin*2;
+   const printHeight=pdf.internal.pageSize.getHeight()-margin*2;
+   const pixelsPerMm=canvas.width/printWidth;
+   const pagePixels=Math.floor(printHeight*pixelsPerMm);
+   const rect=clone.getBoundingClientRect(),ratio=canvas.width/width;
+   const rows=Array.from(clone.querySelectorAll('tr,.invoice-footer')).map(el=>{
+     const r=el.getBoundingClientRect();
+     return {top:Math.floor((r.top-rect.top)*ratio),bottom:Math.ceil((r.bottom-rect.top)*ratio)};
+   });
+   let offset=0,page=0;
+   while(offset<canvas.height){
+     let bottom=Math.min(offset+pagePixels,canvas.height);
+     if(bottom<canvas.height){
+       const crossing=rows.find(r=>r.top>offset&&r.top<bottom&&r.bottom>bottom);
+       if(crossing)bottom=crossing.top;
+     }
+     const slice=doc.createElement('canvas');slice.width=canvas.width;slice.height=bottom-offset;
+     const ctx=slice.getContext('2d');
+     if(!ctx)throw new Error('Недостаточно памяти для PDF');
+     ctx.drawImage(canvas,0,offset,canvas.width,slice.height,0,0,canvas.width,slice.height);
+     if(page++)pdf.addPage();
+     pdf.addImage(slice.toDataURL('image/jpeg',0.95),'JPEG',margin,margin,printWidth,slice.height/pixelsPerMm);
+     slice.width=0;slice.height=0;offset=bottom;
+   }
+   const blob=pdf.output('blob');
+   canvas.width=0;canvas.height=0;
      // Create the download in the main document; keep it alive after the
      // rendering iframe is removed, and allow another direct tap on iOS.
      const file=new Blob([blob],{type:'application/pdf'});
@@ -691,7 +730,6 @@ async function downloadAlbaranPdf(paper,number,button){
      };
      button.onclick=save;button.textContent='Сохранить PDF';ready=true;
      save();
-   });
  }catch(e){alert('Не удалось скачать PDF: '+e.message+' Можно воспользоваться кнопкой «Печать».')}
  finally{frame?.remove();button.disabled=false;if(!ready)button.textContent=label}
 }
