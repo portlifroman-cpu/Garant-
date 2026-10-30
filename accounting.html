@@ -370,7 +370,7 @@ async function openSavedAlbaran(id){
    const x=a[0];if(!x)return alert('Albarán не найден.');
    const cl=clients.find(c=>c.id===x.counterparty_id)||{},inv=invs.find(i=>i.id===x.invoice_id);
    const m=document.createElement('div');m.className='inv-modal';
-   m.innerHTML='<div class="inv-panel"><div class="top"><div><h2 style="margin:0">ALBARÁN</h2><div class="muted">'+esc(x.number)+'</div></div><div class="invoice-actions"><button id="albPrint" class="btn invoice-btn">Печать / PDF</button><button id="albViewClose" class="btn">×</button></div></div>'+
+   m.innerHTML='<div class="inv-panel"><div class="top"><div><h2 style="margin:0">ALBARÁN</h2><div class="muted">'+esc(x.number)+'</div></div><div class="invoice-actions"><button id="albDownload" class="btn invoice-btn">Скачать PDF</button><button id="albPrint" class="btn">Печать</button><button id="albViewClose" class="btn">×</button></div></div>'+
    '<div id="albPaper" class="invoice-paper"><div class="invoice-head"><div><b>PG Nord Garant S.L.</b><br>C/Mare Nostrum 42, Bahia de la Plata<br>Estepona (Malaga), 29680<br>NIF B26984146</div><div class="invoice-box"><div><span>Fecha</span><b>'+esc(formatDateDMY(x.albaran_date))+'</b></div><div><span>Nº Albarán</span><b>'+esc(x.number)+'</b></div></div></div>'+
    '<div style="margin-top:18px"><span class="invoice-client-label">Cliente</span><div style="margin-top:10px;max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.55"><b>'+esc(cl.name||'')+'</b>'+
    (fullClientAddress(cl)?'<br><b>Dirección:</b> '+esc(fullClientAddress(cl)):'<br><span class="muted">Dirección no completada en la ficha del cliente</span>')+
@@ -384,6 +384,7 @@ async function openSavedAlbaran(id){
    (x.notes?'<div style="margin-top:14px"><b>Notas:</b> '+esc(x.notes)+'</div>':'')+
    '</div></div>';
    document.body.appendChild(m);m.querySelector('#albViewClose').onclick=()=>m.remove();m.querySelector('#albPrint').onclick=()=>printInvoicePaper(m.querySelector('#albPaper').outerHTML);
+   m.querySelector('#albDownload').onclick=()=>downloadAlbaranPdf(m.querySelector('#albPaper'),x.number,m.querySelector('#albDownload'));
  }catch(e){alert(e.message)}
 }
 
@@ -631,6 +632,40 @@ function showInvoicePaper(x,saved){
  '</div></div>';
  document.body.appendChild(overlay);overlay.querySelector('#paperclose').onclick=()=>overlay.remove();overlay.querySelector('#paperprint').onclick=()=>printInvoicePaper(overlay.querySelector('#invoicepaper').outerHTML);
 }
+
+let pdfLibraryPromise;
+function loadPdfLibrary(){
+ if(window.html2pdf)return Promise.resolve(window.html2pdf);
+ if(!pdfLibraryPromise)pdfLibraryPromise=new Promise((resolve,reject)=>{
+   const script=document.createElement('script');
+   script.src='https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js';
+   script.onload=()=>window.html2pdf?resolve(window.html2pdf):reject(new Error('Библиотека PDF недоступна'));
+   script.onerror=()=>{script.remove();reject(new Error('Не удалось загрузить библиотеку PDF. Проверьте интернет и повторите.'))};
+   document.head.appendChild(script);
+ }).catch(error=>{pdfLibraryPromise=null;throw error});
+ return pdfLibraryPromise;
+}
+async function downloadAlbaranPdf(paper,number,button){
+ const label=button.textContent;button.disabled=true;button.textContent='Создаём PDF…';
+ let host;
+ try{
+   const html2pdf=await loadPdfLibrary();
+   host=document.createElement('div');
+   host.style.cssText='position:fixed;left:0;top:0;width:794px;z-index:-1;pointer-events:none;background:white';
+   const clone=paper.cloneNode(true);clone.removeAttribute('id');
+   clone.style.cssText='width:794px;max-width:none;margin:0;padding:26px;background:white;color:#111;font:12px Arial,sans-serif';
+   host.appendChild(clone);
+   const style=document.createElement('style');
+   style.textContent='.pdf-albaran .invoice-head{grid-template-columns:1.4fr .8fr}.pdf-albaran tr,.pdf-albaran .invoice-total-box,.pdf-albaran .invoice-footer{break-inside:avoid}';
+   host.className='pdf-albaran';host.appendChild(style);document.body.appendChild(host);
+   await Promise.all(Array.from(clone.querySelectorAll('img')).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve})));
+   if(document.fonts?.ready)await document.fonts.ready;
+   const filename='Albaran_'+String(number||'documento').replace(/[^a-zA-Z0-9_-]/g,'_')+'.pdf';
+   await html2pdf().set({margin:8,filename,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',windowWidth:1024},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy']}}).from(clone).save();
+ }catch(e){alert('Не удалось скачать PDF: '+e.message+' Можно воспользоваться кнопкой «Печать».')}
+ finally{host?.remove();button.disabled=false;button.textContent=label}
+}
+
 function printInvoicePaper(html){
  const w=window.open('','_blank');if(!w)return alert('Разрешите всплывающие окна для печати счёта');
  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Factura</title><style>body{margin:0;font-family:Arial,sans-serif}.invoice-paper{max-width:850px;margin:auto;padding:26px}.invoice-logo{width:135px;height:auto;display:block;margin-bottom:12px}.invoice-head{display:grid;grid-template-columns:1.4fr .8fr;gap:26px}.invoice-title{color:#0a5c73;font-size:22px;font-weight:800;border-bottom:4px solid #0a5c73;padding-bottom:6px;margin:18px 0}.invoice-client-label,.invoice-pay-label{display:inline-block;color:#0a5c73;font-weight:700;border-bottom:3px solid #0a5c73;padding:0 26px 4px 2px}.invoice-box{border:1px solid #333}.invoice-box div{display:flex;justify-content:space-between;gap:16px;padding:5px 8px;border-bottom:1px solid #aaa}.invoice-table{width:100%;border-collapse:collapse;margin-top:14px;border:2px solid #222}.invoice-table th,.invoice-table td{border-right:1px solid #222;padding:7px 5px}.invoice-table th{color:#0a5c73;border-bottom:2px solid #222}.amount{text-align:right}.invoice-total-box{margin-left:auto;width:310px;border-collapse:collapse}.invoice-total-box td{padding:5px 8px;border-bottom:1px solid #222}.invoice-total-box td:last-child{text-align:right;background:#f1eff8;border-left:1px solid #222}.invoice-footer{display:flex;justify-content:space-between;gap:24px;border-bottom:4px solid #0a5c73;padding-bottom:16px;margin-top:8px}.invoice-sign{text-align:right;margin-top:34px;font-style:italic}@media print{@page{size:A4;margin:10mm}}</style></head><body>'+html+'<script>window.onload=()=>{window.print()}<\/script></body></html>');w.document.close();
