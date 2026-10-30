@@ -649,7 +649,7 @@ function loadPdfLibrary(){
 }
 async function downloadAlbaranPdf(paper,number,button){
  const label=button.textContent;button.disabled=true;button.textContent='Создаём PDF…';
- let frame;
+ let frame,ready=false;
  try{
    // Render in a separate desktop-sized document so mobile styles, modal
    // scrolling and the position of the main page cannot shift the PDF.
@@ -677,9 +677,23 @@ async function downloadAlbaranPdf(paper,number,button){
    if(doc.fonts?.ready)await doc.fonts.ready;
    frame.contentWindow.scrollTo(0,0);
    const filename='Albaran_'+String(number||'documento').replace(/[^a-zA-Z0-9_-]/g,'_')+'.pdf';
-   await frame.contentWindow.html2pdf().set({margin:8,filename,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',scrollX:0,scrollY:0,windowWidth:1024,windowHeight:1000},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy']}}).from(clone).save();
+   await frame.contentWindow.html2pdf().set({margin:8,filename,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',scrollX:0,scrollY:0,windowWidth:1024,windowHeight:1000},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy']}}).from(clone).outputPdf('blob').then(blob=>{
+     // Create the download in the main document; keep it alive after the
+     // rendering iframe is removed, and allow another direct tap on iOS.
+     const file=new Blob([blob],{type:'application/pdf'});
+     if(!file.size)throw new Error('Получен пустой PDF');
+     if(button._pdfUrl)window.URL.revokeObjectURL(button._pdfUrl);
+     const url=window.URL.createObjectURL(file);button._pdfUrl=url;
+     const save=()=>{
+       const link=document.createElement('a');
+       link.href=url;link.download=filename;link.target='_blank';link.rel='noopener';
+       document.body.appendChild(link);link.click();setTimeout(()=>link.remove(),1000);
+     };
+     button.onclick=save;button.textContent='Сохранить PDF';ready=true;
+     save();
+   });
  }catch(e){alert('Не удалось скачать PDF: '+e.message+' Можно воспользоваться кнопкой «Печать».')}
- finally{frame?.remove();button.disabled=false;button.textContent=label}
+ finally{frame?.remove();button.disabled=false;if(!ready)button.textContent=label}
 }
 
 function printInvoicePaper(html){
