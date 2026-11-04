@@ -494,7 +494,7 @@ async function openInvoiceForm(withRecargo=false,editId=null){
      currentItems.filter(i=>i.product_id).forEach(i=>addLine(i));
    }else addLine();
 
-   modal.querySelector('#previewinvoice').onclick=()=>{const pack=collect();if(pack)showInvoicePaper(pack,false)};
+   modal.querySelector('#previewinvoice').onclick=()=>{const pack=collect();if(pack)showInvoicePaper(pack,false,modal)};
    modal.querySelector('#saveinvoice').onclick=async()=>{
      const pack=collect();if(!pack)return;
      try{
@@ -553,8 +553,12 @@ async function openInvoiceForm(withRecargo=false,editId=null){
    function collect(){
      const client=clients.find(x=>x.id===modal.querySelector('#invclient').value),items=[];
      modal.querySelectorAll('.inv-line').forEach(r=>{const p=products.find(x=>x.id===r.querySelector('.lp').value),q=Number(r.querySelector('.lq').value||0),u=Number(r.querySelector('.lu').value||0);if(q>0&&p)items.push({product_id:p.id,description:(p.flavor||p.name),quantity:q,unit_price:u,subtotal:q*u})});
+     if(!client){alert('Выберите клиента.');return null}
      if(!items.length){alert('Добавьте хотя бы одну позицию');return null}
-     return {client,number:modal.querySelector('#invnumber').value.trim(),date:modal.querySelector('#invdate').value,payment:modal.querySelector('#invpay').value,items,totals:recalc()};
+     const number=modal.querySelector('#invnumber').value.trim(),date=modal.querySelector('#invdate').value;
+     if(!number){alert('Укажите номер Factura.');return null}
+     if(!date){alert('Укажите дату Factura.');return null}
+     return {client,number,date,payment:modal.querySelector('#invpay').value,items,totals:recalc()};
    }
  }catch(e){alert(e.message)}
 }
@@ -652,18 +656,29 @@ async function openSavedInvoice(id){
    showInvoicePaper({id:inv.id,client:cl[0]||{},number:inv.number,date:inv.invoice_date,payment:inv.payment_method||'cash',items:items.map(i=>({description:i.description,quantity:Number(i.quantity),unit_price:Number(i.unit_price),subtotal:Number(i.line_subtotal)})),totals:{sub:Number(inv.subtotal),vr:items[0]?Number(items[0].vat_rate):21,rr:Number(inv.recargo_rate||0),iva:Number(inv.vat_total),rec:Number(inv.recargo_total||0),total:Number(inv.total)}},true);
  }catch(e){alert(e.message)}
 }
-function showInvoicePaper(x,saved){
+function showInvoicePaper(x,saved,returnModal=null){
  const pay={cash:'En efectivo',bank:'Transferencia bancaria',card:'Tarjeta',other:'Otro'}[x.payment]||x.payment||'';
  const dateText=x.date?new Date(x.date+'T12:00:00').toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'}):'';
- const overlay=document.createElement('div');overlay.className='inv-modal';
- overlay.innerHTML='<div class="inv-panel" style="max-width:920px"><div class="invoice-actions" style="justify-content:flex-end;margin-bottom:10px"><button id="paperclose" class="btn">Закрыть</button><button id="paperprint" class="btn invoice-btn">Печать / PDF</button></div><div id="invoicepaper" class="invoice-paper">'+
+ if(returnModal)returnModal.style.display='none';
+ const overlay=document.createElement('div');overlay.className='inv-modal invoice-preview-modal';
+ const closePreview=()=>{
+   overlay.remove();
+   document.removeEventListener('keydown',escPreview);
+   if(returnModal){returnModal.style.display='grid';requestAnimationFrame(()=>returnModal.querySelector('#invclient')?.focus())}
+ };
+ const escPreview=e=>{if(e.key==='Escape')closePreview()};
+ document.addEventListener('keydown',escPreview);
+ overlay.innerHTML='<div class="inv-panel" style="max-width:920px"><div class="invoice-actions" style="justify-content:space-between;margin-bottom:10px"><button id="paperclose" class="btn">'+(returnModal?'← Назад к Factura':'Закрыть')+'</button><button id="paperprint" class="btn invoice-btn">Печать / PDF</button></div><div id="invoicepaper" class="invoice-paper">'+
  '<div class="invoice-head"><div><img class="invoice-brand-logo" src="'+LOGO_DATA+'" alt="GARANT PG NORD"><b>Nombre</b> &nbsp;&nbsp; <b>PG Nord Garant S.L.</b><br><b>Dirección</b> &nbsp; C/Mare Nostrum 42. Bahia de la Plata.<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Bloque 1B bajo pta B<br><b>Poblacion</b> &nbsp; Estepona (Malaga) &nbsp; <b>CP</b> 29680<br><b>NIF</b> &nbsp; B26984146</div><div><div class="invoice-title">FACTURA</div></div></div>'+
  '<div class="invoice-head" style="margin-top:16px"><div><span class="invoice-client-label">Cliente</span><div style="margin-top:12px"><b>Nombre</b> &nbsp; '+esc(x.client?.name||'')+'<br><b>Dirección</b> &nbsp; '+esc(x.client?.address||'')+'<br><b>Poblacion</b> &nbsp; '+esc(x.client?.city||'')+(x.client?.postal_code?' &nbsp; <b>CP</b> '+esc(x.client.postal_code):'')+'<br><b>CIF</b> &nbsp; '+esc(x.client?.tax_id||'')+'</div></div><div class="invoice-box"><div><span>Fecha</span><b>'+esc(dateText)+'</b></div><div><span>Nº Factura</span><b>'+esc(x.number||'')+'</b></div></div></div>'+
  '<table class="invoice-table"><thead><tr><th>Mercancia</th><th>Cantidad</th><th>Unidad</th><th>Precio unidad</th><th>Subtotal</th></tr></thead><tbody>'+x.items.map((i,n)=>'<tr><td>'+(n+1)+'- '+esc(i.description)+'</td><td class="amount">'+i.quantity+'</td><td>lata</td><td class="amount">'+Number(i.unit_price).toFixed(2).replace('.',',')+' €</td><td class="amount">'+Number(i.subtotal).toFixed(2).replace('.',',')+' €</td></tr>').join('')+'<tr><td><b>TOTAL UNIDADES</b></td><td class="amount"><b>'+x.items.reduce((a,i)=>a+Number(i.quantity),0)+'</b></td><td></td><td></td><td></td></tr></tbody></table>'+
  '<div style="display:flex;justify-content:flex-end;margin-top:0"><table class="invoice-total-box"><tr><td>Subtotal</td><td>'+Number(x.totals.sub).toFixed(2).replace('.',',')+' €</td></tr><tr><td>IVA '+Number(x.totals.vr).toFixed(0)+'%</td><td>'+Number(x.totals.iva).toFixed(2).replace('.',',')+' €</td></tr>'+(Number(x.totals.rr||0)>0?'<tr><td>Recargo '+Number(x.totals.rr).toFixed(1).replace('.',',')+'%</td><td>'+Number(x.totals.rec).toFixed(2).replace('.',',')+' €</td></tr>':'')+'<tr><td><b>TOTAL</b></td><td><b>'+Number(x.totals.total).toFixed(2).replace('.',',')+' €</b></td></tr></table></div>'+
  '<div class="invoice-footer"><div><span class="invoice-pay-label">Forma pago</span><div style="margin-top:12px">Forma de Pago: <u>'+esc(pay)+'</u><br>Banco: CaixaBank<br>C/C: ES64 2100 3889 1402 0038 2150<br>SWIFT/BIC: CAIXESBBXXX</div></div><div class="invoice-sign">PG Nord Garant S.L.<br>B26984146<br>Estepona. Malaga<br>sales@pgnord.eu</div></div>'+
  '</div></div>';
- document.body.appendChild(overlay);overlay.querySelector('#paperclose').onclick=()=>overlay.remove();overlay.querySelector('#paperprint').onclick=()=>printInvoicePaper(overlay.querySelector('#invoicepaper').outerHTML);
+ document.body.appendChild(overlay);
+ overlay.querySelector('#paperclose').onclick=closePreview;
+ overlay.querySelector('#paperprint').onclick=()=>printInvoicePaper(overlay.querySelector('#invoicepaper').outerHTML);
+ overlay.addEventListener('click',e=>{if(e.target===overlay)closePreview()});
 }
 
 let pdfLibraryPromise;
