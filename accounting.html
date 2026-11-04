@@ -22,6 +22,27 @@ h1{font-size:22px;margin:0}.muted{font-size:13px;color:#6b7280}.field{display:gr
 .expense-supplier-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
 .expense-supplier-row .btn{padding:11px 12px;white-space:nowrap}
 .expense-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;position:sticky;bottom:-22px;background:#fff;padding:14px 0 0}
+.invoice-entry-modal .inv-panel{width:min(1040px,calc(100vw - 28px));padding:0;overflow:auto}
+.invoice-entry-shell{padding:22px 24px 24px}
+.invoice-entry-head{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:20px 24px;border-bottom:1px solid #e8edf1;background:#f8fafb;position:sticky;top:0;z-index:4}
+.invoice-entry-title{display:flex;align-items:center;gap:14px}
+.invoice-entry-title h2{margin:0;font-size:24px}
+.invoice-entry-title .invoice-brand-logo{max-width:150px;height:auto}
+.invoice-entry-section{border:1px solid #e3e8ec;border-radius:16px;padding:16px;margin-top:14px;background:#fff}
+.invoice-entry-section-title{font-size:13px;font-weight:800;color:#0a5c73;text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px}
+.invoice-meta-grid{display:grid;grid-template-columns:1.4fr .8fr .8fr .9fr;gap:12px}
+.invoice-client-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
+.invoice-client-row .btn{white-space:nowrap;height:42px}
+.invoice-items-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
+.invoice-entry-modal .inv-line{grid-template-columns:minmax(260px,2fr) 120px 150px 42px;gap:10px;margin:8px 0;padding:10px;border:1px solid #edf0f2;border-radius:12px;background:#fbfcfd}
+.invoice-entry-modal .inv-line .field{margin:0}
+.invoice-entry-summary-wrap{display:flex;justify-content:flex-end;margin-top:16px}
+.invoice-entry-modal .inv-summary{width:min(390px,100%);padding:14px 16px;border:1px solid #dce5ea;border-radius:14px;background:#f8fafb}
+.invoice-entry-modal .inv-summary .grand{font-size:20px;color:#0a5c73}
+.invoice-entry-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;position:sticky;bottom:0;background:#fff;border-top:1px solid #e8edf1;padding:14px 24px;margin:18px -24px -24px;z-index:4}
+.invoice-entry-footer .invoice-actions{margin:0}
+@media(max-width:900px){.invoice-meta-grid{grid-template-columns:1fr 1fr}.invoice-entry-modal .inv-line{grid-template-columns:minmax(0,1fr) 100px 130px 42px}}
+@media(max-width:650px){.invoice-entry-shell{padding:16px}.invoice-entry-head{padding:14px 16px}.invoice-entry-title .invoice-brand-logo{max-width:110px}.invoice-meta-grid{grid-template-columns:1fr}.invoice-client-row{grid-template-columns:1fr}.invoice-client-row .btn{width:100%}.invoice-entry-modal .inv-line{grid-template-columns:1fr}.invoice-entry-modal .inv-line .lr{width:100%}.invoice-entry-footer{margin:16px -16px -16px;padding:12px 16px;flex-direction:column;align-items:stretch}.invoice-entry-footer .invoice-actions{justify-content:stretch}.invoice-entry-footer .btn{flex:1}}
 .inv-line{display:grid;grid-template-columns:2fr .65fr .8fr 42px;gap:8px;align-items:end;margin:8px 0}.inv-line select,.inv-line input,.inv-panel select,.inv-panel input{width:100%;padding:10px;border:1px solid #cfd8df;border-radius:10px;background:#fff}.inv-summary{margin-left:auto;width:min(360px,100%);display:grid;grid-template-columns:1fr auto;gap:7px 12px;padding-top:12px}.inv-summary .grand{font-weight:800;font-size:18px}.invoice-paper{background:#fff;color:#111;font-family:Arial,sans-serif;max-width:850px;margin:0 auto;padding:26px}.invoice-head{display:grid;grid-template-columns:1.4fr .8fr;gap:26px;align-items:start}.invoice-title{color:#0a5c73;font-size:22px;font-weight:800;border-bottom:4px solid #0a5c73;padding-bottom:6px;margin:18px 0}.invoice-client-label,.invoice-pay-label{display:inline-block;color:#0a5c73;font-weight:700;border-bottom:3px solid #0a5c73;padding:0 26px 4px 2px}.invoice-box{border:1px solid #333}.invoice-box div{display:flex;justify-content:space-between;gap:16px;padding:5px 8px;border-bottom:1px solid #aaa}.invoice-box div:last-child{border-bottom:0}.invoice-table{width:100%;border-collapse:collapse;margin-top:14px;border:2px solid #222}.invoice-table th,.invoice-table td{border-right:1px solid #222;padding:7px 5px}.invoice-table th{color:#0a5c73;border-bottom:2px solid #222}.invoice-table th:last-child,.invoice-table td:last-child{border-right:0}.invoice-table .amount{text-align:right}.invoice-total-box{margin-left:auto;width:310px;border-collapse:collapse}.invoice-total-box td{padding:5px 8px;border-bottom:1px solid #222}.invoice-total-box td:last-child{text-align:right;background:#f1eff8;border-left:1px solid #222}.invoice-footer{display:flex;justify-content:space-between;gap:24px;border-bottom:4px solid #0a5c73;padding-bottom:16px;margin-top:8px}.invoice-sign{text-align:right;margin-top:34px;font-style:italic}
 @media(max-width:760px){.inv-grid{grid-template-columns:1fr}.expense-grid{grid-template-columns:1fr}.expense-supplier-row{grid-template-columns:1fr}.expense-supplier-row .btn{width:100%}.expense-modal .inv-panel{width:min(96vw,720px);padding:18px}.inv-line{grid-template-columns:1fr .7fr .8fr 42px}.invoice-head{grid-template-columns:1fr}.invoice-paper{padding:14px;font-size:12px}}
 @media(max-width:760px){.grid{grid-template-columns:1fr 1fr}.catalog-grid{grid-template-columns:1fr}.wrap{padding:12px}.product-card{min-height:210px}}
@@ -420,12 +441,22 @@ async function openInvoiceForm(withRecargo=false,editId=null){
 
    const number=editId?(current.number||''):nextInvoiceNumber(existing);
    const today=editId?(current.invoice_date||''):new Date().toISOString().slice(0,10);
-   const modal=document.createElement('div');modal.className='inv-modal';
-   modal.innerHTML='<div class="inv-panel"><div class="top"><div style="display:flex;gap:18px;align-items:center"><img class="invoice-brand-logo" src="'+LOGO_DATA+'" alt="GARANT PG NORD"><div><h2 style="margin:0">'+(editId?'Редактировать '+(withRecargo?'Recargo':'Factura'):(withRecargo?'Recargo':'Factura'))+'</h2><div class="muted">'+(withRecargo?'Фактура с Recargo':'Обычная фактура')+'</div></div></div><button id="invclose" class="btn">×</button></div>'+
-   '<div class="inv-grid"><div class="field"><label>Клиент</label><div style="display:flex;gap:8px;align-items:center"><select id="invclient" style="flex:1"><option value="">Выберите клиента</option>'+clients.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')+'</select><button id="invNewClient" type="button" class="btn">+ Новый клиент</button></div></div><div class="field"><label>№ Factura</label><input id="invnumber" value="'+esc(number)+'"></div><div class="field"><label>Fecha</label><input id="invdate" type="date" value="'+today+'"></div><div class="field"><label>Forma de Pago</label><select id="invpay"><option value="cash">En efectivo</option><option value="bank">Transferencia bancaria</option><option value="card">Tarjeta</option><option value="other">Otro</option></select></div><div class="field"><label>IVA</label><input id="invat" type="number" step="0.1" value="21"></div>'+(withRecargo?'<div class="field"><label>Recargo de equivalencia</label><input id="invrec" type="number" step="0.1" value="'+Number(current?.recargo_rate||5.2)+'"></div>':'')+'</div>'+
-   '<div style="margin-top:12px"><b>Mercancía</b><div id="invlines"></div><button id="addline" class="btn">+ Добавить позицию</button></div>'+
-   '<div class="inv-summary"><span>Subtotal</span><b id="sumsub">0,00 €</b><span>IVA</span><b id="sumiva">0,00 €</b>'+(withRecargo?'<span>Recargo</span><b id="sumrec">0,00 €</b>':'')+'<span class="grand">TOTAL</span><b class="grand" id="sumtotal">0,00 €</b></div>'+
-   '<div class="invoice-actions" style="justify-content:flex-end;margin-top:16px"><button id="previewinvoice" class="btn">Предпросмотр</button><button id="saveinvoice" class="btn invoice-btn">'+(editId?'Сохранить изменения':'Сохранить счёт')+'</button></div></div>';
+   const modal=document.createElement('div');modal.className='inv-modal invoice-entry-modal';
+   modal.innerHTML='<div class="inv-panel">'+
+   '<div class="invoice-entry-head"><div class="invoice-entry-title"><img class="invoice-brand-logo" src="'+LOGO_DATA+'" alt="GARANT PG NORD"><div><h2>'+(editId?'Редактировать '+(withRecargo?'Recargo':'Factura'):(withRecargo?'Recargo':'Factura'))+'</h2><div class="muted">'+(withRecargo?'Factura con Recargo de equivalencia':'Factura de venta')+'</div></div></div><button id="invclose" class="btn">×</button></div>'+
+   '<div class="invoice-entry-shell">'+
+   '<div class="invoice-entry-section"><div class="invoice-entry-section-title">Данные счёта</div><div class="invoice-meta-grid">'+
+   '<div class="field"><label>Клиент</label><div class="invoice-client-row"><select id="invclient"><option value="">Выберите клиента</option>'+clients.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')+'</select><button id="invNewClient" type="button" class="btn">+ Новый клиент</button></div></div>'+
+   '<div class="field"><label>№ Factura</label><input id="invnumber" value="'+esc(number)+'"></div>'+
+   '<div class="field"><label>Fecha</label><input id="invdate" type="date" value="'+today+'"></div>'+
+   '<div class="field"><label>Forma de Pago</label><select id="invpay"><option value="cash">En efectivo</option><option value="bank">Transferencia bancaria</option><option value="card">Tarjeta</option><option value="other">Otro</option></select></div>'+
+   '<div class="field"><label>IVA</label><input id="invat" type="number" step="0.1" value="21"></div>'+
+   (withRecargo?'<div class="field"><label>Recargo de equivalencia</label><input id="invrec" type="number" step="0.1" value="'+Number(current?.recargo_rate||5.2)+'"></div>':'')+
+   '</div></div>'+
+   '<div class="invoice-entry-section"><div class="invoice-items-head"><div><div class="invoice-entry-section-title" style="margin:0">Mercancía</div><div class="muted">Добавьте товары, количество и цену за единицу</div></div><button id="addline" class="btn">+ Добавить позицию</button></div><div id="invlines"></div></div>'+
+   '<div class="invoice-entry-summary-wrap"><div class="inv-summary"><span>Subtotal</span><b id="sumsub">0,00 €</b><span>IVA</span><b id="sumiva">0,00 €</b>'+(withRecargo?'<span>Recargo</span><b id="sumrec">0,00 €</b>':'')+'<span class="grand">TOTAL</span><b class="grand" id="sumtotal">0,00 €</b></div></div>'+
+   '<div class="invoice-entry-footer"><span class="muted">Проверьте клиента, товары и суммы перед сохранением</span><div class="invoice-actions"><button id="previewinvoice" class="btn">Предпросмотр</button><button id="saveinvoice" class="btn invoice-btn">'+(editId?'Сохранить изменения':'Сохранить счёт')+'</button></div></div>'+
+   '</div></div>';
    document.body.appendChild(modal);
 
    if(current){
