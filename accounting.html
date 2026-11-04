@@ -786,8 +786,10 @@ function printInvoicePaper(html){
  const itemRows=Math.max(0,tmp.querySelectorAll('.invoice-table tbody tr').length-1);
  const compact=itemRows<=12;
  const cls=compact?' compact-a4':'';
- w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Factura</title><style>'+
+ w.document.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Factura</title><style>'+
  '*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff}body{font-family:Arial,sans-serif;color:#111}'+
+ '.print-toolbar{position:sticky;top:0;z-index:9999;display:flex;gap:8px;align-items:center;padding:10px max(12px,env(safe-area-inset-left)) 10px max(12px,env(safe-area-inset-right));background:rgba(255,255,255,.96);backdrop-filter:blur(10px);border-bottom:1px solid #dfe5ea}'+
+ '.print-toolbar button{appearance:none;border:1px solid #cfd8df;border-radius:10px;background:#fff;padding:10px 14px;font-size:15px;font-weight:700;color:#111827}.print-toolbar .primary{background:#0a5c73;color:#fff;border-color:#0a5c73}.print-toolbar .spacer{flex:1}.print-wrap{padding-top:4px}'+
  '.invoice-paper{width:100%;max-width:190mm;margin:0 auto;padding:8mm 9mm;font-size:11px;line-height:1.28}'+
  '.invoice-brand-logo{max-width:125px;height:auto;margin-bottom:5px}.invoice-logo{width:120px;height:auto;display:block;margin-bottom:6px}'+
  '.invoice-head{display:grid;grid-template-columns:1.45fr .75fr;gap:12mm;align-items:start}'+
@@ -800,8 +802,17 @@ function printInvoicePaper(html){
  '.invoice-footer{display:flex;justify-content:space-between;gap:18px;border-bottom:3px solid #0a5c73;padding-bottom:7px;margin-top:5px;break-inside:avoid;page-break-inside:avoid}.invoice-sign{text-align:right;margin-top:14px;font-style:italic}'+
  '.invoice-total-box,tr,.invoice-footer{break-inside:avoid;page-break-inside:avoid}'+
  '.compact-a4.invoice-paper{padding:5mm 7mm;font-size:9.7px;line-height:1.18}.compact-a4 .invoice-brand-logo{max-width:105px;margin-bottom:2px}.compact-a4 .invoice-head{gap:7mm}.compact-a4 .invoice-title{font-size:17px;margin:3px 0;padding-bottom:2px}.compact-a4 .invoice-table{margin-top:5px}.compact-a4 .invoice-table th,.compact-a4 .invoice-table td{padding:2.6px 3px}.compact-a4 .invoice-box div{padding:2px 5px}.compact-a4 .invoice-total-box td{padding:2px 5px}.compact-a4 .invoice-footer{margin-top:3px;padding-bottom:4px}.compact-a4 .invoice-sign{margin-top:7px}'+
- '@media print{@page{size:A4 portrait;margin:5mm}html,body{width:210mm}.invoice-paper{max-width:none!important} }'+
- '</style></head><body>'+html.replace('class="invoice-paper"','class="invoice-paper'+cls+'"')+'<script>window.onload=()=>{setTimeout(()=>window.print(),120)}<\/script></body></html>');
+ '@media print{.print-toolbar{display:none!important}.print-wrap{padding:0!important}@page{size:A4 portrait;margin:5mm}html,body{width:210mm}.invoice-paper{max-width:none!important}}'+
+ '</style></head><body>'+
+ '<div class="print-toolbar"><button id="backBtn">← Назад в GARANT</button><button id="closeBtn">Закрыть</button><div class="spacer"></div><button id="printBtn" class="primary">Печать / PDF</button></div>'+
+ '<div class="print-wrap">'+html.replace('class="invoice-paper"','class="invoice-paper'+cls+'"')+'</div>'+
+ '<script>'+
+ 'const goBack=()=>{if(window.opener&&!window.opener.closed){window.opener.focus();window.close()}else if(history.length>1){history.back()}else{location.href="/accounting.html"}};'+
+ 'document.getElementById("backBtn").onclick=goBack;'+
+ 'document.getElementById("closeBtn").onclick=()=>{if(window.opener&&!window.opener.closed){window.opener.focus()}window.close()};'+
+ 'document.getElementById("printBtn").onclick=()=>window.print();'+
+ 'window.addEventListener("keydown",e=>{if(e.key==="Escape")goBack()});'+
+ '<\/script></body></html>');
  w.document.close();
 }
 
