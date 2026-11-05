@@ -6,7 +6,7 @@
 :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#111827;background:#f5f7fb}
 *{box-sizing:border-box}body{margin:0}.wrap{max-width:1050px;margin:auto;padding:16px}
 .card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.05)}
-.login{max-width:430px;margin:9vh auto}.brand{display:flex;gap:12px;align-items:center;margin-bottom:18px}.main-brand-logo{width:250px;max-width:48vw;height:auto;display:block}.invoice-brand-logo{width:220px;max-width:36vw;height:auto;display:block}.logo{width:48px;height:48px;border-radius:14px;background:#111827;color:#fff;display:grid;place-items:center;font-weight:800}
+.login{max-width:430px;margin:9vh auto}.brand{display:flex;gap:12px;align-items:center;margin-bottom:18px}.main-brand-logo{width:250px;max-width:48vw;height:auto;display:block}.invoice-brand-logo{width:220px;max-width:36vw;height:auto;display:block;object-fit:contain;image-rendering:auto}.logo{width:48px;height:48px;border-radius:14px;background:#111827;color:#fff;display:grid;place-items:center;font-weight:800}
 h1{font-size:22px;margin:0}.muted{font-size:13px;color:#6b7280}.field{display:grid;gap:6px;margin:12px 0}.field input{width:100%;padding:13px;border:1px solid #d1d5db;border-radius:12px;font-size:16px}
 .btn{border:0;border-radius:12px;padding:12px 14px;font-weight:700;background:#e9edf4;cursor:pointer}.primary{background:#111827;color:#fff}.full{width:100%;margin-top:8px}
 .notice{margin:12px 0;padding:11px 12px;border-radius:12px;background:#fff7ed;color:#9a3412;font-size:13px}
@@ -54,7 +54,7 @@ catch{({createClient}=await import('https://esm.sh/@supabase/supabase-js@2.57.0'
 (function(){
 const URL='https://bxibrptyonhxcdnizacp.supabase.co';
 const KEY='sb_publishable_0bGaJhD7GxVh_UqaPAUFmA_PhR3ISMP';
-const LOGO_DATA=location.origin+'/assets/garant-logo-official.png?v=2';
+const LOGO_DATA=location.origin+'/assets/garant-logo-exact.svg?v=3';
 const app=document.getElementById('app');
 const db=createClient(URL,KEY);
 const ALLOWED_IDS=['ceae49cb-4385-4052-a022-6aa0cea662ef','e29cfd4a-42cb-4c2b-a46c-cb7124ba7119','abdc2bea-ca10-44bc-ba47-fee7e280dcbe','f1ba2c98-124e-4b1e-8fe3-9f5b4aacecbb'];
@@ -772,6 +772,30 @@ function loadPdfLibrary(){
  }).catch(error=>{pdfLibraryPromise=null;throw error});
  return pdfLibraryPromise;
 }
+async function getHighResLogoPng(){
+ try{
+   const response=await fetch(LOGO_DATA,{cache:'no-store'});
+   if(!response.ok)throw new Error('logo HTTP '+response.status);
+   const svg=await response.text();
+   const blob=new Blob([svg],{type:'image/svg+xml'});
+   const url=URL.createObjectURL(blob);
+   try{
+     const img=new Image();
+     await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url});
+     const ratio=(img.naturalHeight||220)/(img.naturalWidth||760);
+     const canvas=document.createElement('canvas');
+     canvas.width=1800;canvas.height=Math.max(1,Math.round(1800*ratio));
+     const ctx=canvas.getContext('2d');
+     if(!ctx)throw new Error('canvas');
+     ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+     ctx.drawImage(img,0,0,canvas.width,canvas.height);
+     return canvas.toDataURL('image/png',1);
+   }finally{URL.revokeObjectURL(url)}
+ }catch(e){
+   return location.origin+'/assets/garant-logo-official.png?v=3';
+ }
+}
+
 async function downloadAlbaranPdf(paper,number,button,prefix='Albaran'){
  const label=button.textContent;button.disabled=true;button.textContent='Создаём PDF…';
  let frame,ready=false;
@@ -791,7 +815,10 @@ async function downloadAlbaranPdf(paper,number,button,prefix='Albaran'){
    style.textContent='html,body{margin:0!important;padding:0!important;background:#fff!important;width:1024px;overflow:visible!important}*{box-sizing:border-box}.pdf-paper{width:733px!important;max-width:733px!important;margin:0!important;padding:18px!important;background:#fff;color:#111;font:12px Arial,sans-serif}.pdf-paper .invoice-head{display:grid;grid-template-columns:1.4fr .8fr;gap:26px}.pdf-paper .invoice-table{table-layout:fixed;width:100%}.pdf-paper .invoice-table th:first-child{width:46%}.pdf-paper .invoice-table td,.pdf-paper .invoice-table th{overflow-wrap:anywhere}.pdf-paper tr,.pdf-paper .invoice-total-box,.pdf-paper .invoice-footer{break-inside:avoid;page-break-inside:avoid}';
    doc.head.appendChild(style);
    const clone=paper.cloneNode(true);clone.removeAttribute('id');
-   clone.classList.add('pdf-paper');doc.body.appendChild(clone);
+   clone.classList.add('pdf-paper');
+   const hiLogo=await getHighResLogoPng();
+   clone.querySelectorAll('.invoice-brand-logo').forEach(img=>{img.src=hiLogo;img.removeAttribute('srcset')});
+   doc.body.appendChild(clone);
    await Promise.all([
      'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
      'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js'
@@ -809,7 +836,7 @@ async function downloadAlbaranPdf(paper,number,button,prefix='Albaran'){
    const width=Math.ceil(Math.max(clone.scrollWidth,clone.getBoundingClientRect().width));
    const height=Math.ceil(Math.max(clone.scrollHeight,clone.getBoundingClientRect().height));
    // Keep the canvas below Safari's memory limits for long delivery notes.
-   const scale=Math.min(2,Math.sqrt(12000000/(width*height)));
+   const scale=Math.min(3,Math.sqrt(18000000/(width*height)));
    const canvas=await frame.contentWindow.html2canvas(clone,{
      scale,useCORS:true,backgroundColor:'#ffffff',scrollX:0,scrollY:0,
      windowWidth:1024,windowHeight:Math.max(1000,height),width,height
