@@ -3232,7 +3232,7 @@ function renderSelectedAgentStock(){
      }).join('')}</tbody></table></div>`
    : '<p class="muted">Движений пока нет.</p>';
 
- const canIssue=false; // Передача со склада оформляется только Катериной в бухгалтерии.
+ const canIssue=profile?.role==='manager';
  $('agentIssueBox').classList.toggle('hidden',!canIssue);
  if(canIssue){
    const mainWh=realStockWarehouses.find(w=>w.type==='main')||realStockWarehouses[0];
