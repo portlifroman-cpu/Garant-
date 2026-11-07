@@ -1014,7 +1014,7 @@ async function refreshAll(){
   canViewJointExpenses()
     ? db.from('joint_expenses').select('*').order('expense_date',{ascending:false}).order('created_at',{ascending:false}).limit(5000)
     : Promise.resolve({data:[],error:null}),
-  db.from('acc_products').select('id,name,flavor,sku,active').eq('active',true).order('flavor'),
+  db.from('acc_products').select('id,name,flavor,sku,active,crm_product_id').eq('active',true).order('flavor'),
   db.from('acc_warehouses').select('id,name,type').order('name'),
   db.from('acc_stock_movements').select('product_id,warehouse_id,movement_type,quantity,movement_at,reference_type,note').order('movement_at',{ascending:false}).limit(5000)
  ];
@@ -3083,32 +3083,70 @@ function renderSelectedAgentStock(){
        const shop=shops.find(x=>x.id===m.shop_id);
        const wh=warehouses.find(x=>x.id===m.warehouse_id);
        const type=m.movement_type==='warehouse_issue'?'Получил со склада':m.movement_type==='shop_placement'?'Поставил в магазин':m.movement_type==='return_to_warehouse'?'Вернул на склад':'Корректировка';
-       return `<tr><td>${new Date(m.created_at).toLocaleString('ru-RU')}</td><td>${esc(type)}</td><td>${esc(p?.name||'—')}</td><td>${Number(m.quantity||0)}</td><td>${esc(shop?.name||wh?.name||'—')}</td></tr>`;
+       const sourceLabel=m.movement_type==='warehouse_issue'?'Общий склад GARANT':(shop?.name||wh?.name||'—');
+       return `<tr><td>${new Date(m.created_at).toLocaleString('ru-RU')}</td><td>${esc(type)}</td><td>${esc(p?.name||'—')}</td><td>${Number(m.quantity||0)}</td><td>${esc(sourceLabel)}</td></tr>`;
      }).join('')}</tbody></table></div>`
    : '<p class="muted">Движений пока нет.</p>';
 
  const canIssue=isManager();
  $('agentIssueBox').classList.toggle('hidden',!canIssue);
  if(canIssue){
-   $('agentIssueWarehouse').innerHTML=warehouses.map(w=>`<option value="${w.id}">${esc(w.name)}</option>`).join('');
-   $('agentIssueProduct').innerHTML=products.filter(p=>p.active!==false).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+   const mainWh=realStockWarehouses.find(w=>w.type==='main')||realStockWarehouses[0];
+   const realBalances={};
+   realStockMovements.forEach(m=>{
+     if(mainWh&&m.warehouse_id!==mainWh.id)return;
+     const sign=(m.movement_type==='out'||m.movement_type==='transfer_out')?-1:1;
+     realBalances[m.product_id]=(realBalances[m.product_id]||0)+sign*Number(m.quantity||0);
+   });
+   $('agentIssueWarehouse').innerHTML=mainWh
+     ? `<option value="${mainWh.id}">GARANT — Общий склад</option>`
+     : '<option value="">Общий склад не найден</option>';
+   $('agentIssueWarehouse').disabled=true;
+   const availableProducts=realStockProducts
+     .filter(p=>p.crm_product_id&&Number(realBalances[p.id]||0)>0)
+     .sort((a,b)=>(a.flavor||a.name||'').localeCompare(b.flavor||b.name||'','ru'));
+   $('agentIssueProduct').innerHTML=availableProducts.length
+     ? availableProducts.map(p=>`<option value="${p.crm_product_id}" data-available="${Number(realBalances[p.id]||0)}">${esc((p.flavor||p.name||'').replace(/^Classic\s+/i,''))} · остаток ${Number(realBalances[p.id]||0)}</option>`).join('')
+     : '<option value="">Нет товара на общем складе</option>';
+   const qtyInput=$('agentIssueQty');
+   const refreshIssueLimit=()=>{
+     const opt=$('agentIssueProduct').selectedOptions[0];
+     const av=Number(opt?.dataset.available||0);
+     if(qtyInput){qtyInput.max=String(av);qtyInput.placeholder=av?'Макс. '+av:''}
+   };
+   $('agentIssueProduct').onchange=refreshIssueLimit;
+   refreshIssueLimit();
  }
 }
 
 window.issueStockToSelectedAgent=async()=>{
  if(!selectedEmployee||!isManager())return;
- const warehouse_id=$('agentIssueWarehouse').value;
  const product_id=$('agentIssueProduct').value;
  const quantity=Math.floor(Number($('agentIssueQty').value||0));
- if(!warehouse_id||!product_id||quantity<=0)return toast('Выберите склад, товар и количество');
- const available=Number(balances.find(b=>b.warehouse_id===warehouse_id&&b.product_id===product_id)?.physical_qty||0);
- if(quantity>available)return toast('На складе недостаточно товара. Остаток: '+available);
- const r=await db.rpc('issue_stock_to_agent',{p_agent_id:selectedEmployee.id,p_product_id:product_id,p_warehouse_id:warehouse_id,p_qty:quantity,p_comment:'Выдано агенту из карточки сотрудника'});
- if(r.error)return toast('Не удалось выдать товар: '+r.error.message);
- toast('Товар выдан агенту');
- await refreshAll();
- const fresh=profiles.find(p=>p.id===selectedEmployee.id);
- if(fresh){selectedEmployee=fresh;renderSelectedAgentStock()}
+ const opt=$('agentIssueProduct').selectedOptions[0];
+ const available=Number(opt?.dataset.available||0);
+ if(!product_id||quantity<=0)return toast('Выберите товар и количество');
+ if(quantity>available)return toast('На общем складе недостаточно товара. Остаток: '+available);
+ const btn=document.querySelector('#agentIssueBox button.primary');
+ if(btn){btn.disabled=true;btn.textContent='Выдаём…'}
+ try{
+   const r=await db.rpc('issue_real_stock_to_agent',{
+     p_agent_id:selectedEmployee.id,
+     p_crm_product_id:product_id,
+     p_qty:quantity,
+     p_comment:'Выдано агенту из карточки сотрудника'
+   });
+   if(r.error)throw r.error;
+   toast('Товар выдан агенту. Общий склад уменьшен на '+quantity+' шт.');
+   $('agentIssueQty').value='1';
+   await refreshAll();
+   const fresh=profiles.find(p=>p.id===selectedEmployee.id);
+   if(fresh){selectedEmployee=fresh;renderSelectedAgentStock()}
+ }catch(e){
+   toast('Не удалось выдать товар: '+(e.message||String(e)));
+ }finally{
+   if(btn){btn.disabled=false;btn.textContent='Выдать агенту'}
+ }
 };
 
 window.openEmployeeCard=async(id)=>{
