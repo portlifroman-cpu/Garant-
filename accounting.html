@@ -271,7 +271,7 @@ async function loadTab(){const c=document.getElementById('content');try{
        staffMap=Object.fromEntries((prof||[]).map(x=>[x.id,x.full_name||x.email||x.id]));
      }catch{}
    }
-   c.innerHTML='<div class="grid" style="margin-bottom:12px"><button id="warehouseWriteoffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Складская операция</span><b style="font-size:22px;display:block;margin-top:8px">Списание</b><span class="muted">Уменьшить остаток общего склада</span></button><button id="inventoryCountTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Фактический контроль</span><b style="font-size:22px;display:block;margin-top:8px">Инвентаризация</b><span class="muted">Сверить программу с реальным остатком</span></button></div>'+
+   c.innerHTML='<div class="grid" style="margin-bottom:12px"><button id="agentTransferTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Передача товара</span><b style="font-size:22px;display:block;margin-top:8px">Передать агенту</b><span class="muted">Только эта операция уменьшает главный склад при выдаче агенту</span></button><button id="warehouseWriteoffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Складская операция</span><b style="font-size:22px;display:block;margin-top:8px">Списание</b><span class="muted">Уменьшить остаток общего склада</span></button><button id="inventoryCountTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Фактический контроль</span><b style="font-size:22px;display:block;margin-top:8px">Инвентаризация</b><span class="muted">Сверить программу с реальным остатком</span></button></div>'+
    '<div class="card"><div class="top"><div><b>Склад</b><div class="muted">Остатки по складам</div></div><div><button id="addwh" class="btn">+ Склад</button> <button id="addmove" class="btn primary">+ Движение</button></div></div>'+table(['Товар','Вкус','SKU','Банки','Вес, г','Вес, кг','Закупочная цена','Себестоимость/шт','Стоимость остатка'],rows)+'</div>'+
    '<div class="card" style="margin-top:12px"><div class="top"><div><b>Журнал списаний</b><div class="muted">Кто, когда, какой товар и сколько списал</div></div><button id="openWriteoffLog" class="btn">Показать все</button></div>'+table(['Дата/время','Сотрудник','Товар','Количество','Причина'],writeoffs.slice(0,10).map(x=>[
       x.movement_at?new Date(x.movement_at).toLocaleString('ru-RU'):'—',
@@ -281,6 +281,7 @@ async function loadTab(){const c=document.getElementById('content');try{
       (x.note||'—').replace(/^Списание:\s*/,'')
    ]))+'</div>'+
    '<div class="card" style="margin-top:12px"><b>Последние движения</b>'+table(['Дата','Тип','Количество','Комментарий'],moves.slice(0,5).map(x=>[x.movement_at||'—',x.movement_type,x.quantity,x.note||'—']))+'</div>';
+   document.getElementById('agentTransferTile').onclick=()=>openAgentTransfer();
    document.getElementById('warehouseWriteoffTile').onclick=()=>openWriteOff();
    document.getElementById('inventoryCountTile').onclick=()=>openInventoryCount();
    document.getElementById('openWriteoffLog').onclick=()=>openWriteoffLog();
@@ -578,7 +579,6 @@ async function openInvoiceForm(withRecargo=false,editId=null){
      try{
        let invId=editId;
        if(editId){
-         await req('/rest/v1/acc_stock_movements?reference_id=eq.'+encodeURIComponent(editId),{method:'DELETE'});
          await req('/rest/v1/acc_invoice_items?invoice_id=eq.'+encodeURIComponent(editId),{method:'DELETE'});
          await req('/rest/v1/acc_invoices?id=eq.'+encodeURIComponent(editId),{
            method:'PATCH',
@@ -611,15 +611,6 @@ async function openInvoiceForm(withRecargo=false,editId=null){
            quantity:i.quantity,unit_price:i.unit_price,vat_rate:pack.totals.vr,excise_per_unit:0,
            line_subtotal:i.subtotal,line_vat:i.subtotal*pack.totals.vr/100,line_excise:0,
            line_total:i.subtotal*(1+pack.totals.vr/100)
-         })))
-       });
-
-       await req('/rest/v1/acc_stock_movements',{
-         method:'POST',
-         body:JSON.stringify(pack.items.map(i=>({
-           company_id:company.id,product_id:i.product_id,warehouse_id:mainWarehouse.id,
-           movement_type:'out',quantity:i.quantity,reference_type:'invoice',reference_id:invId,
-           note:'Продажа по счёту '+pack.number,movement_at:pack.date+'T12:00:00+00:00',created_by:user.id
          })))
        });
 
@@ -715,9 +706,8 @@ async function markInvoiceBankPaid(id,number){
 
 async function deleteInvoice(id,number){
  const label=number||'без номера';
- if(!confirm('Удалить фактуру '+label+'?\n\nБудут удалены позиции счёта, связанная оплата и складские списания. Товар вернётся в остаток.'))return;
+ if(!confirm('Удалить фактуру '+label+'?\n\nБудут удалены позиции счёта и связанная оплата. Остаток главного склада не изменится.'))return;
  try{
-   await req('/rest/v1/acc_stock_movements?reference_id=eq.'+encodeURIComponent(id),{method:'DELETE'});
    await req('/rest/v1/acc_payments?invoice_id=eq.'+encodeURIComponent(id),{method:'DELETE'});
    await req('/rest/v1/acc_invoice_items?invoice_id=eq.'+encodeURIComponent(id),{method:'DELETE'});
    await req('/rest/v1/acc_invoices?id=eq.'+encodeURIComponent(id),{method:'DELETE'});
@@ -1172,7 +1162,66 @@ function createWarehouse(){
 }
 
 
-function openStaffAccess(){alert('Доступ к бухгалтерии и складу: Роман (roman@pgnord.eu) и Катерина (katerina@pgnord.eu). Другие сотрудники доступа не имеют.');}
+function openStaffAccess(){alert('Бухгалтерия отделена от CRM. Передачу товара с главного склада агенту проводит Катерина. Продажи агентов и Factura главный склад не уменьшают.');}
+async function openAgentTransfer(){
+ try{
+   if(user.id!=='abdc2bea-ca10-44bc-ba47-fee7e280dcbe')return alert('Передачу товара агентам с главного склада проводит Катерина.');
+   const [products,warehouses,moves,agents]=await Promise.all([
+     req('/rest/v1/acc_products?select=id,crm_product_id,sku,name,flavor&company_id=eq.'+company.id+'&active=eq.true&order=flavor'),
+     req('/rest/v1/acc_warehouses?select=id,name,type&company_id=eq.'+company.id+'&order=name'),
+     req('/rest/v1/acc_stock_movements?select=product_id,warehouse_id,movement_type,quantity&company_id=eq.'+company.id),
+     req('/rest/v1/profiles?select=id,full_name,email,role,active,status&active=eq.true&order=full_name')
+   ]);
+   const mainWarehouse=warehouses.find(w=>w.type==='main')||warehouses[0];
+   if(!mainWarehouse)return alert('Главный склад не найден.');
+   const linkedProducts=products.filter(p=>p.crm_product_id);
+   const activeAgents=(agents||[]).filter(a=>a.id!==user.id&&a.active!==false&&(a.status||'active')==='active');
+   if(!linkedProducts.length)return alert('Нет товаров, связанных с CRM.');
+   if(!activeAgents.length)return alert('Нет активных агентов.');
+
+   const balances={};
+   moves.forEach(m=>{
+     if(m.warehouse_id!==mainWarehouse.id)return;
+     const sign=(m.movement_type==='out'||m.movement_type==='transfer_out')?-1:1;
+     balances[m.product_id]=(balances[m.product_id]||0)+sign*Number(m.quantity||0);
+   });
+
+   const d=document.createElement('div');d.className='inv-modal';
+   d.innerHTML='<div class="inv-panel" style="max-width:720px"><div class="top"><div><h2 style="margin:0">Передать товар агенту</h2><div class="muted">После сохранения уменьшается главный склад и увеличивается остаток выбранного агента.</div></div><button id="atClose" class="btn">×</button></div>'+
+   '<div class="field"><label>Агент</label><select id="atAgent">'+activeAgents.map(a=>'<option value="'+a.id+'">'+esc(a.full_name||a.email||a.id)+'</option>').join('')+'</select></div>'+
+   '<div class="field"><label>Товар</label><select id="atProduct">'+linkedProducts.map(p=>'<option value="'+p.id+'">'+esc((p.flavor||p.name||'').replace(/^Classic\\s+/i,''))+(p.sku?' — '+esc(p.sku):'')+'</option>').join('')+'</select></div>'+
+   '<div id="atBalance" class="muted" style="margin:6px 0 10px"></div>'+
+   '<div class="field"><label>Количество банок</label><input id="atQty" type="number" min="1" step="1" value="1"></div>'+
+   '<div class="field"><label>Комментарий</label><input id="atComment" placeholder="Передача агенту"></div>'+
+   '<div class="invoice-actions" style="justify-content:flex-end"><button id="atSave" class="btn invoice-btn">Передать агенту</button></div></div>';
+   document.body.appendChild(d);
+
+   const psel=d.querySelector('#atProduct'),bal=d.querySelector('#atBalance'),qty=d.querySelector('#atQty');
+   const refresh=()=>{const available=Number(balances[psel.value]||0);bal.textContent='Доступно на главном складе: '+available+' банок';qty.max=String(Math.max(0,available));};
+   psel.onchange=refresh;refresh();
+   d.querySelector('#atClose').onclick=()=>d.remove();
+   d.querySelector('#atSave').onclick=async()=>{
+     const q=Number(qty.value||0),available=Number(balances[psel.value]||0);
+     if(q<=0)return alert('Введите количество.');
+     if(q>available)return alert('Недостаточно товара. Остаток: '+available+' банок.');
+     try{
+       await req('/rest/v1/rpc/accounting_transfer_stock_to_agent',{
+         method:'POST',
+         body:JSON.stringify({
+           p_agent_id:d.querySelector('#atAgent').value,
+           p_acc_product_id:psel.value,
+           p_qty:q,
+           p_comment:d.querySelector('#atComment').value.trim()
+         })
+       });
+       d.remove();
+       alert('Передача сохранена: '+q+' банок.');
+       await loadTab();
+     }catch(e){alert('Не удалось передать товар агенту: '+e.message)}
+   };
+ }catch(e){alert('Не удалось открыть передачу агенту: '+e.message)}
+}
+
 async function openWriteoffLog(){
  try{
    const [products,moves]=await Promise.all([
