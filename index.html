@@ -224,8 +224,6 @@ tr:hover td{background:#fbfdff}
       <button data-page="map">Карта</button>
       <button data-page="visit-route">К посещению</button>
       <button data-page="shops">Магазины</button>
-      <button data-page="orders">Заказы</button>
-      <button data-page="tasks">Задачи</button>
       <button data-page="stock">Склад</button>
       <button data-page="products">Товары</button>
       <button data-page="catalog">Каталог / QR</button>
@@ -244,28 +242,25 @@ tr:hover td{background:#fbfdff}
           <img class="garant-hero-logo" src="/assets/garant-logo-exact.svg?v=5" alt="GARANT">
           <div class="garant-hero-kicker">GARANT · SALES CRM</div>
           <div class="garant-hero-title">Система управления продажами</div>
-          <div class="garant-hero-subtitle">Магазины, агенты, сделки, визиты, заказы и склад — в одной рабочей системе GARANT.</div>
+          <div class="garant-hero-subtitle">Магазины, агенты, сделки, визиты и склад — в одной рабочей системе GARANT.</div>
         </div>
       </div>
       <div class="grid4">
         <div class="card stat"><strong id="dShops">0</strong><span>Всего магазинов</span></div>
         <div class="card stat"><strong id="dClients">0</strong><span>Активные клиенты</span></div>
-        <div class="card stat"><strong id="dOrders">0</strong><span>Заказы</span></div>
         <div class="card stat"><strong id="dSales">0 €</strong><span>Оплаченные продажи</span></div>
       </div>
       <div class="grid3" style="margin-top:10px">
-        <div class="card"><h3>Сегодня</h3><p>Визитов: <b id="dVisits">0</b></p><p>Новых точек: <b id="dNewShops">0</b></p><p>Нужен повторный визит: <b id="dFollowups">0</b></p><p>Просроченных задач: <b id="dOverdue">0</b></p></div>
-        <div class="card"><h3>Продажи</h3><p>Открытых сделок: <b id="dOpenDeals">0</b></p><p>Сумма в работе: <b id="dPipelineValue">0 €</b></p><p>Заказов: <b id="dOrders2">0</b></p></div>
+        <div class="card"><h3>Сегодня</h3><p>Визитов: <b id="dVisits">0</b></p><p>Новых точек: <b id="dNewShops">0</b></p><p>Нужен повторный визит: <b id="dFollowups">0</b></p></div>
+        <div class="card"><h3>Продажи</h3><p>Открытых сделок: <b id="dOpenDeals">0</b></p><p>Сумма в работе: <b id="dPipelineValue">0 €</b></p></div>
         <div class="card"><h3>Склад</h3><p>SKU: <b id="dSku">0</b></p><p>Доступно единиц: <b id="dAvailable">0</b></p><p>Низкий остаток: <b id="dLow">0</b></p></div>
       </div>
       <div class="card" style="margin-top:10px">
         <h3>Рабочий процесс GARANT</h3>
-        <p class="muted">Новая точка → Сделка → Визит / образцы → Заказ → Оплата → Активный клиент</p>
+        <p class="muted">Новая точка → Сделка → Визит / образцы → Оплата → Активный клиент</p>
         <div class="actions">
           <button class="primary" onclick="openNewShop()">+ Магазин</button>
           <button class="light" onclick="showPage('deals');openDeal()">+ Сделка</button>
-          <button class="light" onclick="showPage('orders');openNewOrder()">+ Заказ</button>
-          <button class="light" onclick="showPage('tasks');openTask()">+ Задача</button>
         </div>
       </div>
     </section>
@@ -1142,12 +1137,12 @@ function fillSelects(){
 }
 
 function renderDashboard(){
- $('dShops').textContent=shops.length;$('dClients').textContent=shops.filter(s=>s.status==='Клиент Garant').length;$('dOrders').textContent=orders.length;
+ $('dShops').textContent=shops.length;$('dClients').textContent=shops.filter(s=>s.status==='Клиент Garant').length;
  $('dSales').textContent=money(orders.filter(o=>o.payment_status==='paid'||o.status==='paid').reduce((a,o)=>a+Number(o.total||0),0));
  const today=new Date().toDateString();$('dVisits').textContent=visits.filter(v=>new Date(v.created_at).toDateString()===today).length;$('dNewShops').textContent=shops.filter(s=>new Date(s.created_at).toDateString()===today).length;
  if($('dFollowups'))$('dFollowups').textContent=shops.filter(isShopFollowupDue).length;
- $('dOverdue').textContent=tasks.filter(t=>t.status==='planned'&&t.due_at&&new Date(t.due_at)<new Date()).length;
- const openDeals=deals.filter(d=>d.status==='open');$('dOpenDeals').textContent=openDeals.length;$('dPipelineValue').textContent=money(openDeals.reduce((a,d)=>a+Number(d.value||0),0));$('dOrders2').textContent=orders.length;
+ 
+ const openDeals=deals.filter(d=>d.status==='open');$('dOpenDeals').textContent=openDeals.length;$('dPipelineValue').textContent=money(openDeals.reduce((a,d)=>a+Number(d.value||0),0));
  $('dSku').textContent=realStockProducts.length;const mainWh=realStockWarehouses.find(w=>w.type==='main')||realStockWarehouses[0],realSums={};realStockMovements.forEach(m=>{if(mainWh&&m.warehouse_id!==mainWh.id)return;const sign=(m.movement_type==='out'||m.movement_type==='transfer_out')?-1:1;realSums[m.product_id]=(realSums[m.product_id]||0)+sign*Number(m.quantity||0)});const av=Object.values(realSums).reduce((a,n)=>a+Number(n||0),0);$('dAvailable').textContent=av;$('dLow').textContent='—';
 }
 
