@@ -839,7 +839,14 @@ tr:hover td{background:#fbfdff}
 let createClient;
 try{({createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/+esm'))}
 catch(e){({createClient}=await import('https://esm.sh/@supabase/supabase-js@2.57.0'))}
-const URL='https://bxibrptyonhxcdnizacp.supabase.co', KEY=['sb_publishable_0bGaJhD7GxVh_','UqaPAUFmA_PhR3ISMP'].join(''), db=createClient(URL,KEY);
+const URL='https://bxibrptyonhxcdnizacp.supabase.co', KEY=['sb_publishable_0bGaJhD7GxVh_','UqaPAUFmA_PhR3ISMP'].join(''), db=createClient(URL,KEY,{
+  auth:{
+    persistSession:true,
+    autoRefreshToken:true,
+    detectSessionInUrl:true,
+    storage:window.localStorage
+  }
+});
 const GOOGLE_MAPS_API_KEY=['AIzaSyDweX1gX7EiC7','NHt5f2UC77taYTfzvA8Ro'].join('');
 let googleMapsPromise=null;
 function loadGoogleMaps(){
@@ -968,24 +975,72 @@ window.saveNewPassword=async()=>{
   }
 };
 $('changePasswordBtn').onclick=()=>openPasswordModal(false);
+let bootInProgress=false,lastSilentRefresh=0;
 db.auth.onAuthStateChange((event,session)=>{
+  if(session?.user)user=session.user;
   if(event==='PASSWORD_RECOVERY'&&session){
     setTimeout(()=>openPasswordModal(true),150);
   }
+  if(event==='SIGNED_OUT'){
+    user=null;profile=null;
+    $('mainApp')?.classList.add('hidden');
+    $('auth')?.classList.remove('hidden');
+    if($('authMsg'))$('authMsg').textContent='Сессия завершена. Войдите снова.';
+  }
 });
 
+async function ensureSession(){
+  try{
+    let {data,error}=await db.auth.getSession();
+    if(error)throw error;
+    if(data?.session)return data.session;
+    const refreshed=await db.auth.refreshSession();
+    if(refreshed.error)throw refreshed.error;
+    return refreshed.data?.session||null;
+  }catch(e){
+    console.warn('Session check failed',e);
+    return null;
+  }
+}
+
 async function boot(){
- const u=await db.auth.getUser();user=u.data.user;if(!user)return;
- const p=await db.from('profiles').select('*').eq('id',user.id).single();
- if(p.error||!p.data?.active){await db.auth.signOut();$('authMsg').textContent='Учётная запись не активирована';return}
- $('accountingTab').classList.toggle('hidden',!canViewAccounting());if(user?.id===ROMAN_S_USER_ID)$('accountingTab').textContent='Albaranes';if(user?.id===ROMAN_S_USER_ID)$('accountingTab').textContent='Albaranes';
- profile=p.data;$('who').textContent=(profile.full_name||'Сотрудник')+' · '+(isManager()?'Руководитель':'Агент');
- $('auth').classList.add('hidden');$('mainApp').classList.remove('hidden');
- if(!isManager()){['addProductBtn','addWarehouseBtn','adjustStockBtn'].forEach(id=>$(id)?.classList.add('hidden'))}
- if(canViewJointExpenses())$('jointExpensesTab')?.classList.remove('hidden');
- if(isOwner())$('addEmployeeBtn')?.classList.remove('hidden');
- if(new URLSearchParams(location.search).get('section')==='accounting'&&canViewAccounting()){location.replace('/accounting.html');return}
- await refreshAll();showPage('dashboard');
+ if(bootInProgress)return;
+ bootInProgress=true;
+ try{
+   const session=await ensureSession();
+   if(!session){
+     $('mainApp')?.classList.add('hidden');
+     $('auth')?.classList.remove('hidden');
+     if($('authMsg'))$('authMsg').textContent='Войдите в GARANT.';
+     return;
+   }
+   user=session.user;
+   const p=await db.from('profiles').select('*').eq('id',user.id).maybeSingle();
+   if(p.error){
+     console.warn('Profile load failed',p.error);
+     if($('authMsg'))$('authMsg').textContent='Связь временно нестабильна. Повторяем подключение…';
+     // Do not sign the user out on a transient network/API error.
+     return;
+   }
+   if(!p.data||p.data.active===false){
+     await db.auth.signOut();
+     if($('authMsg'))$('authMsg').textContent='Учётная запись не активирована';
+     return;
+   }
+   $('accountingTab').classList.toggle('hidden',!canViewAccounting());
+   if(user?.id===ROMAN_S_USER_ID)$('accountingTab').textContent='Albaranes';
+   profile=p.data;
+   $('who').textContent=(profile.full_name||'Сотрудник')+' · '+(isManager()?'Руководитель':'Агент');
+   $('auth').classList.add('hidden');$('mainApp').classList.remove('hidden');
+   if(!isManager()){['addProductBtn','addWarehouseBtn','adjustStockBtn'].forEach(id=>$(id)?.classList.add('hidden'))}
+   if(canViewJointExpenses())$('jointExpensesTab')?.classList.remove('hidden');
+   if(isOwner())$('addEmployeeBtn')?.classList.remove('hidden');
+   if(new URLSearchParams(location.search).get('section')==='accounting'&&canViewAccounting()){location.replace('/accounting.html');return}
+   await refreshAll();
+   if(!document.querySelector('.page:not(.hidden)'))showPage('dashboard');
+ }finally{
+   bootInProgress=false;
+ }
 }
 
 async function refreshAll(){
@@ -1017,6 +1072,39 @@ async function refreshAll(){
  shops=safeData(r[0],'shops');visits=safeData(r[1],'visits');profiles=safeData(r[2],'profiles');products=safeData(r[3],'products');warehouses=safeData(r[4],'warehouses');balances=safeData(r[5],'inventory_balances');movements=safeData(r[6],'inventory_movements');agentStockBalances=safeData(r[7],'agent_stock_balances');agentStockMovements=safeData(r[8],'agent_stock_movements');orders=safeData(r[9],'sales_orders');orderItems=safeData(r[10],'sales_order_items');tasks=safeData(r[11],'tasks');bonusRules=safeData(r[12],'bonus_rules');employeeDocuments=safeData(r[13],'employee_documents');dealStages=safeData(r[14],'pipeline_stages');deals=safeData(r[15],'deals');jointExpenses=safeData(r[16],'joint_expenses');realStockProducts=safeData(r[17],'acc_products');realStockWarehouses=safeData(r[18],'acc_warehouses');realStockMovements=safeData(r[19],'acc_stock_movements');
  renderAll();
 }
+
+async function silentAppRefresh(force=false){
+ if(document.hidden||bootInProgress)return;
+ if(document.querySelector('.modal.open'))return;
+ const now=Date.now();
+ if(!force&&now-lastSilentRefresh<45000)return;
+ lastSilentRefresh=now;
+ try{
+   const session=await ensureSession();
+   if(!session)return;
+   user=session.user;
+   await refreshAll();
+ }catch(e){
+   console.warn('Silent refresh failed',e);
+ }
+}
+
+document.addEventListener('visibilitychange',async()=>{
+ if(document.visibilityState!=='visible')return;
+ try{
+   const {data}=await db.auth.getSession();
+   const exp=(data?.session?.expires_at||0)*1000;
+   if(data?.session && exp-Date.now()<5*60*1000){
+     const refreshed=await db.auth.refreshSession();
+     if(refreshed.data?.session)user=refreshed.data.session.user;
+   }
+ }catch(e){console.warn('Session wake refresh failed',e)}
+ await silentAppRefresh(true);
+});
+
+window.addEventListener('focus',()=>silentAppRefresh(false));
+window.addEventListener('online',()=>silentAppRefresh(true));
+setInterval(()=>silentAppRefresh(false),60000);
 
 const CATALOG_URL='https://garantkartaprodazhcloud.vercel.app/catalogo.html';
 const CATALOG_QR_PNG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeoAAAHqAQAAAADjFjCXAAAEUklEQVR4nO2dTY7jOAxGH0cGspSBOkCOIt+gjzToI/UNrKPUAQqwlwFksBeibCdAb2IPujIhFy7n50EOQEjkR1ElygHL/xyhwXHHHXfccccdd9zxc3Ex6xCRDrJ0yDBvdyJkEZFhbl8dzhvd8XfDu/onjQDzB8rcixK/RHMfkDR9oPlaOiF+dcocCgByyuiOvyeOqqqSJiBNQetLYoGkBSCoqhZUp6CqU1AgKElVdXzp3+74d8HrCpsmIMtFSdMiIn34g8DyvR7e8RfFVesMByS9Cbk63CIQb/Jfj+74e+FRVUcAZhGYLza5JS3oOHfAbDHgzjG/ycM7/pp4FhGRHmRgXU3ni8LcIf9OQWUgqAwsNYU9dXTH3wyv89cWtSnzIsAimnuE3Afq4pp7BOJ9gPfSv93xv4XXHHafm94nssRSl1Qdo6qtxFE9h3X8BDzeRMd4kxrc5X4R1c/OQrrcB5UBIH3uI7zv8vCOvxh+r9dRpzTVCeq8Vme9dRIcYzFdxec6x5+3tsJCdakqC0/mf5bDRn1cf6u51zn+lNlcpwUdN4cDK1WM2zej6SUe1zl+Th0WgkpSEGLpJE19fVcANA9A+nVRgVCApWEv/dsd/7u4jrOI/hQRyxeAmr5a5logXwu1QDZ4NuH4MbMALe6XWdNLJmrNnzSFKprUhMPjOsfPwGVgEf0pa83r86Kml1Q1xZTj+nHuF99f5/gRs0kLk0VML27yyU5DqdPhZBufPJtw/IC1xbI5XGpOCK0iu/vAFlzc6xw/Yq36pesctl6ah+nIquatGYZ7nePP26bXYQLxVofQNa9o2YRtLfZswvFD1ipioe1bn9b5j7v0FY/rHD8ZjzepVf18VSWLtMw13mwfQN0MALhe5/iJcZ2VW/d5bdtkHPYZRtKCr7COHzCL0FoDmO0q0W1rSVkdc2sZ87jO8RPwfL2JyLX5VW2UiKpVOc49kD4v62YAV4kdP2I1QpM0LZB+dUWgK1svmEAokj67onUvOwBzf9Lojr8nvt9zQryJ9f4DkvsJrecBcBMlTvUoAIjqvf+On4FvddjWI5YmK9CS5aJ212ML7rmjO/5WuPWIZQFJCuQBAUJR5o/SDjZZRPOPoOTh1NEdf098rU2s5X4tbC0TOw1lax5LrhI7fsyaX1ml1S532txWL2NVTtzrHD9grSKGCXRWFrOWCa2bUbSsvTz2FdfrHD9gem+k9bKrvm6OeXfnXuf4U2Z6nb0KRXP/1SksHWlcOpi7AvNHgVi6/d0Zozv+nvjjWZ1CBPIQVEwMXqTqdVmCytaeeMrojr8n/nhW5+5ut91uW3CBdpKnr7COP2ndw2vNV0Xy9SbK/GHv7T6PE1ILGWeM7vh74o9eJ8TqZrVABgSs93ruyj7WO2N0x98Tv1eJt0PE2v7i/bE7dweLuXLi+PNmblattSeu2txDo86+l8e9zvFnTfy/1znuuOOOO+64447/L/Df0lfbfJyi/hIAAAAASUVORK5CYII=';
@@ -3415,7 +3503,14 @@ function inPeriod(d){if(!d)return false;const x=new Date(d),f=$('reportFrom').va
 window.renderReports=()=>{const oo=orders.filter(o=>inPeriod(o.created_at)),vv=visits.filter(v=>inPeriod(v.created_at)),ss=shops.filter(s=>inPeriod(s.created_at)),paid=oo.filter(o=>o.payment_status==='paid'||o.status==='paid'),sum=paid.reduce((a,o)=>a+Number(o.total||0),0);$('rPaid').textContent=money(sum);$('rOrders').textContent=oo.length;$('rNewShops').textContent=ss.length;$('rActiveShops').textContent=shops.filter(s=>s.status==='Клиент Garant').length;$('rVisits').textContent=vv.length;$('rAvg').textContent=money(oo.length?oo.reduce((a,o)=>a+Number(o.total||0),0)/oo.length:0)};
 window.exportReportCSV=()=>{const rows=[['Дата','Магазин','Агент','Статус','Оплата','Сумма'],...orders.filter(o=>inPeriod(o.created_at)).map(o=>[o.created_at,shops.find(s=>s.id===o.shop_id)?.name||'',profiles.find(p=>p.id===o.agent_id)?.full_name||'',o.status,o.payment_status,o.total])];const csv='\ufeff'+rows.map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(';')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='GARANT_report.csv';a.click();URL.revokeObjectURL(a.href)};
 
-try{await boot()}catch(e){$('authMsg').textContent='Ошибка запуска: '+e.message}
+try{
+  await boot();
+  setTimeout(()=>{if(user&&!profile)boot().catch(()=>{})},2500);
+}catch(e){
+  console.warn('Boot failed',e);
+  $('authMsg').textContent='Ошибка связи. Приложение попробует подключиться снова.';
+  setTimeout(()=>boot().catch(()=>{}),2500);
+}
 </script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 </body></html>
