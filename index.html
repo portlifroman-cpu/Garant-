@@ -3173,8 +3173,7 @@ window.renameAgentStockProduct=async(productId)=>{
  try{
    const {error}=await db.from('products').update({
      name,
-     flavor,
-     updated_at:new Date().toISOString()
+     flavor
    }).eq('id',productId);
    if(error)throw error;
    p.name=name;p.flavor=flavor;
