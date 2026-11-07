@@ -3129,7 +3129,7 @@ function renderSelectedAgentStock(){
      }).join('')}</tbody></table></div>`
    : '<p class="muted">Движений пока нет.</p>';
 
- const canIssue=isManager();
+ const canIssue=profile?.role==='manager';
  $('agentIssueBox').classList.toggle('hidden',!canIssue);
  if(canIssue){
    const mainWh=realStockWarehouses.find(w=>w.type==='main')||realStockWarehouses[0];
@@ -3161,7 +3161,7 @@ function renderSelectedAgentStock(){
 }
 
 window.issueStockToSelectedAgent=async()=>{
- if(!selectedEmployee||!isManager())return;
+ if(!selectedEmployee||profile?.role!=='manager')return;
  const product_id=$('agentIssueProduct').value;
  const quantity=Math.floor(Number($('agentIssueQty').value||0));
  const opt=$('agentIssueProduct').selectedOptions[0];
