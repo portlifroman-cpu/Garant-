@@ -685,7 +685,7 @@ tr:hover td{background:#fbfdff}
   <div class="head"><div><h2 id="ecName">Сотрудник</h2><div id="ecMeta" class="muted"></div></div><button class="close">×</button></div>
   <div id="ecInfo"></div>
   <div class="card" style="margin:10px 0">
-    <h3 style="margin-top:0">Товар у агента</h3>
+    <h3 style="margin-top:0">Текущий товар у агента</h3>
     <div id="agentStockTable"></div>
     <div id="agentIssueBox" class="hidden" style="margin-top:12px">
       <h4>Выдать товар со склада</h4>
@@ -3102,6 +3102,7 @@ function renderSelectedAgentStock(){
    const current=Number(agentStockBalances.find(b=>b.agent_id===agentId&&b.product_id===pid)?.quantity||0);
    return {pid,p,issued,placed,returned,current};
  }).sort((a,b)=>(a.p?.name||'').localeCompare(b.p?.name||'','ru'));
+ const currentProductStats=productStats.filter(x=>x.current>0);
 
  $('agentStockTable').innerHTML=
    '<div class="grid3" style="margin-bottom:12px">'+
@@ -3111,11 +3112,11 @@ function renderSelectedAgentStock(){
    '</div>'+
    (totalReturned?'<div class="muted" style="margin:0 0 10px">Возвращено на склад: <b>'+totalReturned+' шт.</b></div>':'')+
    (totalAdjustment?'<div class="muted" style="margin:0 0 10px">Есть корректировки: <b>'+totalAdjustment+' шт.</b></div>':'')+
-   (productStats.length
-     ? '<div class="tablewrap"><table><thead><tr><th>Вкус / товар</th><th>Выдано</th><th>В магазины</th><th>Возврат</th><th>Остаток у агента</th><th></th></tr></thead><tbody>'+
-       productStats.map(x=>'<tr><td><b>'+esc(x.p?.name||'—')+'</b><div class="muted">'+esc(x.p?.flavor||'')+'</div></td><td>'+x.issued+'</td><td>'+x.placed+'</td><td>'+x.returned+'</td><td><b>'+x.current+'</b></td><td>'+(profile?.role==='manager'&&x.current>0?'<div class="actions"><button class="light" onclick="editAgentStockItem(\''+x.pid+'\','+x.current+')">Изменить</button><button class="danger" onclick="deleteAgentStockItem(\''+x.pid+'\','+x.current+')">Удалить</button></div>':'')+'</td></tr>').join('')+
+   (currentProductStats.length
+     ? '<div class="tablewrap"><table><thead><tr><th>Вкус / товар</th><th>Остаток у агента</th><th></th></tr></thead><tbody>'+
+       currentProductStats.map(x=>'<tr><td><b>'+esc(x.p?.name||'—')+'</b><div class="muted">'+esc(x.p?.flavor||'')+'</div></td><td><b>'+x.current+' шт.</b></td><td>'+(profile?.role==='manager'?'<div class="actions"><button class="light" onclick="editAgentStockItem(\''+x.pid+'\','+x.current+')">Изменить</button><button class="danger" onclick="deleteAgentStockItem(\''+x.pid+'\','+x.current+')">Удалить</button></div>':'')+'</td></tr>').join('')+
        '</tbody></table></div>'
-     : '<p class="muted">Движений товара у агента пока нет.</p>');
+     : '<p class="muted"><b>Сейчас товара у агента нет.</b></p>');
 
  const history=movements.slice(0,50);
  $('agentStockHistory').innerHTML=history.length
