@@ -977,7 +977,10 @@ window.saveNewPassword=async()=>{
 $('changePasswordBtn').onclick=()=>openPasswordModal(false);
 let bootInProgress=false,lastSilentRefresh=0;
 db.auth.onAuthStateChange((event,session)=>{
-  if(session?.user)user=session.user;
+  if(session?.user){
+    user=session.user;
+    if(session.access_token)db.realtime.setAuth(session.access_token);
+  }
   if(event==='PASSWORD_RECOVERY'&&session){
     setTimeout(()=>openPasswordModal(true),150);
   }
@@ -1037,6 +1040,7 @@ async function boot(){
    if(isOwner())$('addEmployeeBtn')?.classList.remove('hidden');
    if(new URLSearchParams(location.search).get('section')==='accounting'&&canViewAccounting()){location.replace('/accounting.html');return}
    await refreshAll();
+   startRealtimeSync();
    if(!document.querySelector('.page:not(.hidden)'))showPage('dashboard');
  }finally{
    bootInProgress=false;
@@ -1105,6 +1109,37 @@ document.addEventListener('visibilitychange',async()=>{
 window.addEventListener('focus',()=>silentAppRefresh(false));
 window.addEventListener('online',()=>silentAppRefresh(true));
 setInterval(()=>silentAppRefresh(false),60000);
+let realtimeChannel=null,realtimeRefreshTimer=null;
+function scheduleRealtimeRefresh(){
+  clearTimeout(realtimeRefreshTimer);
+  realtimeRefreshTimer=setTimeout(async()=>{
+    if(!user)return;
+    try{
+      await refreshAll();
+      if(selectedEmployee&&document.getElementById('employeeCardModal')?.classList.contains('open')){
+        const fresh=profiles.find(p=>p.id===selectedEmployee.id);
+        if(fresh){selectedEmployee=fresh;renderSelectedAgentStock()}
+      }
+      if(selectedShop&&document.getElementById('shopModal')?.classList.contains('open')){
+        const freshShop=shops.find(s=>s.id===selectedShop.id);
+        if(freshShop)openShop(freshShop);
+      }
+    }catch(e){console.warn('Realtime refresh failed',e)}
+  },350);
+}
+
+function startRealtimeSync(){
+  if(realtimeChannel)return;
+  realtimeChannel=db
+    .channel('garant-live-sync')
+    .on('postgres_changes',{event:'*',schema:'public'},()=>scheduleRealtimeRefresh())
+    .subscribe(status=>{
+      if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
+        console.warn('Realtime channel status',status);
+      }
+    });
+}
+
 
 const CATALOG_URL='https://garantkartaprodazhcloud.vercel.app/catalogo.html';
 const CATALOG_QR_PNG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeoAAAHqAQAAAADjFjCXAAAEUklEQVR4nO2dTY7jOAxGH0cGspSBOkCOIt+gjzToI/UNrKPUAQqwlwFksBeibCdAb2IPujIhFy7n50EOQEjkR1ElygHL/xyhwXHHHXfccccdd9zxc3Ex6xCRDrJ0yDBvdyJkEZFhbl8dzhvd8XfDu/onjQDzB8rcixK/RHMfkDR9oPlaOiF+dcocCgByyuiOvyeOqqqSJiBNQetLYoGkBSCoqhZUp6CqU1AgKElVdXzp3+74d8HrCpsmIMtFSdMiIn34g8DyvR7e8RfFVesMByS9Cbk63CIQb/Jfj+74e+FRVUcAZhGYLza5JS3oOHfAbDHgzjG/ycM7/pp4FhGRHmRgXU3ni8LcIf9OQWUgqAwsNYU9dXTH3wyv89cWtSnzIsAimnuE3Afq4pp7BOJ9gPfSv93xv4XXHHafm94nssRSl1Qdo6qtxFE9h3X8BDzeRMd4kxrc5X4R1c/OQrrcB5UBIH3uI7zv8vCOvxh+r9dRpzTVCeq8Vme9dRIcYzFdxec6x5+3tsJCdakqC0/mf5bDRn1cf6u51zn+lNlcpwUdN4cDK1WM2zej6SUe1zl+Th0WgkpSEGLpJE19fVcANA9A+nVRgVCApWEv/dsd/7u4jrOI/hQRyxeAmr5a5logXwu1QDZ4NuH4MbMALe6XWdNLJmrNnzSFKprUhMPjOsfPwGVgEf0pa83r86Kml1Q1xZTj+nHuF99f5/gRs0kLk0VML27yyU5DqdPhZBufPJtw/IC1xbI5XGpOCK0iu/vAFlzc6xw/Yq36pesctl6ah+nIquatGYZ7nePP26bXYQLxVofQNa9o2YRtLfZswvFD1ipioe1bn9b5j7v0FY/rHD8ZjzepVf18VSWLtMw13mwfQN0MALhe5/iJcZ2VW/d5bdtkHPYZRtKCr7COHzCL0FoDmO0q0W1rSVkdc2sZ87jO8RPwfL2JyLX5VW2UiKpVOc49kD4v62YAV4kdP2I1QpM0LZB+dUWgK1svmEAokj67onUvOwBzf9Lojr8nvt9zQryJ9f4DkvsJrecBcBMlTvUoAIjqvf+On4FvddjWI5YmK9CS5aJ212ML7rmjO/5WuPWIZQFJCuQBAUJR5o/SDjZZRPOPoOTh1NEdf098rU2s5X4tbC0TOw1lax5LrhI7fsyaX1ml1S532txWL2NVTtzrHD9grSKGCXRWFrOWCa2bUbSsvTz2FdfrHD9gem+k9bKrvm6OeXfnXuf4U2Z6nb0KRXP/1SksHWlcOpi7AvNHgVi6/d0Zozv+nvjjWZ1CBPIQVEwMXqTqdVmCytaeeMrojr8n/nhW5+5ut91uW3CBdpKnr7COP2ndw2vNV0Xy9SbK/GHv7T6PE1ILGWeM7vh74o9eJ8TqZrVABgSs93ruyj7WO2N0x98Tv1eJt0PE2v7i/bE7dweLuXLi+PNmblattSeu2txDo86+l8e9zvFnTfy/1znuuOOOO+64447/L/Df0lfbfJyi/hIAAAAASUVORK5CYII=';
