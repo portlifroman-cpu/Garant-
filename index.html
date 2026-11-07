@@ -3112,8 +3112,8 @@ function renderSelectedAgentStock(){
    (totalReturned?'<div class="muted" style="margin:0 0 10px">Возвращено на склад: <b>'+totalReturned+' шт.</b></div>':'')+
    (totalAdjustment?'<div class="muted" style="margin:0 0 10px">Есть корректировки: <b>'+totalAdjustment+' шт.</b></div>':'')+
    (productStats.length
-     ? '<div class="tablewrap"><table><thead><tr><th>Вкус / товар</th><th>Выдано</th><th>В магазины</th><th>Возврат</th><th>Остаток у агента</th></tr></thead><tbody>'+
-       productStats.map(x=>'<tr><td><b>'+esc(x.p?.name||'—')+'</b><div class="muted">'+esc(x.p?.flavor||'')+'</div></td><td>'+x.issued+'</td><td>'+x.placed+'</td><td>'+x.returned+'</td><td><b>'+x.current+'</b></td></tr>').join('')+
+     ? '<div class="tablewrap"><table><thead><tr><th>Вкус / товар</th><th>Выдано</th><th>В магазины</th><th>Возврат</th><th>Остаток у агента</th><th></th></tr></thead><tbody>'+
+       productStats.map(x=>'<tr><td><b>'+esc(x.p?.name||'—')+'</b><div class="muted">'+esc(x.p?.flavor||'')+'</div></td><td>'+x.issued+'</td><td>'+x.placed+'</td><td>'+x.returned+'</td><td><b>'+x.current+'</b></td><td>'+(profile?.role==='manager'&&x.current>0?'<div class="actions"><button class="light" onclick="editAgentStockItem(\''+x.pid+'\','+x.current+')">Изменить</button><button class="danger" onclick="deleteAgentStockItem(\''+x.pid+'\','+x.current+')">Удалить</button></div>':'')+'</td></tr>').join('')+
        '</tbody></table></div>'
      : '<p class="muted">Движений товара у агента пока нет.</p>');
 
@@ -3159,6 +3159,51 @@ function renderSelectedAgentStock(){
    refreshIssueLimit();
  }
 }
+
+
+window.editAgentStockItem=async(productId,currentQty)=>{
+ if(profile?.role!=='manager'||!selectedEmployee)return;
+ const p=products.find(x=>x.id===productId);
+ const value=prompt('Новый остаток у агента для «'+(p?.name||'товара')+'»\n\nСейчас: '+currentQty+' шт.\nВведите новый фактический остаток:',String(currentQty));
+ if(value===null)return;
+ const newQty=Math.floor(Number(value));
+ if(!Number.isFinite(newQty)||newQty<0)return toast('Введите количество 0 или больше');
+ if(newQty===currentQty)return toast('Количество не изменилось');
+ const direction=newQty>currentQty?'будет дополнительно выдано со склада':'будет возвращено на общий склад';
+ if(!confirm('Установить остаток агента '+newQty+' шт.?\n\nРазница '+Math.abs(newQty-currentQty)+' шт. '+direction+'.'))return;
+ try{
+   const r=await db.rpc('set_agent_stock_quantity',{
+     p_agent_id:selectedEmployee.id,
+     p_crm_product_id:productId,
+     p_new_qty:newQty,
+     p_comment:'Изменено руководителем из карточки сотрудника'
+   });
+   if(r.error)throw r.error;
+   toast('Остаток агента изменён');
+   await refreshAll();
+   const fresh=profiles.find(p=>p.id===selectedEmployee.id);
+   if(fresh){selectedEmployee=fresh;renderSelectedAgentStock()}
+ }catch(e){toast('Не удалось изменить остаток: '+(e.message||String(e)))}
+};
+
+window.deleteAgentStockItem=async(productId,currentQty)=>{
+ if(profile?.role!=='manager'||!selectedEmployee)return;
+ const p=products.find(x=>x.id===productId);
+ if(!confirm('Удалить «'+(p?.name||'товар')+'» из остатков агента?\n\n'+currentQty+' шт. будут возвращены на общий склад GARANT.'))return;
+ try{
+   const r=await db.rpc('set_agent_stock_quantity',{
+     p_agent_id:selectedEmployee.id,
+     p_crm_product_id:productId,
+     p_new_qty:0,
+     p_comment:'Товар удалён из остатков агента руководителем'
+   });
+   if(r.error)throw r.error;
+   toast('Товар удалён у агента и возвращён на общий склад');
+   await refreshAll();
+   const fresh=profiles.find(p=>p.id===selectedEmployee.id);
+   if(fresh){selectedEmployee=fresh;renderSelectedAgentStock()}
+ }catch(e){toast('Не удалось удалить товар: '+(e.message||String(e)))}
+};
 
 window.issueStockToSelectedAgent=async()=>{
  if(!selectedEmployee||profile?.role!=='manager')return;
