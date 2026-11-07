@@ -1053,12 +1053,14 @@ async function refreshAll(){
   canViewJointExpenses()
     ? db.from('joint_expenses').select('*').order('expense_date',{ascending:false}).order('created_at',{ascending:false}).limit(5000)
     : Promise.resolve({data:[],error:null}),
-  db.from('acc_products').select('id,name,flavor,sku,active,crm_product_id').eq('active',true).order('flavor'),
-  db.from('acc_warehouses').select('id,name,type').order('name'),
-  db.from('acc_stock_movements').select('product_id,warehouse_id,movement_type,quantity,movement_at,reference_type,note').order('movement_at',{ascending:false}).limit(5000)
+  db.rpc('crm_stock_snapshot')
  ];
  const r=await Promise.all(qs.map(q=>q.then(x=>x).catch(e=>({error:e}))));
- shops=safeData(r[0],'shops');visits=safeData(r[1],'visits');profiles=safeData(r[2],'profiles');products=safeData(r[3],'products');warehouses=safeData(r[4],'warehouses');balances=safeData(r[5],'inventory_balances');movements=safeData(r[6],'inventory_movements');agentStockBalances=safeData(r[7],'agent_stock_balances');agentStockMovements=safeData(r[8],'agent_stock_movements');orders=safeData(r[9],'sales_orders');orderItems=safeData(r[10],'sales_order_items');tasks=safeData(r[11],'tasks');bonusRules=safeData(r[12],'bonus_rules');employeeDocuments=safeData(r[13],'employee_documents');dealStages=safeData(r[14],'pipeline_stages');deals=safeData(r[15],'deals');jointExpenses=safeData(r[16],'joint_expenses');realStockProducts=safeData(r[17],'acc_products');realStockWarehouses=safeData(r[18],'acc_warehouses');realStockMovements=safeData(r[19],'acc_stock_movements');
+ shops=safeData(r[0],'shops');visits=safeData(r[1],'visits');profiles=safeData(r[2],'profiles');products=safeData(r[3],'products');warehouses=safeData(r[4],'warehouses');balances=safeData(r[5],'inventory_balances');movements=safeData(r[6],'inventory_movements');agentStockBalances=safeData(r[7],'agent_stock_balances');agentStockMovements=safeData(r[8],'agent_stock_movements');orders=safeData(r[9],'sales_orders');orderItems=safeData(r[10],'sales_order_items');tasks=safeData(r[11],'tasks');bonusRules=safeData(r[12],'bonus_rules');employeeDocuments=safeData(r[13],'employee_documents');dealStages=safeData(r[14],'pipeline_stages');deals=safeData(r[15],'deals');jointExpenses=safeData(r[16],'joint_expenses');
+ const stockSnapshot=safeData(r[17],'crm_stock_snapshot');
+ realStockProducts=stockSnapshot.map(x=>({id:x.product_id,crm_product_id:x.crm_product_id,name:x.name,flavor:x.flavor,sku:x.sku,active:true}));
+ realStockWarehouses=stockSnapshot.length?[{id:stockSnapshot[0].warehouse_id,name:stockSnapshot[0].warehouse_name,type:stockSnapshot[0].warehouse_type}]:[];
+ realStockMovements=stockSnapshot.map(x=>({product_id:x.product_id,warehouse_id:x.warehouse_id,movement_type:'in',quantity:Number(x.balance||0),movement_at:null,reference_type:'balance',note:''}));
  renderAll();
 }
 
@@ -2982,10 +2984,7 @@ function renderStock(){
  '<table><thead><tr><th>Товар</th><th>SKU</th><th>Фактический остаток</th></tr></thead><tbody>'+
  rows.map(x=>'<tr><td><b>'+esc((x.p.flavor||x.p.name||'').replace(/^Classic\\s+/i,''))+'</b></td><td>'+esc(x.p.sku||'')+'</td><td><b>'+x.qty+'</b></td></tr>').join('')+
  '</tbody></table>';
- const recent=realStockMovements.filter(m=>!main||m.warehouse_id===main.id).slice(0,100);
- $('movementsTable').innerHTML='<table><thead><tr><th>Дата</th><th>Товар</th><th>Операция</th><th>Кол-во</th><th>Комментарий</th></tr></thead><tbody>'+
- recent.map(m=>{const p=realStockProducts.find(x=>x.id===m.product_id);return '<tr><td>'+(m.movement_at?new Date(m.movement_at).toLocaleString('ru-RU'):'—')+'</td><td>'+esc((p?.flavor||p?.name||'').replace(/^Classic\\s+/i,''))+'</td><td>'+esc(m.reference_type||m.movement_type)+'</td><td>'+m.quantity+'</td><td>'+esc(m.note||'')+'</td></tr>'}).join('')+
- '</tbody></table>';
+ $('movementsTable').innerHTML='<div class="card"><b>Журнал движений находится в бухгалтерии</b><div class="muted" style="margin-top:6px">В CRM показывается только текущий фактический остаток. Закупочные цены, себестоимость и бухгалтерские движения сотрудникам не передаются.</div></div>';
  if(!isManager()){[$('addWarehouseBtn'),$('adjustStockBtn')].forEach(b=>{if(b)b.classList.add('hidden')})}
 }
 $('stockWarehouse').addEventListener('change',renderStock);$('stockSearch').addEventListener('input',renderStock);
