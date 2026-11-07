@@ -3069,14 +3069,55 @@ window.openEmployeeInviteLink=()=>{
 
 function renderSelectedAgentStock(){
  if(!selectedEmployee)return;
- const rows=agentStockBalances.filter(b=>b.agent_id===selectedEmployee.id&&Number(b.quantity||0)>0)
-   .sort((a,b)=>(products.find(p=>p.id===a.product_id)?.name||'').localeCompare(products.find(p=>p.id===b.product_id)?.name||'','ru'));
- const total=rows.reduce((a,b)=>a+Number(b.quantity||0),0);
- $('agentStockTable').innerHTML=rows.length
-   ? `<div class="tablewrap"><table><thead><tr><th>Вкус / товар</th><th>Количество</th></tr></thead><tbody>${rows.map(b=>{const p=products.find(x=>x.id===b.product_id);return `<tr><td><b>${esc(p?.name||'—')}</b><div class="muted">${esc(p?.flavor||'')}</div></td><td><b>${Number(b.quantity||0)} шт.</b></td></tr>`}).join('')}</tbody></table></div><p><b>Всего у агента: ${total} шт.</b></p>`
-   : '<p class="muted">У агента сейчас нет товара.</p>';
 
- const history=agentStockMovements.filter(m=>m.agent_id===selectedEmployee.id).slice(0,30);
+ const agentId=selectedEmployee.id;
+ const movements=agentStockMovements.filter(m=>m.agent_id===agentId);
+ const currentRows=agentStockBalances.filter(b=>b.agent_id===agentId&&Number(b.quantity||0)>0);
+
+ const totalIssued=movements
+   .filter(m=>m.movement_type==='warehouse_issue')
+   .reduce((a,m)=>a+Number(m.quantity||0),0);
+ const totalPlaced=movements
+   .filter(m=>m.movement_type==='shop_placement')
+   .reduce((a,m)=>a+Number(m.quantity||0),0);
+ const totalReturned=movements
+   .filter(m=>m.movement_type==='return_to_warehouse')
+   .reduce((a,m)=>a+Number(m.quantity||0),0);
+ const totalAdjustment=movements
+   .filter(m=>!['warehouse_issue','shop_placement','return_to_warehouse'].includes(m.movement_type))
+   .reduce((a,m)=>a+Number(m.quantity||0),0);
+ const totalCurrent=currentRows.reduce((a,b)=>a+Number(b.quantity||0),0);
+
+ const productIds=[...new Set([
+   ...movements.map(m=>m.product_id),
+   ...currentRows.map(b=>b.product_id)
+ ].filter(Boolean))];
+
+ const productStats=productIds.map(pid=>{
+   const p=products.find(x=>x.id===pid);
+   const pm=movements.filter(m=>m.product_id===pid);
+   const issued=pm.filter(m=>m.movement_type==='warehouse_issue').reduce((a,m)=>a+Number(m.quantity||0),0);
+   const placed=pm.filter(m=>m.movement_type==='shop_placement').reduce((a,m)=>a+Number(m.quantity||0),0);
+   const returned=pm.filter(m=>m.movement_type==='return_to_warehouse').reduce((a,m)=>a+Number(m.quantity||0),0);
+   const current=Number(agentStockBalances.find(b=>b.agent_id===agentId&&b.product_id===pid)?.quantity||0);
+   return {pid,p,issued,placed,returned,current};
+ }).sort((a,b)=>(a.p?.name||'').localeCompare(b.p?.name||'','ru'));
+
+ $('agentStockTable').innerHTML=
+   '<div class="grid3" style="margin-bottom:12px">'+
+     '<div class="card"><div class="muted">Выдано агенту</div><div style="font-size:26px;font-weight:800;margin-top:4px">'+totalIssued+' шт.</div></div>'+
+     '<div class="card"><div class="muted">Передано магазинам</div><div style="font-size:26px;font-weight:800;margin-top:4px">'+totalPlaced+' шт.</div></div>'+
+     '<div class="card"><div class="muted">Текущий остаток у агента</div><div style="font-size:26px;font-weight:800;margin-top:4px">'+totalCurrent+' шт.</div></div>'+
+   '</div>'+
+   (totalReturned?'<div class="muted" style="margin:0 0 10px">Возвращено на склад: <b>'+totalReturned+' шт.</b></div>':'')+
+   (totalAdjustment?'<div class="muted" style="margin:0 0 10px">Есть корректировки: <b>'+totalAdjustment+' шт.</b></div>':'')+
+   (productStats.length
+     ? '<div class="tablewrap"><table><thead><tr><th>Вкус / товар</th><th>Выдано</th><th>В магазины</th><th>Возврат</th><th>Остаток у агента</th></tr></thead><tbody>'+
+       productStats.map(x=>'<tr><td><b>'+esc(x.p?.name||'—')+'</b><div class="muted">'+esc(x.p?.flavor||'')+'</div></td><td>'+x.issued+'</td><td>'+x.placed+'</td><td>'+x.returned+'</td><td><b>'+x.current+'</b></td></tr>').join('')+
+       '</tbody></table></div>'
+     : '<p class="muted">Движений товара у агента пока нет.</p>');
+
+ const history=movements.slice(0,50);
  $('agentStockHistory').innerHTML=history.length
    ? `<div class="tablewrap"><table><thead><tr><th>Дата</th><th>Операция</th><th>Товар</th><th>Кол-во</th><th>Куда / откуда</th></tr></thead><tbody>${history.map(m=>{
        const p=products.find(x=>x.id===m.product_id);
