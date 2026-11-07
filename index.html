@@ -3231,6 +3231,33 @@ window.issueStockToSelectedAgent=async()=>{
  }
 };
 
+function employeeShopStatusCell(shop){
+ const current=shop?.status||'Не посещён';
+ if(profile?.role!=='manager')return esc(current);
+ const opts=Object.keys(colors).map(st=>'<option value="'+esc(st)+'" '+(st===current?'selected':'')+'>'+esc(st)+'</option>').join('');
+ return '<select class="employee-shop-status" data-shop-status-id="'+shop.id+'" onclick="event.stopPropagation()" onchange="event.stopPropagation();changeEmployeeShopStatus(\''+shop.id+'\',this.value,this)">'+opts+'</select>';
+}
+
+window.changeEmployeeShopStatus=async(shopId,status,selectEl)=>{
+ if(profile?.role!=='manager')return;
+ const shop=shops.find(s=>s.id===shopId);if(!shop)return;
+ const oldStatus=shop.status;
+ if(status===oldStatus)return;
+ if(selectEl)selectEl.disabled=true;
+ try{
+   const {error}=await db.from('shops').update({status,updated_at:new Date().toISOString()}).eq('id',shopId);
+   if(error)throw error;
+   shop.status=status;
+   await syncShopDealStage(shopId,status);
+   toast('Статус магазина изменён: '+status);
+   await refreshAll();
+   const fresh=profiles.find(p=>p.id===selectedEmployee?.id);
+   if(fresh){selectedEmployee=fresh;await openEmployeeCard(fresh.id)}
+ }catch(e){
+   if(selectEl){selectEl.value=oldStatus;selectEl.disabled=false}
+   toast('Не удалось изменить статус: '+(e.message||String(e)));
+ }
+};
 window.openEmployeeCard=async(id)=>{
   const emp=profiles.find(p=>p.id===id);if(!emp)return;
   selectedEmployee=emp;
@@ -3248,11 +3275,11 @@ window.openEmployeeCard=async(id)=>{
   </div>
   <div class="card" style="margin-top:10px">
     <h3 style="margin-top:0">Магазины агента</h3>
-    ${assignedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Статус</th></tr></thead><tbody>${assignedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b></td><td>${esc(s.city||'')}</td><td>${esc(s.status||'')}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">За агентом пока не закреплены магазины.</p>'}
+    ${assignedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Статус</th></tr></thead><tbody>${assignedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b></td><td>${esc(s.city||'')}</td><td>${employeeShopStatusCell(s)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">За агентом пока не закреплены магазины.</p>'}
   </div>
   <div class="card" style="margin-top:10px">
     <h3 style="margin-top:0">Какие магазины он открыл</h3>
-    ${openedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Когда открыт</th><th>Статус</th></tr></thead><tbody>${openedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b></td><td>${esc(s.city||'')}</td><td>${s.created_at?new Date(s.created_at).toLocaleDateString('ru-RU'):'—'}</td><td>${esc(s.status||'')}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">Открытых этим агентом магазинов пока нет.</p>'}
+    ${openedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Когда открыт</th><th>Статус</th></tr></thead><tbody>${openedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b></td><td>${esc(s.city||'')}</td><td>${s.created_at?new Date(s.created_at).toLocaleDateString('ru-RU'):'—'}</td><td>${employeeShopStatusCell(s)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">Открытых этим агентом магазинов пока нет.</p>'}
   </div>`;
   $('employeeInviteBox').classList.toggle('hidden',!isOwner());
   const canEditEmployee=isOwner()||emp.id===user.id;
