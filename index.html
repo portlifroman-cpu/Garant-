@@ -680,7 +680,7 @@ tr:hover td{background:#fbfdff}
   <div class="head"><div><h2 id="ecName">Сотрудник</h2><div id="ecMeta" class="muted"></div></div><button class="close">×</button></div>
   <div id="ecInfo"></div>
   <div class="card" style="margin:10px 0">
-    <h3 style="margin-top:0">Текущий товар у агента</h3>
+    <h3 style="margin-top:0">Текущий остаток товара у агента</h3>
     <div id="agentStockTable"></div>
     <div id="agentIssueBox" class="hidden" style="margin-top:12px">
       <h4>Выдать товар со склада</h4>
@@ -3100,12 +3100,12 @@ function renderSelectedAgentStock(){
  const currentProductStats=productStats.filter(x=>x.current>0);
 
  $('agentStockTable').innerHTML=
-   '<div class="grid3" style="margin-bottom:12px">'+
-     '<div class="card"><div class="muted">Выдано агенту</div><div style="font-size:26px;font-weight:800;margin-top:4px">'+totalIssued+' шт.</div></div>'+
+   '<div class="grid4" style="margin-bottom:12px">'+
+     '<div class="card"><div class="muted">Выдано всего</div><div style="font-size:26px;font-weight:800;margin-top:4px">'+totalIssued+' шт.</div></div>'+
      '<div class="card"><div class="muted">Передано магазинам</div><div style="font-size:26px;font-weight:800;margin-top:4px">'+totalPlaced+' шт.</div></div>'+
-     '<div class="card"><div class="muted">Текущий остаток у агента</div><div style="font-size:26px;font-weight:800;margin-top:4px">'+totalCurrent+' шт.</div></div>'+
+     '<div class="card"><div class="muted">Возвращено на склад</div><div style="font-size:26px;font-weight:800;margin-top:4px">'+totalReturned+' шт.</div></div>'+
+     '<div class="card"><div class="muted">Сейчас у агента</div><div style="font-size:30px;font-weight:900;margin-top:4px">'+totalCurrent+' шт.</div></div>'+
    '</div>'+
-   (totalReturned?'<div class="muted" style="margin:0 0 10px">Возвращено на склад: <b>'+totalReturned+' шт.</b></div>':'')+
    (totalAdjustment?'<div class="muted" style="margin:0 0 10px">Есть корректировки: <b>'+totalAdjustment+' шт.</b></div>':'')+
    (currentProductStats.length
      ? '<div class="tablewrap"><table><thead><tr><th>Вкус / товар</th><th>Остаток у агента</th><th></th></tr></thead><tbody>'+
