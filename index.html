@@ -2282,13 +2282,16 @@ window.recordOpeningDelivery=async(id,count)=>{
  if(!data?.length)return toast('Данные изменились. Откройте магазин заново.');
  await refreshAll();openShopById(id);
 };
-window.setOpeningBonusReceipt=async(id,received)=>{
+window.setOpeningBonusReceipt=async(id,received,employeeId=null)=>{
  if(!received&&!isManager())return;
- if(!confirm(received?'Подтверждаете, что получили премию за этот магазин?':'Снять отметку о получении премии?'))return;
+ const receiptShop=shops.find(s=>s.id===id);if(!receiptShop)return;
+ const question=received?(isManager()?'Подтвердить получение премии за магазин «'+receiptShop.name+'»?':'Подтверждаете, что получили премию за магазин «'+receiptShop.name+'»?'):'Снять отметку о премии за магазин «'+receiptShop.name+'»?';
+ if(!confirm(question))return;
  const {data,error}=await db.from('shops').update({opening_bonus_received_at:received?new Date().toISOString():null}).eq('id',id).select('id');
  if(error)return toast(error.message);
  if(!data?.length)return toast('Нет доступа к изменению этого магазина');
- await refreshAll();openShopById(id);
+ await refreshAll();
+ if(employeeId){await openEmployeeCard(employeeId)}else{openShopById(id)}
 };
 
 function openShop(s){selectedShop=s;$('shopTitle').textContent=(s.opening_bonus_received_at?'✅ Премия получена · ':'')+s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');
@@ -3400,6 +3403,26 @@ window.issueStockToSelectedAgent=async()=>{
  }
 };
 
+
+function employeeOpeningBonusSummary(rows){
+ const received=rows.filter(s=>!!s.opening_bonus_received_at).length;
+ const unpaid=rows.length-received;
+ const eligible=rows.filter(s=>!s.opening_bonus_received_at&&Number(s.opening_delivery_count||0)>=(s.opening_consignment?2:1)).length;
+ return {total:rows.length,received,unpaid,eligible,waiting:unpaid-eligible};
+}
+function employeeOpeningBonusCell(shop,employeeId){
+ const received=!!shop.opening_bonus_received_at;
+ const eligible=Number(shop.opening_delivery_count||0)>=(shop.opening_consignment?2:1);
+ const canConfirm=isManager()||shop.created_by===user.id;
+ const action=received
+   ?(isManager()?`<button class="light" onclick="event.stopPropagation();setOpeningBonusReceipt('${shop.id}',false,'${employeeId}')">Снять отметку</button>`:'')
+   :(eligible&&canConfirm?`<button class="primary" onclick="event.stopPropagation();setOpeningBonusReceipt('${shop.id}',true,'${employeeId}')">💶 Премия получена</button>`:'');
+ return `<div>${received?'<b style="color:#15803d">✅ Премия получена</b>':eligible?'<b>Не получена · доступна</b>':shop.opening_consignment?'Без премии: нужна повторная поставка':'Без премии: передача ещё не отмечена'}</div>
+ ${received?'<div class="muted">'+formatShopDate(shop.opening_bonus_received_at)+'</div>':''}
+ ${action}
+ ${!received&&!eligible?'<button class="light" onclick="event.stopPropagation();closeModals();openShopById(\''+shop.id+'\')">Открыть передачи</button>':''}`;
+}
+
 function employeeShopStatusCell(shop){
  const current=shop?.status||'Не посещён';
  if(profile?.role!=='manager')return esc(current);
@@ -3434,21 +3457,25 @@ window.openEmployeeCard=async(id)=>{
   $('ecMeta').textContent=(emp.role||'')+(emp.status?' · '+emp.status:'');
   const assignedShops=shops.filter(s=>s.agent_id===emp.id);
   const openedShops=shops.filter(s=>s.created_by===emp.id||((s.opened_by_name||'').trim().toLowerCase()===(emp.full_name||'').trim().toLowerCase()));
+  const bonusSummary=employeeOpeningBonusSummary(openedShops);
   $('ecInfo').innerHTML=`<div class="grid3">
     <div><b>Email</b><p>${esc(emp.email||'—')}</p></div>
     <div><b>Телефон</b><p>${esc(emp.phone||'—')}</p></div>
     <div><b>Дата начала</b><p>${esc(emp.start_date||'—')}</p></div>
     <div><b>Активен</b><p>${emp.active?'Да':'Нет'}</p></div>
     <div><b>Магазинов обслуживает</b><p><b>${assignedShops.length}</b></p></div>
-    <div><b>Открыл магазинов</b><p><b>${openedShops.length}</b></p></div>
+    <div><b>Открыл магазинов</b><p><b>${bonusSummary.total}</b></p></div>
+    <div><b>Премия получена за магазины</b><p><b style="color:#15803d">${bonusSummary.received}</b></p></div>
+    <div><b>Ещё не получил за магазины</b><p><b>${bonusSummary.unpaid}</b></p><p class="muted">${bonusSummary.total} открыл − ${bonusSummary.received} получил = ${bonusSummary.unpaid}</p></div>
+    <div><b>Из них доступно к премии</b><p><b>${bonusSummary.eligible}</b></p><p class="muted">Условия ещё не выполнены: ${bonusSummary.waiting}</p></div>
   </div>
   <div class="card" style="margin-top:10px">
     <h3 style="margin-top:0">Магазины агента</h3>
-    ${assignedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Статус</th></tr></thead><tbody>${assignedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b></td><td>${esc(s.city||'')}</td><td>${employeeShopStatusCell(s)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">За агентом пока не закреплены магазины.</p>'}
+    ${assignedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Статус</th><th>Премия за открытие</th></tr></thead><tbody>${assignedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b></td><td>${esc(s.city||'')}</td><td>${employeeShopStatusCell(s)}</td><td>${employeeOpeningBonusCell(s,emp.id)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">За агентом пока не закреплены магазины.</p>'}
   </div>
   <div class="card" style="margin-top:10px">
     <h3 style="margin-top:0">Какие магазины он открыл</h3>
-    ${openedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Когда открыт</th><th>Статус</th></tr></thead><tbody>${openedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b></td><td>${esc(s.city||'')}</td><td>${s.created_at?new Date(s.created_at).toLocaleDateString('ru-RU'):'—'}</td><td>${employeeShopStatusCell(s)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">Открытых этим агентом магазинов пока нет.</p>'}
+    ${openedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Когда открыт</th><th>Статус</th><th>Премия за открытие</th></tr></thead><tbody>${openedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b></td><td>${esc(s.city||'')}</td><td>${s.created_at?new Date(s.created_at).toLocaleDateString('ru-RU'):'—'}</td><td>${employeeShopStatusCell(s)}</td><td>${employeeOpeningBonusCell(s,emp.id)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">Открытых этим агентом магазинов пока нет.</p>'}
   </div>`;
   $('employeeInviteBox').classList.toggle('hidden',!isOwner());
   const canEditEmployee=isOwner()||emp.id===user.id;
