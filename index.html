@@ -511,6 +511,7 @@ tr:hover td{background:#fbfdff}
     <label>Кто открыл клиента</label>
     <input id="nsCreatedByName" placeholder="Имя сотрудника или внешнего человека">
     <p class="muted">После сохранения здесь можно подтвердить получение премии. При реализации — после повторной поставки.</p>
+    <label style="display:flex;gap:8px;align-items:center"><input id="nsBonusReceived" type="checkbox" disabled style="width:auto">💶 Премию получил</label>
     <label>Кто обслуживает магазин</label>
     <select id="nsAgent"></select>
   </div>
@@ -2405,6 +2406,7 @@ async function fillNewShopAddressFromPoint(pos){
 }
 
 window.toggleNewShopPaymentDate=()=>{
+  const bonus=$('nsBonusReceived');if(bonus){bonus.disabled=!['supplied','deferred'].includes($('nsSupplyTerms')?.value);if(bonus.disabled)bonus.checked=false;}
   const deferred=$('nsSupplyTerms')?.value==='deferred';
   $('nsPaymentDueWrap')?.classList.toggle('hidden',!deferred);
   if(!deferred&&$('nsPaymentDueDate'))$('nsPaymentDueDate').value='';
@@ -2538,6 +2540,7 @@ window.saveNewShop=async()=>{
  }
 
  const row={name,type:$('nsType').value,city:$('nsCity').value.trim(),address:$('nsAddress').value.trim(),phone:$('nsPhone').value.trim(),comment:$('nsComment').value.trim(),status:$('nsStatus').value,supply_terms:$('nsSupplyTerms')?.value||null,payment_due_date:$('nsSupplyTerms')?.value==='deferred'?($('nsPaymentDueDate')?.value||null):null,opened_by_name:$('nsCreatedByName').value.trim()||profile?.full_name||'Сотрудник',lat:newCoords?.lat??null,lng:newCoords?.lng??null,created_by:user.id,agent_id:isManager()?($('nsAgent').value||user.id):user.id,google_place_id:window.__pendingGooglePlaceId||null,google_maps_url:window.__pendingGoogleMapsUrl||null};
+ if($('nsBonusReceived')?.checked)row.opening_bonus_received_at=new Date().toISOString();
  const {data,error}=await db.from('shops').insert(row).select('id').single();
  if(error)return toast(error.message);
  const files=Array.from($('nsPhotos').files||[]);
@@ -2562,6 +2565,7 @@ window.saveNewShop=async()=>{
  closeModals();
  toast((newCoords?'Магазин добавлен и отмечен на карте':'Магазин добавлен без геопозиции')+(files.length?' · фото: '+photoResult.uploaded:''));
  await refreshAll();
+ openShopById(data.id);
 };
 function agentAvailableProductOptions(){
  const stock=agentStockBalances.filter(b=>b.agent_id===user.id&&Number(b.quantity||0)>0);
