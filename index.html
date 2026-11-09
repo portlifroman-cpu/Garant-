@@ -510,6 +510,7 @@ tr:hover td{background:#fbfdff}
   <div class="card" style="margin:8px 0">
     <label>Кто открыл клиента</label>
     <input id="nsCreatedByName" placeholder="Имя сотрудника или внешнего человека">
+    <p class="muted">После сохранения здесь можно подтвердить получение премии. При реализации — после повторной поставки.</p>
     <label>Кто обслуживает магазин</label>
     <select id="nsAgent"></select>
   </div>
@@ -2069,7 +2070,7 @@ function renderShops(){
    ${th('Телефон','phone')}
    ${isManager()?'<th>Удалить</th>':''}
  </tr></thead><tbody>${rows.map(s=>`<tr onclick="openShopById('${s.id}')" style="cursor:pointer">
-   <td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td>
+   <td>${shopBonusBadge(s)}<b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td>
    <td>${formatShopDate(s.created_at)}</td>
    <td>${esc(s.type||'')}</td>
    <td>${esc(s.city||'')}</td>
@@ -2260,7 +2261,36 @@ function employeeName(id){
   return p?.full_name||'Неизвестный сотрудник';
 }
 
-function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');
+
+function shopBonusBadge(s){return s.opening_bonus_received_at?'<div style="color:#15803d;font-weight:700">✅ Премия получена</div>':''}
+function openingBonusBlock(s){
+ const n=Number(s.opening_delivery_count||0), required=s.opening_consignment?2:1;
+ const own=isManager()||s.created_by===user.id;
+ return `<div class="card" style="margin:8px 0"><b>Премия за открытие магазина</b>
+ <p>${s.opening_consignment?'Первая передача под реализацию — без премии. Премия после повторной поставки.':'Премия за открытие выплачивается один раз.'}</p>
+ ${s.opening_bonus_received_at?shopBonusBadge(s)+'<p>'+formatShopDate(s.opening_bonus_received_at)+'</p>':`<p>${n<required?'Премия пока недоступна':'Премия доступна к получению'}</p>`}
+ ${own&&n<required?`<button class="light" onclick="recordOpeningDelivery('${s.id}',${n})">${n?'Отметить повторную поставку':'Отметить первую передачу товара'}</button><p class="muted">Отмечайте одну передачу целиком, независимо от количества вкусов.</p>`:''}
+ ${own&&!s.opening_bonus_received_at?`<button class="primary" ${n<required?'disabled':''} onclick="setOpeningBonusReceipt('${s.id}',true)">💶 Премию получил</button>`:''}
+ ${isManager()&&s.opening_bonus_received_at?`<button class="light" onclick="setOpeningBonusReceipt('${s.id}',false)">Снять отметку о получении</button>`:''}
+ </div>`;
+}
+window.recordOpeningDelivery=async(id,count)=>{
+ if(!confirm(count?'Подтвердить повторную фактическую поставку в этот магазин?':'Подтвердить первую фактическую передачу товара?'))return;
+ const {data,error}=await db.from('shops').update({opening_delivery_count:count+1}).eq('id',id).eq('opening_delivery_count',count).select('id');
+ if(error)return toast(error.message);
+ if(!data?.length)return toast('Данные изменились. Откройте магазин заново.');
+ await refreshAll();openShopById(id);
+};
+window.setOpeningBonusReceipt=async(id,received)=>{
+ if(!received&&!isManager())return;
+ if(!confirm(received?'Подтверждаете, что получили премию за этот магазин?':'Снять отметку о получении премии?'))return;
+ const {data,error}=await db.from('shops').update({opening_bonus_received_at:received?new Date().toISOString():null}).eq('id',id).select('id');
+ if(error)return toast(error.message);
+ if(!data?.length)return toast('Нет доступа к изменению этого магазина');
+ await refreshAll();openShopById(id);
+};
+
+function openShop(s){selectedShop=s;$('shopTitle').textContent=(s.opening_bonus_received_at?'✅ Премия получена · ':'')+s.name;$('shopAddr').textContent=[s.city,s.address].filter(Boolean).join(', ');
  const placed=agentStockMovements.filter(m=>m.shop_id===s.id&&m.movement_type==='shop_placement');
  const placedByProduct={};
  placed.forEach(m=>{placedByProduct[m.product_id]=(placedByProduct[m.product_id]||0)+Number(m.quantity||0)});
@@ -2271,6 +2301,7 @@ function openShop(s){selectedShop=s;$('shopTitle').textContent=s.name;$('shopAdd
  $('shopDetail').innerHTML=`
   <div class="card" style="margin:8px 0">
     <div><b>Кто открыл клиента:</b> ${esc(s.opened_by_name||employeeName(s.created_by))}</div>
+    ${openingBonusBlock(s)}
     <div style="margin-top:7px"><b>Кто обслуживает магазин:</b> ${esc(employeeName(s.agent_id))}</div>
   </div>
   <div class="grid3">
