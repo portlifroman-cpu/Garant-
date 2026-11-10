@@ -3238,7 +3238,8 @@ function renderSelectedAgentStock(){
 
  const productIds=[...new Set([
    ...movements.map(m=>m.product_id),
-   ...currentRows.map(b=>b.product_id)
+   ...currentRows.map(b=>b.product_id),
+   ...realStockProducts.map(p=>p.crm_product_id)
  ].filter(Boolean))];
 
  const productStats=productIds.map(pid=>{
@@ -3250,7 +3251,7 @@ function renderSelectedAgentStock(){
    const current=Number(agentStockBalances.find(b=>b.agent_id===agentId&&b.product_id===pid)?.quantity||0);
    return {pid,p,issued,placed,returned,current};
  }).sort((a,b)=>(a.p?.name||'').localeCompare(b.p?.name||'','ru'));
- const currentProductStats=productStats.filter(x=>x.current>0);
+ const currentProductStats=productStats;
 
  $('agentStockTable').innerHTML=
    '<div class="grid4" style="margin-bottom:12px">'+
@@ -3262,7 +3263,7 @@ function renderSelectedAgentStock(){
    (totalAdjustment?'<div class="muted" style="margin:0 0 10px">Есть корректировки: <b>'+totalAdjustment+' шт.</b></div>':'')+
    (currentProductStats.length
      ? '<div class="tablewrap"><table><thead><tr><th>Вкус / товар</th><th>Остаток у агента</th><th></th></tr></thead><tbody>'+
-       currentProductStats.map(x=>'<tr><td><b>'+esc(x.p?.name||'—')+'</b><div class="muted">'+esc(x.p?.flavor||'')+'</div></td><td><b>'+x.current+' шт.</b></td><td>'+(profile?.role==='manager'?'<div class="actions"><button class="light" onclick="renameAgentStockProduct(\''+x.pid+'\')">Изменить вкус</button><button class="light" onclick="editAgentStockItem(\''+x.pid+'\','+x.current+')">Изменить количество</button><button class="danger" onclick="deleteAgentStockItem(\''+x.pid+'\','+x.current+')">Удалить</button></div>':'')+'</td></tr>').join('')+
+       currentProductStats.map(x=>'<tr'+(x.current===0?' style="opacity:.62"':'')+'><td><b>'+esc(x.p?.name||'—')+'</b><div class="muted">'+esc(x.p?.flavor||'')+(x.current===0?' · нет у агента':'')+'</div></td><td><b>'+x.current+' шт.</b></td><td>'+(profile?.role==='manager'?'<div class="actions"><button class="light" onclick="renameAgentStockProduct(\''+x.pid+'\')">Изменить вкус</button><button class="light" onclick="editAgentStockItem(\''+x.pid+'\','+x.current+')">Изменить количество</button>'+(x.current>0?'<button class="danger" onclick="deleteAgentStockItem(\''+x.pid+'\','+x.current+')">Удалить</button>':'')+'</div>':'')+'</td></tr>').join('')+
        '</tbody></table></div>'
      : '<p class="muted"><b>Сейчас товара у агента нет.</b></p>');
 
