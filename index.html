@@ -2433,7 +2433,7 @@ window.openPlacementCorrection=()=>{
         '<td>'+new Date(m.created_at).toLocaleString('ru-RU')+'</td>'+
         '<td>'+esc(a?.full_name||a?.email||'—')+'</td>'+
         '<td><select class="pc-product">'+options+'</select></td>'+
-        '<td><input class="pc-qty" type="number" min="1" step="1" value="'+Number(m.quantity||0)+'" style="width:90px"></td>'+
+        '<td><input class="pc-qty" type="number" min="0" step="1" value="'+Number(m.quantity||0)+'" style="width:90px"><div class="muted">0 = удалить выдачу</div></td>'+
         '<td><button class="primary pc-save">Сохранить</button></td>'+
       '</tr>';
     }).join('')+
@@ -2447,7 +2447,7 @@ window.openPlacementCorrection=()=>{
       const movementId=row.dataset.pcRow;
       const productId=row.querySelector('.pc-product').value;
       const qty=Math.floor(Number(row.querySelector('.pc-qty').value||0));
-      if(qty<=0)return toast('Количество должно быть больше нуля');
+      if(qty<0)return toast('Количество не может быть меньше нуля');
       btn.disabled=true;btn.textContent='Сохраняем…';
       try{
         const r=await db.rpc('correct_shop_placement',{
@@ -2457,7 +2457,7 @@ window.openPlacementCorrection=()=>{
           p_comment:'Исправлено из карточки магазина'
         });
         if(r.error)throw r.error;
-        toast('Выдача исправлена, остаток агента пересчитан');
+        toast(qty===0?'Ошибочная выдача удалена, товар возвращён агенту':'Выдача исправлена, остаток агента пересчитан');
         d.remove();
         await refreshAll();
         const fresh=shops.find(x=>x.id===selectedShop.id);
