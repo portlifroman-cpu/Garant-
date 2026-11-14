@@ -2338,7 +2338,10 @@ function openShop(s){selectedShop=s;$('shopTitle').textContent=(s.opening_bonus_
         <div><label>Вкус / товар</label><select id="shopPlacementProduct"></select></div>
         <div><label>Количество, шт.</label><input id="shopPlacementQty" type="number" min="1" value="1"></div>
       </div>
-      <button class="primary" style="width:100%" onclick="placeStockFromShopCard()">Поставить в магазин</button>
+      <div class="actions">
+        <button class="primary" style="flex:1" onclick="placeStockFromShopCard()">Поставить в магазин</button>
+        <button class="light" style="flex:1" onclick="openPlacementCorrection()">✏️ Исправить выдачу</button>
+      </div>
       <p id="shopPlacementHint" class="muted"></p>
     </div>
     ${placedRows?`<div class="tablewrap"><table><thead><tr><th>Вкус / товар</th><th>Всего поставлено</th></tr></thead><tbody>${placedRows}</tbody></table></div>`:'<p class="muted">Поставок товара пока нет.</p>'}
@@ -2395,6 +2398,77 @@ window.placeStockFromShopCard=async()=>{
   await refreshAll();
   const fresh=shops.find(x=>x.id===selectedShop.id);
   if(fresh)openShop(fresh);
+};
+
+
+window.openPlacementCorrection=()=>{
+  if(!selectedShop)return;
+  const editable=agentStockMovements
+    .filter(m=>m.shop_id===selectedShop.id&&m.movement_type==='shop_placement')
+    .filter(m=>isManager()||m.agent_id===user.id)
+    .sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+
+  if(!editable.length)return toast('В этом магазине нет ваших выдач для исправления');
+
+  const d=document.createElement('div');
+  d.className='modal open';
+  d.id='placementCorrectionModal';
+  d.innerHTML='<div class="sheet wide"><div class="head"><div><h2 style="margin:0">Исправить выдачу товара</h2><div class="muted">Измените вкус и/или количество. Остаток агента пересчитается автоматически.</div></div><button class="close" id="pcClose">×</button></div>'+
+    '<div class="tablewrap"><table><thead><tr><th>Дата</th><th>Агент</th><th>Товар / вкус</th><th>Количество</th><th></th></tr></thead><tbody>'+
+    editable.map(m=>{
+      const p=products.find(x=>x.id===m.product_id);
+      const a=profiles.find(x=>x.id===m.agent_id);
+      const availableIds=new Set(
+        agentStockBalances
+          .filter(b=>b.agent_id===m.agent_id&&Number(b.quantity||0)>0)
+          .map(b=>b.product_id)
+      );
+      availableIds.add(m.product_id);
+      const options=products
+        .filter(x=>availableIds.has(x.id)&&x.active!==false)
+        .sort((x,y)=>(x.name||'').localeCompare(y.name||'','ru'))
+        .map(x=>'<option value="'+x.id+'"'+(x.id===m.product_id?' selected':'')+'>'+esc((x.name||'')+(x.flavor&&x.flavor!==x.name?' · '+x.flavor:''))+'</option>')
+        .join('');
+      return '<tr data-pc-row="'+m.id+'">'+
+        '<td>'+new Date(m.created_at).toLocaleString('ru-RU')+'</td>'+
+        '<td>'+esc(a?.full_name||a?.email||'—')+'</td>'+
+        '<td><select class="pc-product">'+options+'</select></td>'+
+        '<td><input class="pc-qty" type="number" min="1" step="1" value="'+Number(m.quantity||0)+'" style="width:90px"></td>'+
+        '<td><button class="primary pc-save">Сохранить</button></td>'+
+      '</tr>';
+    }).join('')+
+    '</tbody></table></div><p class="muted" style="margin-top:10px">Если количество уменьшить, разница вернётся в остаток агента. Если увеличить — разница спишется с остатка агента. При замене товара старый товар возвращается агенту, новый списывается.</p></div>';
+  document.body.appendChild(d);
+  d.querySelector('#pcClose').onclick=()=>d.remove();
+  d.addEventListener('click',e=>{if(e.target===d)d.remove()});
+  d.querySelectorAll('.pc-save').forEach(btn=>{
+    btn.onclick=async()=>{
+      const row=btn.closest('[data-pc-row]');
+      const movementId=row.dataset.pcRow;
+      const productId=row.querySelector('.pc-product').value;
+      const qty=Math.floor(Number(row.querySelector('.pc-qty').value||0));
+      if(qty<=0)return toast('Количество должно быть больше нуля');
+      btn.disabled=true;btn.textContent='Сохраняем…';
+      try{
+        const r=await db.rpc('correct_shop_placement',{
+          p_movement_id:movementId,
+          p_new_product_id:productId,
+          p_new_qty:qty,
+          p_comment:'Исправлено из карточки магазина'
+        });
+        if(r.error)throw r.error;
+        toast('Выдача исправлена, остаток агента пересчитан');
+        d.remove();
+        await refreshAll();
+        const fresh=shops.find(x=>x.id===selectedShop.id);
+        if(fresh)openShop(fresh);
+      }catch(err){
+        toast('Не удалось исправить выдачу: '+(err.message||String(err)));
+      }finally{
+        btn.disabled=false;btn.textContent='Сохранить';
+      }
+    };
+  });
 };
 
 async function fillNewShopAddressFromPoint(pos){
