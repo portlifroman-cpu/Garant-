@@ -2213,6 +2213,34 @@ window.openJointExpenseReceipt=async id=>{
   if(!canViewJointExpenses())return;
   const x=jointExpenses.find(e=>e.id===id);
   if(!x?.receipt_path)return toast('Фото чека не прикреплено');
+
+  if(x.receipt_path==='db'){
+    const {data,error}=await db.from('joint_expense_receipt_files')
+      .select('id,file_name,mime_type,data_base64,created_at')
+      .eq('expense_id',id)
+      .order('created_at',{ascending:true});
+    if(error)return toast('Не удалось открыть чек: '+error.message);
+    const files=data||[];
+    if(!files.length)return toast('Фото чека не найдено');
+
+    const modal=document.createElement('div');
+    modal.className='modal open';
+    modal.innerHTML='<div class="sheet wide"><div class="head"><div><h2 style="margin:0">Фото чеков</h2><div class="muted">'+esc(x.description||'')+' · '+files.length+' фото</div></div><button class="close" type="button">×</button></div><div class="photo-grid" id="jointReceiptGallery"></div></div>';
+    document.body.appendChild(modal);
+    modal.querySelector('.close').onclick=()=>modal.remove();
+    modal.addEventListener('click',e=>{if(e.target===modal)modal.remove()});
+    const gallery=modal.querySelector('#jointReceiptGallery');
+    files.forEach(file=>{
+      const src='data:'+(file.mime_type||'image/jpeg')+';base64,'+file.data_base64;
+      const a=document.createElement('a');
+      a.href=src;a.target='_blank';a.rel='noopener noreferrer';
+      const img=document.createElement('img');
+      img.src=src;img.alt=file.file_name||'Фото чека';img.loading='lazy';
+      a.appendChild(img);gallery.appendChild(a);
+    });
+    return;
+  }
+
   const {data,error}=await db.storage.from('joint-expense-receipts').createSignedUrl(x.receipt_path,600);
   if(error||!data?.signedUrl)return toast('Не удалось открыть чек');
   window.open(data.signedUrl,'_blank','noopener,noreferrer');
