@@ -462,7 +462,7 @@ tr:hover td{background:#fbfdff}
         <div><label>С даты</label><input id="jointExpenseFrom" type="date"></div>
         <div><label>По дату</label><input id="jointExpenseTo" type="date"></div>
         <div><label>Кто</label><select id="jointExpensePaidFilter"><option value="">Все</option><option value="roman">Роман</option><option value="partner">Роман С</option><option value="joint">Совместно</option></select></div>
-        <button class="light" onclick="renderJointExpenses()">Обновить</button>
+        <button class="light" onclick="renderJointExpenses()">Обновить</button><button class="light" onclick="openJointExpenseReceipts()">📷 Чеки</button>
         <button class="primary" onclick="openJointExpense()">+ Добавить расход</button>
       </div>
       <div class="grid4" style="margin-bottom:10px">
@@ -2140,6 +2140,30 @@ window.renderJointExpenses=()=>{
     </td>
   </tr>`).join('')}</tbody></table>`;
 };
+
+window.openJointExpenseReceipts=async(expenseId=null)=>{
+  try{
+    const {data,error}=await db.rpc('get_joint_expense_receipts',{p_expense_id:expenseId});
+    if(error)throw error;
+    const rows=data||[];
+    if(!rows.length)return toast('Прикреплённых чеков пока нет');
+
+    const d=document.createElement('div');
+    d.className='modal open';
+    d.id='jointReceiptGallery';
+    d.innerHTML='<div class="sheet wide"><div class="head"><div><h2 style="margin:0">Чеки совместных расходов</h2><div class="muted">Прикреплённые фото расходов</div></div><button class="close" id="jrClose">×</button></div>'+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">'+
+      rows.map(r=>'<div class="card"><div style="font-weight:800;margin-bottom:4px">'+esc(r.description||'Расход')+'</div>'+
+        '<div class="muted" style="margin-bottom:8px">'+esc(formatShopDate(r.expense_date))+' · '+money(Number(r.amount||0))+' · '+esc(r.file_name||'Фото')+'</div>'+
+        '<img src="data:'+esc(r.mime_type||'image/jpeg')+';base64,'+r.data_base64+'" alt="'+esc(r.file_name||'Чек')+'" style="width:100%;max-height:70vh;object-fit:contain;background:#f6f7f8;border-radius:12px;border:1px solid var(--line)">'+
+      '</div>').join('')+
+      '</div></div>';
+    document.body.appendChild(d);
+    d.querySelector('#jrClose').onclick=()=>d.remove();
+    d.addEventListener('click',e=>{if(e.target===d)d.remove()});
+  }catch(e){toast('Не удалось открыть чеки: '+(e.message||String(e)))}
+};
+
 window.openJointExpense=()=>{
   if(!canViewJointExpenses())return toast('Раздел доступен только Роману и Роману С');
   editingJointExpenseId=null;
