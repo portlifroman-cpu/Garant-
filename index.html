@@ -232,6 +232,7 @@ tr:hover td{background:#fbfdff}
       <button data-page="visit-route">К посещению</button>
       <button data-page="shops">Магазины</button>
       <button data-page="stock">Склад</button>
+      <button id="myStockTab" data-page="my-stock" class="hidden">Мой склад</button>
       <button data-page="products">Товары</button>
       <button data-page="electronic-catalog">Электронный каталог</button>
       <button data-page="employees">Команда</button>
@@ -262,7 +263,7 @@ tr:hover td{background:#fbfdff}
       <div class="grid3" style="margin-top:10px">
         <div class="card"><h3>Сегодня</h3><p>Визитов: <b id="dVisits">0</b></p><p>Новых точек: <b id="dNewShops">0</b></p><p>Нужен повторный визит: <b id="dFollowups">0</b></p></div>
         <div class="card"><h3>Продажи</h3><p>Открытых сделок: <b id="dOpenDeals">0</b></p><p>Сумма в работе: <b id="dPipelineValue">0 €</b></p></div>
-        <div class="card"><h3>Склад</h3><p>SKU: <b id="dSku">0</b></p><p>Доступно единиц: <b id="dAvailable">0</b></p><p>Низкий остаток: <b id="dLow">0</b></p></div>
+        <div id="dashboardWarehouse" class="card"><h3>Склад</h3><p>SKU: <b id="dSku">0</b></p><p>Доступно единиц: <b id="dAvailable">0</b></p><p>Низкий остаток: <b id="dLow">0</b></p></div>
       </div>
       <div class="card" style="margin-top:10px">
         <h3>Рабочий процесс GARANT</h3>
@@ -375,6 +376,13 @@ tr:hover td{background:#fbfdff}
     <section id="page-products" class="page hidden">
       <div class="toolbar"><div><label>Поиск SKU / товар</label><input id="productSearch" placeholder="Например Mint"></div><button id="addProductBtn" class="primary" onclick="openProduct()">+ Товар</button></div>
       <div id="productsTable" class="tablewrap"></div>
+    </section>
+
+    <section id="page-my-stock" class="page hidden">
+      <div class="card">
+        <h2>Мой склад</h2>
+        <div id="myStockPageTable" aria-live="polite">Загружаем остатки…</div>
+      </div>
     </section>
 
     <section id="page-stock" class="page hidden">
@@ -1031,6 +1039,9 @@ async function boot(){
    $('accountingTab').classList.toggle('hidden',!canViewAccounting());
    if(user?.id===ROMAN_S_USER_ID)$('accountingTab').textContent='Albaranes';
    profile=p.data;
+   $('myStockTab').classList.toggle('hidden',isManager());
+   document.querySelector('#tabs [data-page=stock]').classList.toggle('hidden',!isManager());
+   $('dashboardWarehouse').classList.toggle('hidden',!isManager());
    $('who').textContent=(profile.full_name||'Сотрудник')+' · '+(isManager()?'Руководитель':'Агент');
    $('auth').classList.add('hidden');$('mainApp').classList.remove('hidden');
    if(!isManager()){['addProductBtn','addWarehouseBtn','adjustStockBtn'].forEach(id=>$(id)?.classList.add('hidden'))}
@@ -1066,10 +1077,11 @@ async function refreshAll(){
   canViewJointExpenses()
     ? db.from('joint_expenses').select('*').order('expense_date',{ascending:false}).order('created_at',{ascending:false}).limit(5000)
     : Promise.resolve({data:[],error:null}),
-  db.rpc('crm_stock_snapshot')
+  isManager() ? db.rpc('crm_stock_snapshot') : Promise.resolve({data:[]})
  ];
  const r=await Promise.all(qs.map(q=>q.then(x=>x).catch(e=>({error:e}))));
  shops=safeData(r[0],'shops');visits=safeData(r[1],'visits');profiles=safeData(r[2],'profiles');products=safeData(r[3],'products');warehouses=safeData(r[4],'warehouses');balances=safeData(r[5],'inventory_balances');movements=safeData(r[6],'inventory_movements');agentStockBalances=safeData(r[7],'agent_stock_balances');agentStockMovements=safeData(r[8],'agent_stock_movements');orders=safeData(r[9],'sales_orders');orderItems=safeData(r[10],'sales_order_items');tasks=safeData(r[11],'tasks');bonusRules=safeData(r[12],'bonus_rules');employeeDocuments=safeData(r[13],'employee_documents');dealStages=safeData(r[14],'pipeline_stages');deals=safeData(r[15],'deals');jointExpenses=safeData(r[16],'joint_expenses');
+ agentStockLoadFailed=Boolean(r[7]?.error||r[8]?.error);
  const stockSnapshot=safeData(r[17],'crm_stock_snapshot');
  realStockProducts=stockSnapshot.map(x=>({id:x.product_id,crm_product_id:x.crm_product_id,name:x.name,flavor:x.flavor,sku:x.sku,active:true}));
  realStockWarehouses=stockSnapshot.length?[{id:stockSnapshot[0].warehouse_id,name:stockSnapshot[0].warehouse_name,type:stockSnapshot[0].warehouse_type}]:[];
@@ -1199,6 +1211,8 @@ window.syncOfficialCatalog=async()=>{
 };
 
 function showPage(name){
+ if(name==='stock'&&!isManager())name='my-stock';
+ if(name==='my-stock'&&isManager())name='stock';
  if(name==='joint-expenses'&&!canViewJointExpenses()){toast('Раздел доступен только Роману и Роману С');return}
  document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));$('page-'+name).classList.remove('hidden');
  document.querySelectorAll('#tabs button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
@@ -1259,11 +1273,18 @@ function fillSelects(){
  }
 }
 
+let agentStockLoadFailed=false;
+
 function renderMyStock(){
  const panel=$('myStockPanel');
  const visible=Boolean(user&&profile&&!isManager());
  panel.classList.toggle('hidden',!visible);
  if(!visible)return;
+ const tables=[$('myStockTable'),$('myStockPageTable')];
+ if(agentStockLoadFailed){
+   tables.forEach(table=>{table.textContent='Не удалось загрузить личный склад. Обновите страницу.'});
+   return;
+ }
 
  const rows=new Map();
  const getRow=id=>{
@@ -1287,9 +1308,8 @@ function renderMyStock(){
  const productById=new Map(products.map(product=>[product.id,product]));
  const sorted=[...rows.values()].map(row=>({...row,product:productById.get(row.id)}))
    .sort((a,b)=>(a.product?.name||'').localeCompare(b.product?.name||'','ru'));
- const table=$('myStockTable');
  if(!sorted.length){
-   table.textContent='Движений товара пока нет.';
+   tables.forEach(table=>{table.textContent='На ваш аккаунт пока не зарегистрировано ни одной выдачи. Остаток 0 шт.'});
    return;
  }
  const columns=[
@@ -1299,11 +1319,12 @@ function renderMyStock(){
  ];
  const cells=row=>columns.map(([key])=>`<td>${row[key]}</td>`).join('');
  const totals=Object.fromEntries(columns.map(([key])=>[key,sorted.reduce((sum,row)=>sum+row[key],0)]));
- table.innerHTML=`<p class="muted">Количество в единицах товара. Передачи распределены по текущим условиям в карточках магазинов.</p>
+ const html=`<p class="muted">Количество в единицах товара. Передачи распределены по текущим условиям в карточках магазинов.</p>
    <div class="tablewrap" tabindex="0" aria-label="Мой склад по вкусам"><table>
    <thead><tr><th scope="col">Товар / вкус</th>${columns.map(([,label])=>`<th scope="col">${label}</th>`).join('')}</tr></thead>
    <tbody>${sorted.map(row=>`<tr><th scope="row">${esc(row.product?.name||row.id)}${row.product?.flavor&&row.product.flavor!==row.product.name?`<div class="muted">${esc(row.product.flavor)}</div>`:''}</th>${cells(row)}</tr>`).join('')}</tbody>
    <tfoot><tr><th scope="row">Всего</th>${cells(totals)}</tr></tfoot></table></div>`;
+ tables.forEach(table=>{table.innerHTML=html});
 }
 
 function renderDashboard(){
