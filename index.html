@@ -682,9 +682,8 @@ tr:hover td{background:#fbfdff}
     <h3 style="margin-top:0">Текущий остаток товара у агента</h3>
     <div id="agentStockTable"></div>
     <div id="agentIssueBox" class="hidden" style="margin-top:12px">
-      <h4>Выдать товар со склада</h4>
+      <h4>Выдать товар агенту</h4>
       <div class="row3">
-        <div><label>Склад</label><select id="agentIssueWarehouse"></select></div>
         <div><label>Товар / вкус</label><select id="agentIssueProduct"></select></div>
         <div><label>Количество, шт.</label><input id="agentIssueQty" type="number" min="1" value="1"></div>
       </div>
@@ -3455,8 +3454,8 @@ function renderSelectedAgentStock(){
        const p=products.find(x=>x.id===m.product_id);
        const shop=shops.find(x=>x.id===m.shop_id);
        const wh=warehouses.find(x=>x.id===m.warehouse_id);
-       const type=m.movement_type==='warehouse_issue'?'Получил со склада':m.movement_type==='shop_placement'?'Поставил в магазин':m.movement_type==='return_to_warehouse'?'Вернул на склад':'Корректировка';
-       const sourceLabel=m.movement_type==='warehouse_issue'?'Общий склад GARANT':(shop?.name||wh?.name||'—');
+       const type=m.movement_type==='warehouse_issue'?'Выдано агенту':m.movement_type==='shop_placement'?'Поставил в магазин':m.movement_type==='return_to_warehouse'?'Вернул на склад':'Корректировка';
+       const sourceLabel=shop?.name||wh?.name||(m.comment?.startsWith('Общий склад GARANT')?'Общий склад GARANT':'—');
        return `<tr><td>${new Date(m.created_at).toLocaleString('ru-RU')}</td><td>${esc(type)}</td><td>${esc(p?.name||'—')}</td><td>${Number(m.quantity||0)}</td><td>${esc(sourceLabel)}</td></tr>`;
      }).join('')}</tbody></table></div>`
    : '<p class="muted">Движений пока нет.</p>';
@@ -3464,31 +3463,10 @@ function renderSelectedAgentStock(){
  const canIssue=profile?.role==='manager';
  $('agentIssueBox').classList.toggle('hidden',!canIssue);
  if(canIssue){
-   const mainWh=realStockWarehouses.find(w=>w.type==='main')||realStockWarehouses[0];
-   const realBalances={};
-   realStockMovements.forEach(m=>{
-     if(mainWh&&m.warehouse_id!==mainWh.id)return;
-     const sign=(m.movement_type==='out'||m.movement_type==='transfer_out')?-1:1;
-     realBalances[m.product_id]=(realBalances[m.product_id]||0)+sign*Number(m.quantity||0);
-   });
-   $('agentIssueWarehouse').innerHTML=mainWh
-     ? `<option value="${mainWh.id}">GARANT — Общий склад</option>`
-     : '<option value="">Общий склад не найден</option>';
-   $('agentIssueWarehouse').disabled=true;
-   const availableProducts=realStockProducts
-     .filter(p=>p.crm_product_id&&Number(realBalances[p.id]||0)>0)
-     .sort((a,b)=>(a.flavor||a.name||'').localeCompare(b.flavor||b.name||'','ru'));
+   const availableProducts=products.filter(p=>p.active!==false);
    $('agentIssueProduct').innerHTML=availableProducts.length
-     ? availableProducts.map(p=>`<option value="${p.crm_product_id}" data-available="${Number(realBalances[p.id]||0)}">${esc((p.flavor||p.name||'').replace(/^Classic\s+/i,''))} · остаток ${Number(realBalances[p.id]||0)}</option>`).join('')
-     : '<option value="">Нет товара на общем складе</option>';
-   const qtyInput=$('agentIssueQty');
-   const refreshIssueLimit=()=>{
-     const opt=$('agentIssueProduct').selectedOptions[0];
-     const av=Number(opt?.dataset.available||0);
-     if(qtyInput){qtyInput.max=String(av);qtyInput.placeholder=av?'Макс. '+av:''}
-   };
-   $('agentIssueProduct').onchange=refreshIssueLimit;
-   refreshIssueLimit();
+     ? availableProducts.map(p=>`<option value="${p.id}">${esc(p.name)}${p.flavor&&p.flavor!==p.name?' · '+esc(p.flavor):''}</option>`).join('')
+     : '<option value="">В каталоге нет товаров</option>';
  }
 }
 
@@ -3528,8 +3506,7 @@ window.editAgentStockItem=async(productId,currentQty)=>{
  const newQty=Math.floor(Number(value));
  if(!Number.isFinite(newQty)||newQty<0)return toast('Введите количество 0 или больше');
  if(newQty===currentQty)return toast('Количество не изменилось');
- const direction=newQty>currentQty?'будет дополнительно выдано со склада':'будет возвращено на общий склад';
- if(!confirm('Установить остаток агента '+newQty+' шт.?\n\nРазница '+Math.abs(newQty-currentQty)+' шт. '+direction+'.'))return;
+ if(!confirm('Установить остаток агента '+newQty+' шт.?'))return;
  try{
    const r=await db.rpc('set_agent_stock_quantity',{
      p_agent_id:selectedEmployee.id,
@@ -3548,7 +3525,7 @@ window.editAgentStockItem=async(productId,currentQty)=>{
 window.deleteAgentStockItem=async(productId,currentQty)=>{
  if(profile?.role!=='manager'||!selectedEmployee)return;
  const p=products.find(x=>x.id===productId);
- if(!confirm('Удалить «'+(p?.name||'товар')+'» из остатков агента?\n\n'+currentQty+' шт. будут возвращены на общий склад GARANT.'))return;
+ if(!confirm('Удалить «'+(p?.name||'товар')+'» из остатков агента?\n\n'+currentQty+' шт. будут сняты с остатка агента.'))return;
  try{
    const r=await db.rpc('set_agent_stock_quantity',{
      p_agent_id:selectedEmployee.id,
@@ -3557,7 +3534,7 @@ window.deleteAgentStockItem=async(productId,currentQty)=>{
      p_comment:'Товар удалён из остатков агента руководителем'
    });
    if(r.error)throw r.error;
-   toast('Товар удалён у агента и возвращён на общий склад');
+   toast('Товар снят с остатка агента');
    await refreshAll();
    const fresh=profiles.find(p=>p.id===selectedEmployee.id);
    if(fresh){selectedEmployee=fresh;renderSelectedAgentStock()}
@@ -3568,10 +3545,7 @@ window.issueStockToSelectedAgent=async()=>{
  if(!selectedEmployee||profile?.role!=='manager')return;
  const product_id=$('agentIssueProduct').value;
  const quantity=Math.floor(Number($('agentIssueQty').value||0));
- const opt=$('agentIssueProduct').selectedOptions[0];
- const available=Number(opt?.dataset.available||0);
  if(!product_id||quantity<=0)return toast('Выберите товар и количество');
- if(quantity>available)return toast('На общем складе недостаточно товара. Остаток: '+available);
  const btn=document.querySelector('#agentIssueBox button.primary');
  if(btn){btn.disabled=true;btn.textContent='Выдаём…'}
  try{
@@ -3582,7 +3556,7 @@ window.issueStockToSelectedAgent=async()=>{
      p_comment:'Выдано агенту из карточки сотрудника'
    });
    if(r.error)throw r.error;
-   toast('Товар выдан агенту. Общий склад уменьшен на '+quantity+' шт.');
+   toast('Агенту выдано '+quantity+' шт.');
    $('agentIssueQty').value='1';
    await refreshAll();
    const fresh=profiles.find(p=>p.id===selectedEmployee.id);
