@@ -2306,12 +2306,16 @@ window.resetShopFilters=()=>{
 window.deleteShopFromList=async(id)=>{
   if(!isManager())return toast('Удалять магазины могут только руководители');
   const s=shops.find(x=>x.id===id);if(!s)return;
-  if(!confirm('Удалить магазин «'+s.name+'» из списка?\n\nОн исчезнет из списка и карты. История заказов сохранится.'))return;
+  const location=[s.city,s.address].filter(Boolean).join(', ');
+  if(!confirm('Удалить магазин «'+s.name+'» из списка?'+(location?'\n'+location:'')+'\n\nОн исчезнет из списка и карты. История заказов сохранится.'))return;
   const {error}=await db.rpc('soft_delete_shop',{p_shop_id:id});
   if(error)return toast('Не удалось удалить магазин: '+error.message);
   toast('Магазин удалён из списка');
   if(selectedShop?.id===id){selectedShop=null;closeModals()}
   await refreshAll();
+  if(selectedEmployee&&$('employeeCardModal').classList.contains('open')){
+    renderEmployeeShopInfo(selectedEmployee);
+  }
 };
 
 window.openShopById=id=>{const s=shops.find(x=>x.id===id);if(s)openShop(s)};
@@ -3585,11 +3589,7 @@ window.changeEmployeeShopStatus=async(shopId,status,selectEl)=>{
    toast('Не удалось изменить статус: '+(e.message||String(e)));
  }
 };
-window.openEmployeeCard=async(id)=>{
-  const emp=profiles.find(p=>p.id===id);if(!emp)return;
-  selectedEmployee=emp;
-  $('ecName').textContent=emp.full_name||'Сотрудник';
-  $('ecMeta').textContent=(emp.role||'')+(emp.status?' · '+emp.status:'');
+function renderEmployeeShopInfo(emp){
   const assignedShops=shops.filter(s=>s.agent_id===emp.id);
   const openedShops=shops.filter(s=>s.created_by===emp.id||((s.opened_by_name||'').trim().toLowerCase()===(emp.full_name||'').trim().toLowerCase()));
   const bonusSummary=employeeOpeningBonusSummary(openedShops);
@@ -3606,12 +3606,20 @@ window.openEmployeeCard=async(id)=>{
   </div>
   <div class="card" style="margin-top:10px">
     <h3 style="margin-top:0">Магазины агента</h3>
-    ${assignedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Статус</th><th>Премия за открытие</th></tr></thead><tbody>${assignedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b></td><td>${esc(s.city||'')}</td><td>${employeeShopStatusCell(s)}</td><td>${employeeOpeningBonusCell(s,emp.id)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">За агентом пока не закреплены магазины.</p>'}
+    ${assignedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Статус</th><th>Премия за открытие</th>${isManager()?'<th>Действия</th>':''}</tr></thead><tbody>${assignedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.city||'')}</td><td>${employeeShopStatusCell(s)}</td><td>${employeeOpeningBonusCell(s,emp.id)}</td>${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}</tr>`).join('')}</tbody></table></div>`:'<p class="muted">За агентом пока не закреплены магазины.</p>'}
   </div>
   <div class="card" style="margin-top:10px">
     <h3 style="margin-top:0">Какие магазины он открыл</h3>
     ${openedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Когда открыт</th><th>Статус</th><th>Премия за открытие</th></tr></thead><tbody>${openedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b></td><td>${esc(s.city||'')}</td><td>${s.created_at?new Date(s.created_at).toLocaleDateString('ru-RU'):'—'}</td><td>${employeeShopStatusCell(s)}</td><td>${employeeOpeningBonusCell(s,emp.id)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">Открытых этим агентом магазинов пока нет.</p>'}
   </div>`;
+}
+
+window.openEmployeeCard=async(id)=>{
+  const emp=profiles.find(p=>p.id===id);if(!emp)return;
+  selectedEmployee=emp;
+  $('ecName').textContent=emp.full_name||'Сотрудник';
+  $('ecMeta').textContent=(emp.role||'')+(emp.status?' · '+emp.status:'');
+  renderEmployeeShopInfo(emp);
   $('employeeInviteBox').classList.toggle('hidden',!isOwner());
   const canEditEmployee=isOwner()||emp.id===user.id;
   $('employeeEditActions').classList.toggle('hidden',!canEditEmployee);
