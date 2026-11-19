@@ -250,6 +250,10 @@ tr:hover td{background:#fbfdff}
           <div class="garant-hero-subtitle">Магазины, агенты, визиты и склад — в одной рабочей системе GARANT.</div>
         </div>
       </div>
+      <section id="myStockPanel" class="card hidden" style="margin-bottom:10px">
+        <h3>Мой склад</h3>
+        <div id="myStockTable"></div>
+      </section>
       <div class="grid4">
         <div class="card stat"><strong id="dShops">0</strong><span>Всего магазинов</span></div>
         <div class="card stat"><strong id="dClients">0</strong><span>Активные клиенты</span></div>
@@ -1256,7 +1260,55 @@ function fillSelects(){
  }
 }
 
+function renderMyStock(){
+ const panel=$('myStockPanel');
+ const visible=Boolean(user&&profile&&!isManager());
+ panel.classList.toggle('hidden',!visible);
+ if(!visible)return;
+
+ const rows=new Map();
+ const getRow=id=>{
+   if(!rows.has(id))rows.set(id,{id,issued:0,sold:0,consigned:0,deferred:0,unspecified:0,returned:0,adjustment:0,current:0});
+   return rows.get(id);
+ };
+ const termsByShop=new Map(shops.map(shop=>[shop.id,shop.supply_terms]));
+ const placementColumns=new Map([['supplied','sold'],['consignment','consigned'],['deferred','deferred']]);
+ const movementColumns=new Map([['warehouse_issue','issued'],['return_to_warehouse','returned'],['adjustment','adjustment']]);
+ for(const movement of agentStockMovements){
+   if(movement.agent_id!==user.id)continue;
+   const column=movement.movement_type==='shop_placement'
+     ? placementColumns.get(termsByShop.get(movement.shop_id))||'unspecified'
+     : movementColumns.get(movement.movement_type);
+   if(column)getRow(movement.product_id)[column]+=Number(movement.quantity||0);
+ }
+ for(const balance of agentStockBalances){
+   if(balance.agent_id===user.id)getRow(balance.product_id).current=Number(balance.quantity||0);
+ }
+
+ const productById=new Map(products.map(product=>[product.id,product]));
+ const sorted=[...rows.values()].map(row=>({...row,product:productById.get(row.id)}))
+   .sort((a,b)=>(a.product?.name||'').localeCompare(b.product?.name||'','ru'));
+ const table=$('myStockTable');
+ if(!sorted.length){
+   table.textContent='Движений товара пока нет.';
+   return;
+ }
+ const columns=[
+   ['issued','Выдано'],['sold','Продано / оплачено'],['consigned','Под реализацию'],
+   ['deferred','С отсрочкой'],['unspecified','Условия не указаны'],['returned','Возвращено'],
+   ['adjustment','Корректировки'],['current','Остаток у меня']
+ ];
+ const cells=row=>columns.map(([key])=>`<td>${row[key]}</td>`).join('');
+ const totals=Object.fromEntries(columns.map(([key])=>[key,sorted.reduce((sum,row)=>sum+row[key],0)]));
+ table.innerHTML=`<p class="muted">Количество в единицах товара. Передачи распределены по текущим условиям в карточках магазинов.</p>
+   <div class="tablewrap" tabindex="0" aria-label="Мой склад по вкусам"><table>
+   <thead><tr><th scope="col">Товар / вкус</th>${columns.map(([,label])=>`<th scope="col">${label}</th>`).join('')}</tr></thead>
+   <tbody>${sorted.map(row=>`<tr><th scope="row">${esc(row.product?.name||row.id)}${row.product?.flavor&&row.product.flavor!==row.product.name?`<div class="muted">${esc(row.product.flavor)}</div>`:''}</th>${cells(row)}</tr>`).join('')}</tbody>
+   <tfoot><tr><th scope="row">Всего</th>${cells(totals)}</tr></tfoot></table></div>`;
+}
+
 function renderDashboard(){
+ renderMyStock();
  $('dShops').textContent=shops.length;$('dClients').textContent=shops.filter(s=>s.status==='Клиент Garant').length;
  $('dSales').textContent=money(orders.filter(o=>o.payment_status==='paid'||o.status==='paid').reduce((a,o)=>a+Number(o.total||0),0));
  const today=new Date().toDateString();$('dVisits').textContent=visits.filter(v=>new Date(v.created_at).toDateString()===today).length;$('dNewShops').textContent=shops.filter(s=>new Date(s.created_at).toDateString()===today).length;
