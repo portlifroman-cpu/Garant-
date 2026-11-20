@@ -890,8 +890,8 @@ let visitRouteMap=null,visitRouteMarkers=[],visitRouteSelected=new Set();
 function toast(s){$('toast').textContent=s;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3200)}
 function openModal(id){$(id).classList.add('open')} function closeModals(){document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'))}
 document.querySelectorAll('.close').forEach(x=>x.onclick=closeModals);
-function canViewAccounting(){return ['ceae49cb-4385-4052-a022-6aa0cea662ef','e29cfd4a-42cb-4c2b-a46c-cb7124ba7119','abdc2bea-ca10-44bc-ba47-fee7e280dcbe','f1ba2c98-124e-4b1e-8fe3-9f5b4aacecbb'].includes(user?.id)}
-$('accountingTab').onclick=()=>{if(canViewAccounting())location.assign(user?.id===ROMAN_S_USER_ID?'/accounting.html?tab=albaranes':'/accounting.html')};
+function canViewAccounting(){return profile?.active===true&&String(profile?.status||'active')==='active'&&profile?.role==='manager'}
+$('accountingTab').onclick=()=>{if(canViewAccounting())location.assign('/accounting.html')};
 function isManager(){return ['manager','admin','regional_manager'].includes(profile?.role)}
 const PHOTO_BUCKET='Shop-photos';
 const PHOTO_MAX_BYTES=8*1024*1024;
