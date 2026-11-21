@@ -891,7 +891,7 @@ function toast(s){$('toast').textContent=s;$('toast').style.display='block';setT
 function openModal(id){$(id).classList.add('open')} function closeModals(){document.querySelectorAll('.modal').forEach(x=>x.classList.remove('open'))}
 document.querySelectorAll('.close').forEach(x=>x.onclick=closeModals);
 function canViewAccounting(){return profile?.active===true&&String(profile?.status||'active')==='active'&&profile?.role==='manager'}
-$('accountingTab').onclick=()=>{if(canViewAccounting())location.assign('/accounting.html')};
+$('accountingTab').onclick=()=>{if(canViewAccounting())location.assign(user?.id===ROMAN_S_USER_ID?'/accounting.html?tab=albaranes':'/accounting.html')};
 function isManager(){return ['manager','admin','regional_manager'].includes(profile?.role)}
 const PHOTO_BUCKET='Shop-photos';
 const PHOTO_MAX_BYTES=8*1024*1024;
@@ -1038,7 +1038,7 @@ async function boot(){
    }
    profile=p.data;
    $('accountingTab').classList.toggle('hidden',!canViewAccounting());
-   $('accountingTab').textContent='Бухгалтерия / склад';
+   $('accountingTab').textContent=user?.id===ROMAN_S_USER_ID?'Albaranes':'Бухгалтерия / склад';
    $('myStockTab').classList.toggle('hidden',isManager());
    document.querySelector('#tabs [data-page=stock]').classList.toggle('hidden',!isManager());
    $('dashboardWarehouse').classList.toggle('hidden',!isManager());
