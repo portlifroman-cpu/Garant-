@@ -3653,7 +3653,13 @@ function renderEmployeeShopInfo(emp){
   </div>
   <div class="card" style="margin-top:10px">
     <h3 style="margin-top:0">Магазины агента</h3>
-    ${assignedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Статус</th><th>Премия за открытие</th>${isManager()?'<th>Действия</th>':''}</tr></thead><tbody>${assignedShops.map(s=>`<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.city||'')}</td><td>${employeeShopStatusCell(s)}</td><td>${employeeOpeningBonusCell(s,emp.id)}</td>${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}</tr>`).join('')}</tbody></table></div>`:'<p class="muted">За агентом пока не закреплены магазины.</p>'}
+    ${assignedShops.length?`<div class="tablewrap"><table><thead><tr><th>Магазин</th><th>Город</th><th>Статус</th><th>Передано / условия</th><th>Премия за открытие</th>${isManager()?'<th>Действия</th>':''}</tr></thead><tbody>${assignedShops.map(s=>{
+      const shopPlaced=agentStockMovements.filter(m=>m.shop_id===s.id&&m.agent_id===emp.id&&m.movement_type==='shop_placement');
+      const shopPlacedQty=shopPlaced.reduce((sum,m)=>sum+Number(m.quantity||0),0);
+      const terms=shopSupplyTermsLabel(s);
+      const due=s.supply_terms==='deferred'&&s.payment_due_date?' · до '+formatShopDate(s.payment_due_date):'';
+      return `<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.city||'')}</td><td>${employeeShopStatusCell(s)}</td><td><div><b>${shopPlacedQty} шт.</b></div><div class="muted">${esc(terms)}${esc(due)}</div><button class="light" style="margin-top:5px" onclick="event.stopPropagation();closeModals();openShopById('${s.id}')">Посмотреть передачу</button></td><td>${employeeOpeningBonusCell(s,emp.id)}</td>${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}</tr>`;
+    }).join('')}</tbody></table></div>`:'<p class="muted">За агентом пока не закреплены магазины.</p>'}
   </div>
   <div class="card" style="margin-top:10px">
     <h3 style="margin-top:0">Какие магазины он открыл</h3>
