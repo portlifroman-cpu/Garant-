@@ -60,7 +60,8 @@ const app=document.getElementById('app');
 const db=createClient(URL,KEY);
 const ROMAN_S_USER_ID='f1ba2c98-124e-4b1e-8fe3-9f5b4aacecbb';
 const isAccountingManager=p=>!!p&&p.active===true&&String(p.status||'active')==='active'&&p.role==='manager';
-const isAlbaranOnly=()=>user?.id===ROMAN_S_USER_ID;
+const isRomanS=()=>user?.id===ROMAN_S_USER_ID;
+const isReadOnlyTab=()=>isRomanS()&&tab!=='albaranes';
 let token='';
 let user=null, company=null, tab='overview';
 const money=n=>new Intl.NumberFormat('ru-RU',{style:'currency',currency:'EUR'}).format(Number(n||0));
@@ -91,7 +92,7 @@ async function boot(){
    const pr=await req('/rest/v1/profiles?select=id,email,full_name,role,active,status&id=eq.'+encodeURIComponent(user.id)+'&limit=1');
    const p=pr?.[0];
    if(!isAccountingManager(p))return login('Нет доступа к этому разделу. Бухгалтерия доступна только активным менеджерам.');
-   if(isAlbaranOnly())tab='albaranes';else{const requested=new URLSearchParams(location.search).get('tab');if(requested)tab=requested}
+   const requested=new URLSearchParams(location.search).get('tab');if(requested)tab=requested;
    const cs=await req('/rest/v1/acc_companies?select=*&limit=1');company=cs?.[0];
    if(!company)throw new Error('Компания недоступна');
    render();
@@ -185,9 +186,28 @@ async function deleteClient(id,name){
  }catch(e){alert('Не удалось удалить клиента: '+e.message)}
 }
 
-function nav(){const items=isAlbaranOnly()?[['albaranes','Albaranes']]:[['overview','Обзор'],['sales','Продажи'],['incoming','Входящие счета'],['albaranes','Albaranes'],['expenses','Расходы'],['payments','Оплаты'],['clients','Клиенты'],['products','Товары'],['warehouse','Склад'],['catalog','Каталог']];return items.map(x=>'<button class="btn '+(tab===x[0]?'active':'')+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join('')}
+function nav(){const items=[['overview','Обзор'],['sales','Продажи'],['incoming','Входящие счета'],['albaranes','Albaranes'],['expenses','Расходы'],['payments','Оплаты'],['clients','Клиенты'],['products','Товары'],['warehouse','Склад'],['catalog','Каталог']];return items.map(x=>'<button class="btn '+(tab===x[0]?'active':'')+'" data-tab="'+x[0]+'">'+x[1]+'</button>').join('')}
 function render(){app.innerHTML='<div class="wrap"><div class="top"><div class="brand"><img class="main-brand-logo" src="'+LOGO_DATA+'" alt="GARANT PG NORD"><div><h1>Бухгалтерия</h1><div class="muted">'+esc(company.legal_name||company.name)+'</div></div></div><div class="invoice-actions"><a class="btn" href="/">← Garant</a><button id="selfPassword" class="btn">Сменить свой пароль</button><button id="logout" class="btn">Выйти</button></div></div><div class="nav">'+nav()+'</div><div id="content"></div></div>';document.getElementById('logout').onclick=()=>{db.auth.signOut().then(()=>location.assign('/'))};document.getElementById('selfPassword').onclick=()=>changeOwnPassword();document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});loadTab()}
 function table(h,rows){return '<div style="overflow:auto"><table class="table"><thead><tr>'+h.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(r=>'<tr>'+r.map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+h.length+'" class="muted">Пока нет записей</td></tr>')+'</tbody></table></div>'}
+function applyRomanSReadOnly(){
+ const c=document.getElementById('content');
+ if(!c||!isReadOnlyTab())return;
+ const selectors=[
+  '#newIncomingInvoice','[data-incoming-status]','[data-delete-incoming]',
+  '#newinvoice','#newprivateinvoice','[data-edit-invoice]','[data-cash-paid]','[data-bank-paid]','[data-delete-invoice]',
+  '#newExpense','#addClient','[data-edit-client]','[data-delete-client]',
+  '#warehouseWriteoffTile','#inventoryCountTile','#addwh','#addmove',
+  '#writeoffTile','#staffTile'
+ ];
+ c.querySelectorAll(selectors.join(',')).forEach(el=>el.remove());
+ if(!c.querySelector('.roman-s-readonly-note')){
+   const note=document.createElement('div');
+   note.className='card roman-s-readonly-note';
+   note.style.cssText='margin-bottom:12px;border:1px solid #cbd5e1;background:#f8fafc';
+   note.innerHTML='<b>Только просмотр</b><div class="muted" style="margin-top:4px">Роман S может просматривать этот раздел. Создание и изменение разрешены только в Albaranes.</div>';
+   c.prepend(note);
+ }
+}
 async function loadTab(){const c=document.getElementById('content');try{
  if(tab==='overview'){const [s,e,p]=await Promise.all([req('/rest/v1/acc_invoices?select=total,paid_total&company_id=eq.'+company.id+'&direction=eq.sale'),req('/rest/v1/acc_expenses?select=total_amount&company_id=eq.'+company.id),req('/rest/v1/acc_payments?select=amount,direction&company_id=eq.'+company.id)]);const sales=s.reduce((a,x)=>a+Number(x.total||0),0),paid=s.reduce((a,x)=>a+Number(x.paid_total||0),0),cost=e.reduce((a,x)=>a+Number(x.total_amount||0),0),cash=p.reduce((a,x)=>a+(x.direction==='in'?1:-1)*Number(x.amount||0),0);c.innerHTML='<div class="grid"><div class="card kpi"><span class="muted">Продажи</span><b>'+money(sales)+'</b></div><div class="card kpi"><span class="muted">Оплачено</span><b>'+money(paid)+'</b></div><div class="card kpi"><span class="muted">Расходы</span><b>'+money(cost)+'</b></div><div class="card kpi"><span class="muted">Денежный поток</span><b>'+money(cash)+'</b></div><button id="incomingTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Бухгалтерия</span><b style="font-size:22px;display:block;margin-top:8px">Входящие счета</b><span class="muted">Загрузить PDF/фото и передать главному бухгалтеру</span></button><button id="albaranTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Документы</span><b style="font-size:22px;display:block;margin-top:8px">Albaranes</b><span class="muted">Отгрузки по датам, отдельно от Factura</span></button><button id="writeoffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Склад</span><b style="font-size:22px;display:block;margin-top:8px">Списание</b><span class="muted">Уменьшить остаток товара</span></button><button id="staffTile" class="card" style="border:1px solid #e5e7eb;text-align:left;cursor:pointer;background:#fff"><span class="muted">Управление</span><b style="font-size:22px;display:block;margin-top:8px">Доступ сотрудников</b><span class="muted">Роли и пароли сотрудников</span></button></div>';document.getElementById('incomingTile').onclick=()=>{tab='incoming';render()};document.getElementById('writeoffTile').onclick=()=>openWriteOff();document.getElementById('staffTile').onclick=()=>openStaffAccess();document.getElementById('albaranTile').onclick=()=>openAlbaranes();return}
 
@@ -292,7 +312,7 @@ async function loadTab(){const c=document.getElementById('content');try{
    return
  }
  if(tab==='products'){const d=await req('/rest/v1/acc_products?select=*&company_id=eq.'+company.id+'&order=flavor');c.innerHTML='<div class="card"><div><b>Товары / калькуляция</b><div class="muted">Структура как в GARANT 2026 España</div></div>'+table(['Товар','Крепость','Никотин / порция','Вес банки, г','Вес порции, г','Порций','Закупка','Склад','Транспорт','Резерв','Акциз','Себестоимость без IVA','IVA','Себестоимость с IVA'],d.map(x=>[x.flavor||x.name||'—',x.nicotine_mg_g?Number(x.nicotine_mg_g).toLocaleString('ru-RU')+' mg/g':'—',x.nicotine_per_piece||'—',x.unit_weight_g?Number(x.unit_weight_g).toLocaleString('ru-RU'):'—',x.piece_weight_g?Number(x.piece_weight_g).toLocaleString('ru-RU'):'—',x.pieces_per_can||'—',money(x.purchase_price),money(x.warehouse_cost||0),money(x.transportation_cost||0),money(x.contingency_cost||0),x.excise_per_unit?money(x.excise_per_unit):'—',x.landing_cost_net?money(x.landing_cost_net):'—',(x.vat_rate||0)+'%',x.landing_cost_vat?money(x.landing_cost_vat):'—']))+'</div>';return}
-}catch(e){c.innerHTML='<div class="notice">Ошибка загрузки: '+esc(e.message)+'</div>'}}
+}catch(e){c.innerHTML='<div class="notice">Ошибка загрузки: '+esc(e.message)+'</div>'}finally{applyRomanSReadOnly()}}
 
 
 
