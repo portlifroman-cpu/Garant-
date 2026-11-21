@@ -2145,6 +2145,7 @@ function renderShops(){
    ${th('Город','city')}
    ${th('Статус','status')}
    ${th('Кто открыл клиента','opened_by_name')}
+   <th>Передано</th>
    ${th('Условия товара','supply_terms')}
    ${th('Оплатить до','payment_due_date')}
    ${th('Следующий визит','next_visit')}
@@ -2157,6 +2158,7 @@ function renderShops(){
    <td>${esc(s.city||'')}</td>
    <td><span class="badge">${esc(s.status||'')}</span></td>
    <td>${esc(shopOpenedByName(s)||'—')}</td>
+   <td>${(()=>{const q=agentStockMovements.filter(m=>m.shop_id===s.id&&m.movement_type==='shop_placement'&&(!user||isManager()||m.agent_id===user.id)).reduce((sum,m)=>sum+Number(m.quantity||0),0);return '<b>'+q+' шт.</b>'})()}</td>
    <td>${esc(shopSupplyTermsLabel(s))}</td>
    <td>${shopPaymentDueCell(s)}</td>
    <td>${shopFollowupLabel(s)}</td>
