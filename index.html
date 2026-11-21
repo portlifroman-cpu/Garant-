@@ -2150,6 +2150,7 @@ function renderShops(){
    ${th('Оплатить до','payment_due_date')}
    ${th('Следующий визит','next_visit')}
    ${th('Телефон','phone')}
+   <th>Передача</th>
    ${isManager()?'<th>Удалить</th>':''}
  </tr></thead><tbody>${rows.map(s=>`<tr onclick="openShopById('${s.id}')" style="cursor:pointer">
    <td>${shopBonusBadge(s)}<b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td>
@@ -2163,6 +2164,7 @@ function renderShops(){
    <td>${shopPaymentDueCell(s)}</td>
    <td>${shopFollowupLabel(s)}</td>
    <td>${esc(s.phone||'')}</td>
+   <td><button type="button" class="primary" onclick="event.stopPropagation();openShopById('${s.id}')">Передача</button></td>
    ${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}
  </tr>`).join('')}</tbody></table>`;
 }
@@ -3660,7 +3662,7 @@ function renderEmployeeShopInfo(emp){
       const shopPlacedQty=shopPlaced.reduce((sum,m)=>sum+Number(m.quantity||0),0);
       const terms=shopSupplyTermsLabel(s);
       const due=s.supply_terms==='deferred'&&s.payment_due_date?' · до '+formatShopDate(s.payment_due_date):'';
-      return `<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.city||'')}</td><td>${employeeShopStatusCell(s)}</td><td><div><b>${shopPlacedQty} шт.</b></div><div class="muted">${esc(terms)}${esc(due)}</div><button class="light" style="margin-top:5px" onclick="event.stopPropagation();closeModals();openShopById('${s.id}')">Посмотреть передачу</button></td><td>${employeeOpeningBonusCell(s,emp.id)}</td>${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}</tr>`;
+      return `<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.city||'')}</td><td>${employeeShopStatusCell(s)}</td><td><div><b>${shopPlacedQty} шт.</b></div><div class="muted">${esc(terms)}${esc(due)}</div><button type="button" class="primary" style="margin-top:5px" onclick="event.stopPropagation();closeModals();openShopById('${s.id}')">Посмотреть передачу</button></td><td>${employeeOpeningBonusCell(s,emp.id)}</td>${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}</tr>`;
     }).join('')}</tbody></table></div>`:'<p class="muted">За агентом пока не закреплены магазины.</p>'}
   </div>
   <div class="card" style="margin-top:10px">
