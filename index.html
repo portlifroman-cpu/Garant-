@@ -2164,7 +2164,7 @@ function renderShops(){
    <td>${shopPaymentDueCell(s)}</td>
    <td>${shopFollowupLabel(s)}</td>
    <td>${esc(s.phone||'')}</td>
-   <td><button type="button" class="primary" onclick="event.stopPropagation();openShopById('${s.id}')">Передача</button></td>
+   <td><button type="button" class="primary" onclick="event.preventDefault();event.stopPropagation();openShopTransferDetails('${s.id}')">Передача</button></td>
    ${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}
  </tr>`).join('')}</tbody></table>`;
 }
@@ -2395,6 +2395,12 @@ window.deleteShopFromList=async(id)=>{
 };
 
 window.openShopById=id=>{const s=shops.find(x=>x.id===id);if(s)openShop(s)};
+window.openShopTransferDetails=id=>{
+  const s=shops.find(x=>x.id===id);
+  if(!s)return toast('Магазин не найден');
+  closeModals();
+  setTimeout(()=>openShop(s),0);
+};
 
 function employeeName(id){
   if(!id)return 'Не назначен';
@@ -3610,7 +3616,7 @@ function employeeOpeningBonusCell(shop,employeeId){
  return `<div>${received?'<b style="color:#15803d">✅ Премия получена</b>':eligible?'<b>Не получена · доступна</b>':shop.opening_consignment?'Без премии: нужна повторная поставка':'Без премии: передача ещё не отмечена'}</div>
  ${received?'<div class="muted">'+formatShopDate(shop.opening_bonus_received_at)+'</div>':''}
  ${action}
- ${!received&&!eligible?'<button class="light" onclick="event.stopPropagation();closeModals();openShopById(\''+shop.id+'\')">Открыть передачи</button>':''}`;
+ ${!received&&!eligible?'<button type="button" class="primary" onclick="event.preventDefault();event.stopPropagation();openShopTransferDetails(\''+shop.id+'\')">Открыть передачи</button>':''}`;
 }
 
 function employeeShopStatusCell(shop){
@@ -3662,7 +3668,7 @@ function renderEmployeeShopInfo(emp){
       const shopPlacedQty=shopPlaced.reduce((sum,m)=>sum+Number(m.quantity||0),0);
       const terms=shopSupplyTermsLabel(s);
       const due=s.supply_terms==='deferred'&&s.payment_due_date?' · до '+formatShopDate(s.payment_due_date):'';
-      return `<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.city||'')}</td><td>${employeeShopStatusCell(s)}</td><td><div><b>${shopPlacedQty} шт.</b></div><div class="muted">${esc(terms)}${esc(due)}</div><button type="button" class="primary" style="margin-top:5px" onclick="event.stopPropagation();closeModals();openShopById('${s.id}')">Посмотреть передачу</button></td><td>${employeeOpeningBonusCell(s,emp.id)}</td>${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}</tr>`;
+      return `<tr onclick="closeModals();openShopById('${s.id}')" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="muted">${esc(s.address||'')}</div></td><td>${esc(s.city||'')}</td><td>${employeeShopStatusCell(s)}</td><td><div><b>${shopPlacedQty} шт.</b></div><div class="muted">${esc(terms)}${esc(due)}</div><button type="button" class="primary" style="margin-top:5px" onclick="event.preventDefault();event.stopPropagation();openShopTransferDetails('${s.id}')">Посмотреть передачу</button></td><td>${employeeOpeningBonusCell(s,emp.id)}</td>${isManager()?`<td><button class="danger" onclick="event.stopPropagation();deleteShopFromList('${s.id}')">🗑 Удалить</button></td>`:''}</tr>`;
     }).join('')}</tbody></table></div>`:'<p class="muted">За агентом пока не закреплены магазины.</p>'}
   </div>
   <div class="card" style="margin-top:10px">
